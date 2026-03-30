@@ -136,6 +136,18 @@ create table if not exists core.romaneio_demand_snapshot (
     primary key (snapshot_at, romaneio_code, product_id, source_id)
 );
 
+create table if not exists core.romaneio_priority_override (
+    override_id bigserial primary key,
+    romaneio_code text not null,
+    source_id bigint references ops.source_registry(source_id),
+    priority_rank integer not null check (priority_rank > 0),
+    reason text,
+    effective_at timestamptz not null default now(),
+    is_active boolean not null default true,
+    meta_json jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now()
+);
+
 create table if not exists core.production_process (
     process_id bigserial primary key,
     process_code text not null unique,
@@ -956,6 +968,38 @@ select
 from ranked d
 where d.rn = 1;
 
+create or replace view core.vw_romaneio_priority_current as
+with ranked as (
+    select
+        o.override_id,
+        o.romaneio_code,
+        o.source_id,
+        o.priority_rank,
+        o.reason,
+        o.effective_at,
+        o.is_active,
+        o.meta_json,
+        o.created_at,
+        row_number() over (
+            partition by o.romaneio_code
+            order by o.effective_at desc, o.created_at desc, o.override_id desc
+        ) as rn
+    from core.romaneio_priority_override o
+    where o.is_active
+)
+select
+    override_id,
+    romaneio_code,
+    source_id,
+    priority_rank,
+    reason,
+    effective_at,
+    is_active,
+    meta_json,
+    created_at
+from ranked
+where rn = 1;
+
 create or replace view core.vw_item_cost_current as
 with last_snapshot as (
     select max(snapshot_at) as snapshot_at
@@ -1369,11 +1413,23 @@ with line_base as (
         p.description as produto,
         p.product_type,
         p.supply_strategy,
+        pr.priority_rank,
+        pr.reason as priority_reason,
         d.quantity,
         coalesce(i.stock_total, 0) as stock_total
     from core.vw_romaneio_line_current d
     join core.product p on p.product_id = d.product_id
     left join core.vw_inventory_current i on i.product_id = d.product_id
+    left join core.vw_romaneio_priority_current pr on pr.romaneio_code = d.romaneio_code
+),
+sequenced as (
+    select
+        l.*,
+        row_number() over (
+            partition by l.product_id
+            order by l.data_evento, l.romaneio_code
+        ) as chronological_rank
+    from line_base l
 ),
 ordered as (
     select
@@ -1381,12 +1437,12 @@ ordered as (
         coalesce(
             sum(l.quantity) over (
                 partition by l.product_id
-                order by l.data_evento, l.romaneio_code
+                order by coalesce(l.priority_rank::bigint, 1000000 + l.chronological_rank::bigint), l.data_evento, l.romaneio_code
                 rows between unbounded preceding and 1 preceding
             ),
             0
         ) as prior_demand
-    from line_base l
+    from sequenced l
 ),
 allocated as (
     select
@@ -1504,6 +1560,8 @@ select
     d.quantity as quantidade,
     d.quantidade_atendida_estoque,
     d.quantidade_pendente,
+    d.priority_rank,
+    d.priority_reason,
     d.impacto,
     d.modo_atendimento,
     case
@@ -1531,6 +1589,8 @@ select
     l.romaneio_code as romaneio,
     max(l.company_code) as empresa,
     min(l.data_evento) as data_evento,
+    min(l.priority_rank) as priority_rank,
+    max(l.priority_reason) as priority_reason,
     count(*) as itens,
     sum(l.quantidade) as quantidade_total,
     max(l.previsao_disponibilidade_at) as previsao_saida_at,
@@ -1607,15 +1667,15 @@ values
 (
     'estoque_acabado_atual',
     'estoque_acabado',
-    'smb_file',
-    'parse_estoque_acabado',
-    'xlsx_or_pdf',
+    'google_published_sheet',
+    'parse_estoque_acabado_google',
+    'pubhtml',
     'INPLAST',
     'known',
     true,
     true,
-    'Fonte atual de estoque acabado.',
-    '{"folder_hint":"\\\\SRV\\ti\\Automacao AI\\Automacao Logistica x PCP","parser_contract":"estoque"}'::jsonb
+    'Fonte atual de estoque acabado publicada via Google Sheets.',
+    '{"published_url_hint":"https://docs.google.com/spreadsheets/d/e/2PACX-1vRIlcxI2E0BRlf4i2M49MIW5XiLx69xWwkrLmst0Fs5HW5gSlk-wf8wAVjur7FH1mQRz_-qmUvZGJND/pubhtml?widget=true&headers=false","parser_contract":"estoque","sheet_name":"Entrada/Saída","stock_scope":"acabado","location_code":"EXPEDICAO"}'::jsonb
 ),
 (
     'estoque_intermediario_atual',

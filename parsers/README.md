@@ -5,6 +5,7 @@
 - `parse_estoque_almoxarifado_mp.py`
 - `parse_estoque_almoxarifado_componentes.py`
 - `parse_estoque_intermediario_google.py`
+- `parse_estoque_acabado_google.py`
 - `xlsx_ledger_parser.py`
 - `run_inventory_parser.py`
 
@@ -36,6 +37,13 @@ Estoque intermediario publicado:
 ```bash
 python3 parsers/parse_estoque_intermediario_google.py --summary \
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vSs-C_7_vu6L1lq9ScJEcQNT3F23en4MdgHBUI2FFkqBm9c_Zq8WHdtZuXkMhQvcegp05KewJQzPlCP/pubhtml?widget=true&headers=false"
+```
+
+Estoque acabado publicado:
+
+```bash
+python3 parsers/parse_estoque_acabado_google.py --summary \
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIlcxI2E0BRlf4i2M49MIW5XiLx69xWwkrLmst0Fs5HW5gSlk-wf8wAVjur7FH1mQRz_-qmUvZGJND/pubhtml?widget=true&headers=false"
 ```
 
 ## Saida
@@ -84,6 +92,7 @@ Com `--summary`, o `stderr` devolve um resumo de validacao com:
 - materia-prima sai com `unit_code='KG'`
 - componentes comprados saem com `unit_code='UN'`
 - estoque intermediario sai com `unit_code='UN'`
+- estoque acabado sai com `unit_code='UN'`
 - ambos saem com `company_code='INPLAST'`
 
 Essas premissas podem ser ajustadas depois sem mudar a estrutura do parser.

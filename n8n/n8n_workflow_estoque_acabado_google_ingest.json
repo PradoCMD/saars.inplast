@@ -1,0 +1,121 @@
+{
+  "name": "PCP | 14 | Estoque Acabado | Ingestao",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [-1080, 220]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [-1080, 60]
+    },
+    {
+      "parameters": {
+        "mode": "append"
+      },
+      "id": "merge-triggers",
+      "name": "Merge Triggers",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 3.2,
+      "position": [-840, 140]
+    },
+    {
+      "parameters": {
+        "jsCode": "const snapshotAt = new Date().toISOString();\nconst repoRoot = $env.PCP_REPO_ROOT || '/opt/saars.inplast';\nconst publishedUrl = $env.PCP_ACABADO_PUBLISHED_URL || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vRIlcxI2E0BRlf4i2M49MIW5XiLx69xWwkrLmst0Fs5HW5gSlk-wf8wAVjur7FH1mQRz_-qmUvZGJND/pubhtml?widget=true&headers=false';\nreturn [{\n  json: {\n    source_code: 'estoque_acabado_atual',\n    parser_path: `${repoRoot}/parsers/parse_estoque_acabado_google.py`,\n    runner_path: `${repoRoot}/parsers/run_inventory_parser.py`,\n    workbook_path: publishedUrl,\n    snapshot_at: snapshotAt,\n    workflow_name: 'PCP | 14 | Estoque Acabado | Ingestao'\n  }\n}];"
+      },
+      "id": "build-source-queue",
+      "name": "Build Source Queue",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-600, 140]
+    },
+    {
+      "parameters": {
+        "command": "=python3 \"{{$json.runner_path}}\" --source-code \"{{$json.source_code}}\" --parser-path \"{{$json.parser_path}}\" --workbook-path \"{{$json.workbook_path}}\" --snapshot-at \"{{$json.snapshot_at}}\" --workflow-name \"{{$json.workflow_name}}\""
+      },
+      "id": "run-parser-envelope",
+      "name": "Run Parser Envelope",
+      "type": "n8n-nodes-base.executeCommand",
+      "typeVersion": 1,
+      "position": [-340, 140]
+    },
+    {
+      "parameters": {
+        "jsCode": "const payload = JSON.parse($json.stdout || '{}');\nreturn [{ json: payload }];"
+      },
+      "id": "parse-envelope",
+      "name": "Parse Envelope",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [-100, 140]
+    },
+    {
+      "parameters": {
+        "jsCode": "const esc = (value) => JSON.stringify(value ?? {}).replace(/'/g, \"''\");\nconst escText = (value) => String(value ?? '').replace(/'/g, \"''\");\nconst sql = `select ops.ingest_inventory_payload(\\n  '${escText($json.source_code)}',\\n  '${escText($json.snapshot_at)}'::timestamptz,\\n  '${esc($json.records)}'::jsonb,\\n  '${esc($json.meta)}'::jsonb\\n) as run_id;`;\nreturn [{ json: { ...$json, sql_query: sql } }];"
+      },
+      "id": "build-sql",
+      "name": "Build SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [140, 140]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql_query }}"
+      },
+      "id": "postgres-ingest",
+      "name": "Postgres | Ingest Inventory Payload",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [400, 140]
+    },
+    {
+      "parameters": {
+        "jsCode": "return [{ json: { status: 'ok', db_result: $json } }];"
+      },
+      "id": "build-result",
+      "name": "Build Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [640, 140]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": { "main": [[{ "node": "Merge Triggers", "type": "main", "index": 0 }]] },
+    "Schedule Trigger": { "main": [[{ "node": "Merge Triggers", "type": "main", "index": 1 }]] },
+    "Merge Triggers": { "main": [[{ "node": "Build Source Queue", "type": "main", "index": 0 }]] },
+    "Build Source Queue": { "main": [[{ "node": "Run Parser Envelope", "type": "main", "index": 0 }]] },
+    "Run Parser Envelope": { "main": [[{ "node": "Parse Envelope", "type": "main", "index": 0 }]] },
+    "Parse Envelope": { "main": [[{ "node": "Build SQL", "type": "main", "index": 0 }]] },
+    "Build SQL": { "main": [[{ "node": "Postgres | Ingest Inventory Payload", "type": "main", "index": 0 }]] },
+    "Postgres | Ingest Inventory Payload": { "main": [[{ "node": "Build Result", "type": "main", "index": 0 }]] }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "bd79eb4d-c821-4d25-9e35-e8e18b5f828f",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}
