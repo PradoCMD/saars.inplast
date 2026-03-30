@@ -3,14 +3,16 @@
 ## Arquivos para usar
 
 - `docker-compose.coolify.yaml`
+- `docker-compose.coolify.image.yaml`
 - `.env.coolify.example`
 
 ## Passos
 
 1. subir este diretorio ou apontar o Coolify para ele
-2. usar `docker-compose.coolify.yaml`
-3. cadastrar as variaveis diretamente na UI do Coolify com base em `.env.coolify.example`
-4. configurar o dominio/URL no Coolify apontando para a porta `8765`
+2. usar `docker-compose.coolify.image.yaml` se quiser somente puxar a imagem pronta
+3. usar `docker-compose.coolify.yaml` se quiser buildar direto do repo
+4. cadastrar as variaveis diretamente na UI do Coolify com base em `.env.coolify.example`
+5. configurar o dominio/URL no Coolify apontando para a porta `8765`
 
 ## Variaveis obrigatorias
 
@@ -20,11 +22,32 @@
 ## Variavel recomendada
 
 - `PCP_ACTIONS_DATABASE_URL`
+- `PCP_IMAGE`
 
 Use essa segunda URL quando quiser separar:
 
 - leitura do SaaS com `pcp_app`
 - acoes operacionais com `pcp_integration`
+
+## Modo recomendado para colar so o YAML
+
+Use `docker-compose.coolify.image.yaml`.
+
+Ele nao precisa de `build`, `Dockerfile` nem checkout local do codigo no host.
+
+So precisa:
+
+- da imagem pronta no GHCR
+- das variaveis de ambiente do banco
+
+Imagem padrao:
+
+```bash
+ghcr.io/pradocmd/saars-inplast:main
+```
+
+Se o pacote estiver privado no GitHub, configure credenciais de registry no Coolify.
+Se o pacote estiver publico, basta colar o YAML e preencher as variaveis.
 
 ## Repositorio recomendado
 

@@ -20,6 +20,7 @@ O objetivo aqui nao e definir a stack final do produto. A ideia e entregar uma b
 - `docs/`: guias de implantacao e operacao
 - `source_templates/`: modelos CSV para previsoes operacionais
 - `scripts/`: scripts para clonar e atualizar o repo na `vm-apps`
+- `.github/workflows/`: publicacao automatica da imagem Docker no GHCR
 
 ## Estrutura
 
@@ -96,6 +97,20 @@ use esta sequencia:
 3. configurar as variaveis do app conforme `.env.coolify.example`
 4. subir o servico pelo `docker-compose.coolify.yaml`
 5. importar os workflows em `n8n/`
+
+## Imagem pronta para o Coolify
+
+Se voce preferir colar apenas um compose no Coolify, use:
+
+- `docker-compose.coolify.image.yaml`
+
+Esse arquivo usa a imagem publicada pelo GitHub Container Registry:
+
+- `ghcr.io/pradocmd/saars-inplast:main`
+
+A automacao dessa imagem fica em:
+
+- `.github/workflows/publish-image.yml`
 
 ## Repo local na VM apps
 
