@@ -6,8 +6,10 @@
 - `parse_estoque_almoxarifado_componentes.py`
 - `parse_estoque_intermediario_google.py`
 - `parse_estoque_acabado_google.py`
+- `parse_bom_estrutura_padrao.py`
 - `xlsx_ledger_parser.py`
 - `run_inventory_parser.py`
+- `run_bom_parser.py`
 
 ## Uso
 
@@ -46,6 +48,30 @@ python3 parsers/parse_estoque_acabado_google.py --summary \
   "https://docs.google.com/spreadsheets/d/e/2PACX-1vRIlcxI2E0BRlf4i2M49MIW5XiLx69xWwkrLmst0Fs5HW5gSlk-wf8wAVjur7FH1mQRz_-qmUvZGJND/pubhtml?widget=true&headers=false"
 ```
 
+Estrutura BOM padrao para acabado:
+
+```bash
+python3 parsers/parse_bom_estrutura_padrao.py --summary --source-scope bom_final \
+  "/caminho/PARTE 1 - COMP DE PRODUTOS.xlsx"
+```
+
+Estrutura BOM padrao para intermediario:
+
+```bash
+python3 parsers/parse_bom_estrutura_padrao.py --summary --source-scope bom_intermediario \
+  "/caminho/COMP INTERMEDIARIOS.xlsx"
+```
+
+Envelope unico de BOM para `n8n`:
+
+```bash
+python3 parsers/run_bom_parser.py \
+  --source-code bom_final_pendente \
+  --source-scope bom_final \
+  --parser-path parsers/parse_bom_estrutura_padrao.py \
+  --workbook-path "/caminho/PARTE 1 - COMP DE PRODUTOS.xlsx"
+```
+
 ## Saida
 
 O `stdout` devolve um array JSON no contrato esperado pelo `n8n`.
@@ -70,6 +96,23 @@ Exemplo:
 ]
 ```
 
+Exemplo de saida de BOM:
+
+```json
+[
+  {
+    "parent_sku": "4600001",
+    "parent_description": "CX MED MONO SULGIPE",
+    "component_sku": "4100006",
+    "component_description": "TAMPA ALOJAMENTO DISJUNTOR MONO PC CR",
+    "quantity_per": 1,
+    "source_scope": "bom_final",
+    "process_stage": "montagem",
+    "component_role": "componente"
+  }
+]
+```
+
 Com `--summary`, o `stderr` devolve um resumo de validacao com:
 
 - quantidade de registros
@@ -78,6 +121,8 @@ Com `--summary`, o `stderr` devolve um resumo de validacao com:
 - itens sem movimentacao
 - conflitos de codigo
 - divergencias entre saldo calculado e aba de estoque
+- quantidade de pais da estrutura
+- linhas sem pai ou sem quantidade na BOM
 
 ## Regras
 
@@ -86,6 +131,7 @@ Com `--summary`, o `stderr` devolve um resumo de validacao com:
 - o banco de dados e usado para resolver codigo legado
 - quando o codigo esta faltando ou conflita com outro item, o parser gera um `sku` tecnico com prefixo especifico da fonte
 - no estoque intermediario publicado, a fonte bruta e a aba `Movimentacoes`
+- na BOM padrao, a linha do pai preenche as colunas `A/B` e as linhas seguintes continuam o mesmo pai ate aparecer um novo codigo
 
 ## Premissas atuais
 

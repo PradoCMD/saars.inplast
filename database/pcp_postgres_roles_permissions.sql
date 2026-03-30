@@ -44,9 +44,12 @@ grant insert, update on core.product_code to pcp_integration;
 grant insert, update on core.inventory_snapshot to pcp_integration;
 grant insert, update on core.romaneio_demand_snapshot to pcp_integration;
 grant insert, update on core.supply_forecast_snapshot to pcp_integration;
+grant insert, update on core.supply_programming_entry to pcp_integration;
 grant insert, update on core.cost_snapshot to pcp_integration;
 grant insert, update on core.recycling_return_snapshot to pcp_integration;
 grant insert, update on core.bom_component to pcp_integration;
+grant insert, update on core.bom_component_override to pcp_integration;
+grant insert, update on core.assembly_line to pcp_integration;
 grant insert, update on core.production_process to pcp_integration;
 grant insert, update on core.process_byproduct_rule to pcp_integration;
 
@@ -64,7 +67,10 @@ grant execute on function ops.register_webhook_event(text, text, timestamptz, te
 grant execute on function ops.finish_ingestion_run(bigint, text, integer, text) to pcp_integration;
 grant execute on function ops.finish_webhook_event(text, text, bigint, text) to pcp_integration;
 grant execute on function ops.ingest_inventory_payload(text, timestamptz, jsonb, jsonb) to pcp_integration;
+grant execute on function ops.ingest_bom_payload(text, timestamptz, text, jsonb, jsonb) to pcp_integration;
 grant execute on function ops.ingest_romaneio_event_payload(text, jsonb, jsonb) to pcp_integration;
+grant execute on function ops.save_bom_override(text, text, text, jsonb) to pcp_integration;
+grant execute on function ops.save_supply_programming_entry(text, jsonb) to pcp_integration;
 grant execute on function mart.run_mrp(timestamptz) to pcp_integration;
 
 alter default privileges in schema ops grant select on tables to pcp_app;

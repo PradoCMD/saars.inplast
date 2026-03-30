@@ -150,6 +150,54 @@ where meta_json->>'romaneio_code' = %s
 order by coalesce(reference_at, received_at) desc, received_at desc
 """
 
+STRUCTURES_SQL = """
+select
+    source_scope,
+    structure_type,
+    process_stage,
+    parent_sku,
+    parent_product,
+    parent_product_type,
+    component_sku,
+    component_product,
+    component_product_type,
+    quantity_per,
+    scrap_pct,
+    sequence_no,
+    component_role,
+    assembly_line_code,
+    workstation_code,
+    usage_notes,
+    is_blocked,
+    has_manual_override,
+    manual_only,
+    override_reason,
+    updated_at
+from mart.vw_structure_component_current
+"""
+
+PROGRAMMING_SQL = """
+select
+    schedule_key,
+    sku,
+    produto,
+    product_type,
+    supply_strategy,
+    action,
+    planned_start_at,
+    available_at,
+    quantity_planned,
+    assembly_line_code,
+    workstation_code,
+    sequence_rank,
+    planning_status,
+    planning_origin,
+    notes,
+    source_code,
+    source_area
+from mart.vw_programming_current
+"""
+
 MRP_QUEUE_BASE_SQL = """
 select
     sku,
@@ -341,3 +389,11 @@ select * from romaneio_eta_alert
 """
 
 RUN_MRP_SQL = "select mart.run_mrp() as run_id"
+
+SAVE_STRUCTURE_OVERRIDE_SQL = """
+select ops.save_bom_override(%s, %s, %s, %s::jsonb) as override_id
+"""
+
+SAVE_PROGRAMMING_ENTRY_SQL = """
+select ops.save_supply_programming_entry(%s, %s::jsonb) as entry_id
+"""

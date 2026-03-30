@@ -41,6 +41,8 @@ function statusClass(value) {
     heuristica: "warning",
     heuristica_processo: "warning",
     sem_previsao: "missing",
+    pcp_manual: "info",
+    fonte: "ok",
     pending: "info",
     inactive: "info",
   };
@@ -57,6 +59,19 @@ async function api(path) {
     throw new Error(`Falha ao carregar ${path}`);
   }
   return response.json();
+}
+
+async function postJson(path, payload) {
+  const response = await fetch(path, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(payload),
+  });
+  const data = await response.json();
+  if (!response.ok) {
+    throw new Error(data.detail || `Falha ao enviar dados para ${path}`);
+  }
+  return data;
 }
 
 function el(html) {
@@ -236,6 +251,74 @@ function renderRomaneioDetail(data) {
   wrapper.appendChild(events);
 }
 
+function renderStructures(data) {
+  const summary = document.getElementById("structure-summary");
+  summary.innerHTML = "";
+  [
+    ["Pais", number.format(data.summary.parent_items || 0)],
+    ["Componentes", number.format(data.summary.component_links || 0)],
+    ["Ajustes PCP", number.format(data.summary.manual_overrides || 0)],
+    ["Linhas", number.format(data.summary.lines_configured || 0)],
+  ].forEach(([label, value]) => {
+    summary.appendChild(
+      el(`
+        <div class="mini-card">
+          <small>${label}</small>
+          <strong>${value}</strong>
+        </div>
+      `),
+    );
+  });
+
+  const tbody = document.getElementById("structure-table");
+  tbody.innerHTML = "";
+  if (!data.items.length) {
+    tbody.appendChild(el(`<tr><td colspan="6" class="muted">Sem estruturas homologadas com os filtros atuais.</td></tr>`));
+    return;
+  }
+
+  data.items.slice(0, 80).forEach((item) => {
+    const status = item.is_blocked ? "Bloqueado" : item.has_manual_override ? "Ajustado" : "Base";
+    tbody.appendChild(
+      el(`
+        <tr>
+          <td><b>${item.parent_sku}</b><br /><span class="muted">${item.parent_product}</span></td>
+          <td><b>${item.component_sku}</b><br /><span class="muted">${item.component_product}</span></td>
+          <td>${item.source_scope}<br /><span class="muted">${item.process_stage}</span></td>
+          <td>${number.format(item.quantity_per)}<br /><span class="muted">scrap ${number.format(item.scrap_pct || 0)}%</span></td>
+          <td>${item.assembly_line_code || "-"}<br /><span class="muted">${item.workstation_code || "Sem posto"}</span></td>
+          <td><span class="tag ${item.is_blocked ? "high" : item.has_manual_override ? "info" : "ok"}">${status}</span></td>
+        </tr>
+      `),
+    );
+  });
+}
+
+function renderProgramming(items) {
+  const tbody = document.getElementById("programming-table");
+  tbody.innerHTML = "";
+  if (!items.length) {
+    tbody.appendChild(el(`<tr><td colspan="7" class="muted">Sem programacoes informadas ate o momento.</td></tr>`));
+    return;
+  }
+
+  items.forEach((item) => {
+    tbody.appendChild(
+      el(`
+        <tr>
+          <td><b>${item.sku}</b><br /><span class="muted">${item.produto}</span></td>
+          <td>${item.action}</td>
+          <td>${formatDateTimeWithFallback(item.planned_start_at, "Nao informado")}</td>
+          <td>${formatDateTime(item.available_at)}</td>
+          <td>${number.format(item.quantity_planned)}</td>
+          <td>${item.assembly_line_code || "-"}</td>
+          <td><span class="tag ${statusClass(item.planning_origin)}">${item.planning_origin}</span></td>
+        </tr>
+      `),
+    );
+  });
+}
+
 function renderMrpTable(targetId, items) {
   const tbody = document.getElementById(targetId);
   tbody.innerHTML = "";
@@ -381,6 +464,27 @@ function renderPainel(items) {
   }
 }
 
+function payloadFromForm(form) {
+  const formData = new FormData(form);
+  const payload = {};
+  for (const [key, value] of formData.entries()) {
+    const text = String(value).trim();
+    if (!text) {
+      continue;
+    }
+    if (form.elements.namedItem(key)?.type === "number") {
+      payload[key] = Number(text);
+      continue;
+    }
+    if (form.elements.namedItem(key)?.type === "datetime-local") {
+      payload[key] = new Date(text).toISOString();
+      continue;
+    }
+    payload[key] = text;
+  }
+  return payload;
+}
+
 async function carregarRomaneio(code) {
   state.romaneioSelecionado = code;
   const detail = await api(`/api/pcp/romaneios/${code}`);
@@ -395,11 +499,48 @@ async function dispararMrp() {
   document.getElementById("mrp-status").textContent = `MRP enfileirado. Run ${runId} as ${queuedAt}.`;
 }
 
+async function salvarEstrutura(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = document.getElementById("structure-status");
+  try {
+    const payload = payloadFromForm(form);
+    const response = await postJson("/api/pcp/structure-overrides", payload);
+    status.classList.remove("error");
+    status.textContent = `Estrutura salva. Override ${response.override_id || "n/d"}.`;
+    form.reset();
+    await dispararMrp();
+    await carregarTudo();
+  } catch (error) {
+    status.classList.add("error");
+    status.textContent = error.message;
+  }
+}
+
+async function salvarProgramacao(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const status = document.getElementById("programming-status");
+  try {
+    const payload = payloadFromForm(form);
+    const response = await postJson("/api/pcp/programming-entries", payload);
+    status.classList.remove("error");
+    status.textContent = `Programacao salva. Entrada ${response.entry_id || "n/d"}.`;
+    form.reset();
+    await carregarTudo();
+  } catch (error) {
+    status.classList.add("error");
+    status.textContent = error.message;
+  }
+}
+
 async function carregarTudo() {
   const [
     overview,
     alerts,
     romaneios,
+    structures,
+    programming,
     assembly,
     production,
     purchases,
@@ -411,6 +552,8 @@ async function carregarTudo() {
     api("/api/pcp/overview"),
     api("/api/pcp/alerts"),
     api("/api/pcp/romaneios"),
+    api("/api/pcp/structures"),
+    api("/api/pcp/programming"),
     api("/api/pcp/assembly"),
     api("/api/pcp/production"),
     api("/api/pcp/purchases"),
@@ -423,6 +566,8 @@ async function carregarTudo() {
   renderOverview(overview);
   renderAlerts(alerts);
   renderRomaneios(romaneios);
+  renderStructures(structures);
+  renderProgramming(programming.items);
   renderMrpTable("assembly-table", assembly.items);
   renderMrpTable("production-table", production.items);
   renderPurchases(purchases.items);
@@ -443,6 +588,8 @@ async function carregarTudo() {
 
 document.getElementById("run-mrp").addEventListener("click", dispararMrp);
 document.getElementById("reload-all").addEventListener("click", carregarTudo);
+document.getElementById("structure-form").addEventListener("submit", salvarEstrutura);
+document.getElementById("programming-form").addEventListener("submit", salvarProgramacao);
 
 carregarTudo().catch((error) => {
   document.getElementById("mrp-status").textContent = error.message;

@@ -107,11 +107,69 @@ create table if not exists core.bom_component (
     scrap_pct numeric(8,4) not null default 0 check (scrap_pct >= 0),
     source_scope text not null check (source_scope in ('bom_final', 'bom_intermediario')),
     sequence_no integer,
+    process_stage text not null default 'montagem',
+    component_role text not null default 'componente',
+    assembly_line_code text,
+    workstation_code text,
+    usage_notes text,
+    metadata_json jsonb not null default '{}'::jsonb,
     valid_from date not null default current_date,
     valid_to date,
     source_id bigint references ops.source_registry(source_id),
     is_active boolean not null default true,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now(),
     primary key (parent_product_id, component_product_id, source_scope, valid_from)
+);
+
+alter table core.bom_component
+    add column if not exists process_stage text,
+    add column if not exists component_role text,
+    add column if not exists assembly_line_code text,
+    add column if not exists workstation_code text,
+    add column if not exists usage_notes text,
+    add column if not exists metadata_json jsonb default '{}'::jsonb,
+    add column if not exists created_at timestamptz default now(),
+    add column if not exists updated_at timestamptz default now();
+
+update core.bom_component
+set
+    process_stage = coalesce(process_stage, case when source_scope = 'bom_final' then 'montagem' else 'producao' end),
+    component_role = coalesce(component_role, 'componente'),
+    metadata_json = coalesce(metadata_json, '{}'::jsonb),
+    created_at = coalesce(created_at, now()),
+    updated_at = coalesce(updated_at, now())
+where
+    process_stage is null
+    or component_role is null
+    or metadata_json is null
+    or created_at is null
+    or updated_at is null;
+
+alter table core.bom_component alter column process_stage set default 'montagem';
+alter table core.bom_component alter column component_role set default 'componente';
+alter table core.bom_component alter column metadata_json set default '{}'::jsonb;
+alter table core.bom_component alter column created_at set default now();
+alter table core.bom_component alter column updated_at set default now();
+alter table core.bom_component alter column process_stage set not null;
+alter table core.bom_component alter column component_role set not null;
+alter table core.bom_component alter column metadata_json set not null;
+alter table core.bom_component alter column created_at set not null;
+alter table core.bom_component alter column updated_at set not null;
+
+create table if not exists core.assembly_line (
+    line_id bigserial primary key,
+    line_code text not null unique,
+    line_name text not null,
+    stage_scope text not null default 'montagem',
+    company_code text,
+    workstation_count integer,
+    notes text,
+    is_active boolean not null default true,
+    source_id bigint references ops.source_registry(source_id),
+    meta_json jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
 );
 
 create table if not exists core.inventory_snapshot (
@@ -146,6 +204,29 @@ create table if not exists core.romaneio_priority_override (
     is_active boolean not null default true,
     meta_json jsonb not null default '{}'::jsonb,
     created_at timestamptz not null default now()
+);
+
+create table if not exists core.bom_component_override (
+    override_id bigserial primary key,
+    parent_product_id bigint not null references core.product(product_id),
+    component_product_id bigint not null references core.product(product_id),
+    source_scope text not null check (source_scope in ('bom_final', 'bom_intermediario')),
+    quantity_per_override numeric(18,6),
+    scrap_pct_override numeric(8,4),
+    sequence_no_override integer,
+    process_stage_override text,
+    component_role_override text,
+    assembly_line_code_override text,
+    workstation_code_override text,
+    usage_notes_override text,
+    is_blocked boolean not null default false,
+    reason text,
+    source_id bigint references ops.source_registry(source_id),
+    meta_json jsonb not null default '{}'::jsonb,
+    effective_at timestamptz not null default now(),
+    is_active boolean not null default true,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
 );
 
 create table if not exists core.production_process (
@@ -207,6 +288,21 @@ create table if not exists core.supply_forecast_snapshot (
     meta_json jsonb not null default '{}'::jsonb,
     created_at timestamptz not null default now(),
     primary key (snapshot_at, source_id, forecast_key)
+);
+
+create table if not exists core.supply_programming_entry (
+    entry_id bigserial primary key,
+    schedule_key text not null,
+    product_id bigint not null references core.product(product_id),
+    action text not null check (action in ('montar', 'produzir', 'comprar')),
+    available_at timestamptz not null,
+    quantity_planned numeric(18,6) not null check (quantity_planned >= 0),
+    source_id bigint references ops.source_registry(source_id),
+    notes text,
+    meta_json jsonb not null default '{}'::jsonb,
+    is_active boolean not null default true,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
 );
 
 create table if not exists core.cost_snapshot (
@@ -534,6 +630,416 @@ exception
             perform ops.finish_ingestion_run(v_run_id, 'error', null, sqlerrm);
         end if;
         raise;
+end;
+$$;
+
+create or replace function ops.ingest_bom_payload(
+    p_source_code text,
+    p_snapshot_at timestamptz,
+    p_source_scope text,
+    p_records jsonb,
+    p_meta_json jsonb default '{}'::jsonb
+)
+returns bigint
+language plpgsql
+as $$
+declare
+    v_source_id bigint;
+    v_run_id bigint;
+    v_record_count integer := 0;
+begin
+    if p_source_scope not in ('bom_final', 'bom_intermediario') then
+        raise exception 'Escopo BOM invalido: %', p_source_scope;
+    end if;
+
+    if jsonb_typeof(coalesce(p_records, '[]'::jsonb)) <> 'array' then
+        raise exception 'Payload de BOM deve ser um array JSON';
+    end if;
+
+    select source_id
+    into v_source_id
+    from ops.source_registry
+    where source_code = p_source_code;
+
+    if v_source_id is null then
+        raise exception 'Fonte nao cadastrada: %', p_source_code;
+    end if;
+
+    v_record_count := coalesce(jsonb_array_length(coalesce(p_records, '[]'::jsonb)), 0);
+
+    v_run_id := ops.start_ingestion_run(
+        p_source_code,
+        p_snapshot_at,
+        null,
+        null,
+        null,
+        p_meta_json || jsonb_build_object('source_scope', p_source_scope)
+    );
+
+    insert into raw.landing_payload (
+        run_id,
+        source_id,
+        row_number,
+        record_json
+    )
+    select
+        v_run_id,
+        v_source_id,
+        src.ordinality::integer,
+        src.record_json
+    from jsonb_array_elements(coalesce(p_records, '[]'::jsonb)) with ordinality as src(record_json, ordinality);
+
+    with src as (
+        select src.record_json
+        from jsonb_array_elements(coalesce(p_records, '[]'::jsonb)) as src(record_json)
+    )
+    insert into core.product (
+        sku,
+        description,
+        product_type,
+        supply_strategy,
+        unit_code,
+        company_code
+    )
+    select distinct
+        src.record_json->>'parent_sku' as sku,
+        src.record_json->>'parent_description' as description,
+        nullif(src.record_json->>'parent_product_type', '') as product_type,
+        nullif(src.record_json->>'parent_supply_strategy', '') as supply_strategy,
+        coalesce(nullif(src.record_json->>'unit_code', ''), 'UN') as unit_code,
+        nullif(src.record_json->>'company_code', '') as company_code
+    from src
+    where coalesce(src.record_json->>'parent_sku', '') <> ''
+      and coalesce(src.record_json->>'parent_description', '') <> ''
+    on conflict (sku) do update
+    set
+        description = excluded.description,
+        product_type = coalesce(excluded.product_type, core.product.product_type),
+        supply_strategy = coalesce(excluded.supply_strategy, core.product.supply_strategy),
+        company_code = coalesce(excluded.company_code, core.product.company_code),
+        updated_at = now();
+
+    with src as (
+        select src.record_json
+        from jsonb_array_elements(coalesce(p_records, '[]'::jsonb)) as src(record_json)
+    )
+    insert into core.product (
+        sku,
+        description,
+        product_type,
+        supply_strategy,
+        unit_code,
+        company_code
+    )
+    select distinct
+        src.record_json->>'component_sku' as sku,
+        src.record_json->>'component_description' as description,
+        nullif(src.record_json->>'component_product_type', '') as product_type,
+        nullif(src.record_json->>'component_supply_strategy', '') as supply_strategy,
+        coalesce(nullif(src.record_json->>'unit_code', ''), 'UN') as unit_code,
+        nullif(src.record_json->>'company_code', '') as company_code
+    from src
+    where coalesce(src.record_json->>'component_sku', '') <> ''
+      and coalesce(src.record_json->>'component_description', '') <> ''
+    on conflict (sku) do update
+    set
+        description = excluded.description,
+        company_code = coalesce(excluded.company_code, core.product.company_code),
+        updated_at = now();
+
+    with src as (
+        select
+            src.record_json->>'parent_sku' as sku,
+            src.record_json->'metadata'->>'parent_legacy_code' as legacy_code
+        from jsonb_array_elements(coalesce(p_records, '[]'::jsonb)) as src(record_json)
+        union all
+        select
+            src.record_json->>'component_sku' as sku,
+            src.record_json->'metadata'->>'component_legacy_code' as legacy_code
+        from jsonb_array_elements(coalesce(p_records, '[]'::jsonb)) as src(record_json)
+    )
+    insert into core.product_code (
+        product_id,
+        code_type,
+        code_value
+    )
+    select distinct
+        p.product_id,
+        'codigo_legado',
+        src.legacy_code
+    from src
+    join core.product p on p.sku = src.sku
+    where coalesce(src.legacy_code, '') <> ''
+    on conflict (code_type, code_value) do update
+    set product_id = excluded.product_id;
+
+    update core.bom_component
+    set
+        is_active = false,
+        valid_to = coalesce(valid_to, p_snapshot_at::date - 1),
+        updated_at = now()
+    where source_id = v_source_id
+      and source_scope = p_source_scope
+      and is_active
+      and valid_from < p_snapshot_at::date;
+
+    delete from core.bom_component
+    where source_id = v_source_id
+      and source_scope = p_source_scope
+      and valid_from = p_snapshot_at::date;
+
+    insert into core.bom_component (
+        parent_product_id,
+        component_product_id,
+        quantity_per,
+        scrap_pct,
+        source_scope,
+        sequence_no,
+        process_stage,
+        component_role,
+        assembly_line_code,
+        workstation_code,
+        usage_notes,
+        metadata_json,
+        valid_from,
+        source_id,
+        is_active
+    )
+    select
+        parent_product.product_id,
+        component_product.product_id,
+        coalesce(nullif(src.record_json->>'quantity_per', '')::numeric, 0),
+        coalesce(nullif(src.record_json->>'scrap_pct', '')::numeric, 0),
+        p_source_scope,
+        nullif(src.record_json->>'sequence_no', '')::integer,
+        coalesce(
+            nullif(src.record_json->>'process_stage', ''),
+            case when p_source_scope = 'bom_final' then 'montagem' else 'producao' end
+        ) as process_stage,
+        coalesce(nullif(src.record_json->>'component_role', ''), 'componente') as component_role,
+        nullif(src.record_json->>'assembly_line_code', '') as assembly_line_code,
+        nullif(src.record_json->>'workstation_code', '') as workstation_code,
+        nullif(src.record_json->>'usage_notes', '') as usage_notes,
+        coalesce(src.record_json->'metadata', '{}'::jsonb) as metadata_json,
+        p_snapshot_at::date,
+        v_source_id,
+        true
+    from jsonb_array_elements(coalesce(p_records, '[]'::jsonb)) as src(record_json)
+    join core.product parent_product on parent_product.sku = src.record_json->>'parent_sku'
+    join core.product component_product on component_product.sku = src.record_json->>'component_sku'
+    where coalesce(nullif(src.record_json->>'quantity_per', '')::numeric, 0) > 0
+    on conflict (parent_product_id, component_product_id, source_scope, valid_from) do update
+    set
+        quantity_per = excluded.quantity_per,
+        scrap_pct = excluded.scrap_pct,
+        sequence_no = excluded.sequence_no,
+        process_stage = excluded.process_stage,
+        component_role = excluded.component_role,
+        assembly_line_code = excluded.assembly_line_code,
+        workstation_code = excluded.workstation_code,
+        usage_notes = excluded.usage_notes,
+        metadata_json = excluded.metadata_json,
+        source_id = excluded.source_id,
+        is_active = true,
+        updated_at = now();
+
+    perform ops.finish_ingestion_run(v_run_id, 'success', v_record_count, null);
+    return v_run_id;
+exception
+    when others then
+        if v_run_id is not null then
+            perform ops.finish_ingestion_run(v_run_id, 'error', null, sqlerrm);
+        end if;
+        raise;
+end;
+$$;
+
+create or replace function ops.save_bom_override(
+    p_parent_sku text,
+    p_component_sku text,
+    p_source_scope text,
+    p_payload jsonb default '{}'::jsonb
+)
+returns bigint
+language plpgsql
+as $$
+declare
+    v_parent_id bigint;
+    v_component_id bigint;
+    v_override_id bigint;
+    v_has_base boolean;
+begin
+    if p_source_scope not in ('bom_final', 'bom_intermediario') then
+        raise exception 'Escopo BOM invalido: %', p_source_scope;
+    end if;
+
+    select product_id into v_parent_id from core.product where sku = p_parent_sku;
+    if v_parent_id is null then
+        raise exception 'Produto pai nao encontrado: %', p_parent_sku;
+    end if;
+
+    select product_id into v_component_id from core.product where sku = p_component_sku;
+    if v_component_id is null then
+        raise exception 'Componente nao encontrado: %', p_component_sku;
+    end if;
+
+    select exists (
+        select 1
+        from core.bom_component b
+        where b.parent_product_id = v_parent_id
+          and b.component_product_id = v_component_id
+          and b.source_scope = p_source_scope
+    )
+    into v_has_base;
+
+    if not v_has_base and nullif(p_payload->>'quantity_per', '') is null then
+        raise exception 'quantity_per e obrigatoria quando nao existe estrutura base importada';
+    end if;
+
+    update core.bom_component_override
+    set
+        is_active = false,
+        updated_at = now()
+    where parent_product_id = v_parent_id
+      and component_product_id = v_component_id
+      and source_scope = p_source_scope
+      and is_active;
+
+    insert into core.bom_component_override (
+        parent_product_id,
+        component_product_id,
+        source_scope,
+        quantity_per_override,
+        scrap_pct_override,
+        sequence_no_override,
+        process_stage_override,
+        component_role_override,
+        assembly_line_code_override,
+        workstation_code_override,
+        usage_notes_override,
+        is_blocked,
+        reason,
+        source_id,
+        meta_json,
+        effective_at,
+        is_active,
+        created_at,
+        updated_at
+    )
+    values (
+        v_parent_id,
+        v_component_id,
+        p_source_scope,
+        nullif(p_payload->>'quantity_per', '')::numeric,
+        nullif(p_payload->>'scrap_pct', '')::numeric,
+        nullif(p_payload->>'sequence_no', '')::integer,
+        nullif(p_payload->>'process_stage', ''),
+        nullif(p_payload->>'component_role', ''),
+        nullif(p_payload->>'assembly_line_code', ''),
+        nullif(p_payload->>'workstation_code', ''),
+        nullif(p_payload->>'usage_notes', ''),
+        coalesce((p_payload->>'is_blocked')::boolean, false),
+        nullif(p_payload->>'reason', ''),
+        nullif(p_payload->>'source_id', '')::bigint,
+        coalesce(p_payload->'meta', p_payload->'metadata', '{}'::jsonb),
+        now(),
+        true,
+        now(),
+        now()
+    )
+    returning override_id into v_override_id;
+
+    return v_override_id;
+end;
+$$;
+
+create or replace function ops.save_supply_programming_entry(
+    p_sku text,
+    p_payload jsonb default '{}'::jsonb
+)
+returns bigint
+language plpgsql
+as $$
+declare
+    v_product_id bigint;
+    v_entry_id bigint;
+    v_schedule_key text;
+    v_source_id bigint;
+begin
+    select product_id into v_product_id from core.product where sku = p_sku;
+    if v_product_id is null then
+        raise exception 'Produto nao encontrado para programacao: %', p_sku;
+    end if;
+
+    if nullif(p_payload->>'action', '') is null then
+        raise exception 'Campo action e obrigatorio na programacao';
+    end if;
+
+    if nullif(p_payload->>'available_at', '') is null then
+        raise exception 'Campo available_at e obrigatorio na programacao';
+    end if;
+
+    if nullif(p_payload->>'quantity_planned', '') is null then
+        raise exception 'Campo quantity_planned e obrigatorio na programacao';
+    end if;
+
+    v_schedule_key := coalesce(
+        nullif(p_payload->>'schedule_key', ''),
+        lower(p_payload->>'action') || ':' || p_sku || ':' || replace(coalesce(p_payload->>'available_at', ''), ' ', 'T')
+    );
+
+    if nullif(p_payload->>'source_code', '') is not null then
+        select source_id
+        into v_source_id
+        from ops.source_registry
+        where source_code = p_payload->>'source_code';
+    end if;
+
+    update core.supply_programming_entry
+    set
+        is_active = false,
+        updated_at = now()
+    where schedule_key = v_schedule_key
+      and is_active;
+
+    insert into core.supply_programming_entry (
+        schedule_key,
+        product_id,
+        action,
+        available_at,
+        quantity_planned,
+        source_id,
+        notes,
+        meta_json,
+        is_active,
+        created_at,
+        updated_at
+    )
+    values (
+        v_schedule_key,
+        v_product_id,
+        p_payload->>'action',
+        (p_payload->>'available_at')::timestamptz,
+        (p_payload->>'quantity_planned')::numeric,
+        v_source_id,
+        nullif(p_payload->>'notes', ''),
+        jsonb_strip_nulls(
+            jsonb_build_object(
+                'planned_start_at', nullif(p_payload->>'planned_start_at', ''),
+                'assembly_line_code', nullif(p_payload->>'assembly_line_code', ''),
+                'workstation_code', nullif(p_payload->>'workstation_code', ''),
+                'sequence_rank', nullif(p_payload->>'sequence_rank', ''),
+                'planning_status', coalesce(nullif(p_payload->>'planning_status', ''), 'planejado'),
+                'planning_origin', 'pcp_manual'
+            ) || coalesce(p_payload->'meta', p_payload->'metadata', '{}'::jsonb)
+        ),
+        true,
+        now(),
+        now()
+    )
+    returning entry_id into v_entry_id;
+
+    return v_entry_id;
 end;
 $$;
 
@@ -1000,6 +1506,111 @@ select
 from ranked
 where rn = 1;
 
+create or replace view core.vw_bom_component_current as
+with base_ranked as (
+    select
+        b.parent_product_id,
+        b.component_product_id,
+        b.quantity_per,
+        b.scrap_pct,
+        b.source_scope,
+        b.sequence_no,
+        b.process_stage,
+        b.component_role,
+        b.assembly_line_code,
+        b.workstation_code,
+        b.usage_notes,
+        b.metadata_json,
+        b.valid_from,
+        b.valid_to,
+        b.source_id,
+        b.created_at,
+        b.updated_at,
+        row_number() over (
+            partition by b.parent_product_id, b.component_product_id, b.source_scope
+            order by b.valid_from desc, b.updated_at desc, b.created_at desc
+        ) as rn
+    from core.bom_component b
+    where b.is_active
+      and b.valid_from <= current_date
+      and (b.valid_to is null or b.valid_to >= current_date)
+),
+override_ranked as (
+    select
+        o.override_id,
+        o.parent_product_id,
+        o.component_product_id,
+        o.source_scope,
+        o.quantity_per_override,
+        o.scrap_pct_override,
+        o.sequence_no_override,
+        o.process_stage_override,
+        o.component_role_override,
+        o.assembly_line_code_override,
+        o.workstation_code_override,
+        o.usage_notes_override,
+        o.is_blocked,
+        o.reason,
+        o.source_id,
+        o.meta_json,
+        o.effective_at,
+        o.created_at,
+        o.updated_at,
+        row_number() over (
+            partition by o.parent_product_id, o.component_product_id, o.source_scope
+            order by o.effective_at desc, o.updated_at desc, o.created_at desc, o.override_id desc
+        ) as rn
+    from core.bom_component_override o
+    where o.is_active
+),
+keys as (
+    select parent_product_id, component_product_id, source_scope
+    from base_ranked
+    where rn = 1
+    union
+    select parent_product_id, component_product_id, source_scope
+    from override_ranked
+    where rn = 1
+)
+select
+    k.parent_product_id,
+    k.component_product_id,
+    coalesce(o.quantity_per_override, b.quantity_per) as quantity_per,
+    coalesce(o.scrap_pct_override, b.scrap_pct, 0) as scrap_pct,
+    k.source_scope,
+    coalesce(o.sequence_no_override, b.sequence_no) as sequence_no,
+    coalesce(
+        o.process_stage_override,
+        b.process_stage,
+        case when k.source_scope = 'bom_final' then 'montagem' else 'producao' end
+    ) as process_stage,
+    coalesce(o.component_role_override, b.component_role, 'componente') as component_role,
+    coalesce(o.assembly_line_code_override, b.assembly_line_code) as assembly_line_code,
+    coalesce(o.workstation_code_override, b.workstation_code) as workstation_code,
+    coalesce(o.usage_notes_override, b.usage_notes) as usage_notes,
+    coalesce(o.is_blocked, false) as is_blocked,
+    o.override_id,
+    o.reason as override_reason,
+    coalesce(o.source_id, b.source_id) as source_id,
+    coalesce(b.valid_from, o.effective_at::date, current_date) as valid_from,
+    b.valid_to,
+    coalesce(b.metadata_json, '{}'::jsonb) || coalesce(o.meta_json, '{}'::jsonb) as metadata_json,
+    o.override_id is not null as has_manual_override,
+    b.parent_product_id is null as manual_only,
+    coalesce(o.updated_at, b.updated_at, o.created_at, b.created_at) as updated_at
+from keys k
+left join base_ranked b
+    on b.parent_product_id = k.parent_product_id
+   and b.component_product_id = k.component_product_id
+   and b.source_scope = k.source_scope
+   and b.rn = 1
+left join override_ranked o
+    on o.parent_product_id = k.parent_product_id
+   and o.component_product_id = k.component_product_id
+   and o.source_scope = k.source_scope
+   and o.rn = 1
+where coalesce(o.quantity_per_override, b.quantity_per) is not null;
+
 create or replace view core.vw_item_cost_current as
 with last_snapshot as (
     select max(snapshot_at) as snapshot_at
@@ -1028,7 +1639,7 @@ join last_snapshot s on c.snapshot_at = s.snapshot_at
 group by c.product_id;
 
 create or replace view core.vw_supply_forecast_current as
-with ranked as (
+with all_forecasts as (
     select
         f.snapshot_at,
         f.forecast_key,
@@ -1040,11 +1651,42 @@ with ranked as (
         f.notes,
         f.meta_json,
         f.created_at,
+        'snapshot'::text as forecast_origin
+    from core.supply_forecast_snapshot f
+    union all
+    select
+        coalesce(e.updated_at, e.created_at) as snapshot_at,
+        e.schedule_key as forecast_key,
+        e.product_id,
+        e.action,
+        e.available_at,
+        e.quantity_planned,
+        e.source_id,
+        e.notes,
+        e.meta_json,
+        e.created_at,
+        'pcp_manual'::text as forecast_origin
+    from core.supply_programming_entry e
+    where e.is_active
+),
+ranked as (
+    select
+        f.snapshot_at,
+        f.forecast_key,
+        f.product_id,
+        f.action,
+        f.available_at,
+        f.quantity_planned,
+        f.source_id,
+        f.notes,
+        f.meta_json,
+        f.created_at,
+        f.forecast_origin,
         row_number() over (
-            partition by f.source_id, f.forecast_key
+            partition by coalesce(f.source_id, -1), f.forecast_key
             order by f.snapshot_at desc, f.created_at desc
         ) as rn
-    from core.supply_forecast_snapshot f
+    from all_forecasts f
 )
 select
     snapshot_at,
@@ -1055,7 +1697,7 @@ select
     quantity_planned,
     source_id,
     notes,
-    meta_json
+    jsonb_set(coalesce(meta_json, '{}'::jsonb), '{forecast_origin}', to_jsonb(forecast_origin), true) as meta_json
 from ranked
 where rn = 1;
 
@@ -1146,9 +1788,8 @@ begin
             b.component_product_id,
             sum(r.net_required * b.quantity_per * (1 + (b.scrap_pct / 100.0))) as gross_required
         from mart.mrp_result r
-        join core.bom_component b
+        join core.vw_bom_component_current b
             on b.parent_product_id = r.product_id
-           and b.is_active
            and b.valid_from <= p_snapshot_at::date
            and (b.valid_to is null or b.valid_to >= p_snapshot_at::date)
         where r.run_id = v_run_id
@@ -1358,6 +1999,64 @@ join core.product p on p.product_id = f.product_id
 left join mart.vw_mrp_last_run m
     on m.product_id = f.product_id
    and m.action = f.action;
+
+create or replace view mart.vw_structure_component_current as
+select
+    b.source_scope,
+    case
+        when b.source_scope = 'bom_final' then 'acabado'
+        else 'intermediario'
+    end as structure_type,
+    b.process_stage,
+    parent_product.sku as parent_sku,
+    parent_product.description as parent_product,
+    parent_product.product_type as parent_product_type,
+    component_product.sku as component_sku,
+    component_product.description as component_product,
+    component_product.product_type as component_product_type,
+    b.quantity_per,
+    b.scrap_pct,
+    b.sequence_no,
+    b.component_role,
+    b.assembly_line_code,
+    b.workstation_code,
+    b.usage_notes,
+    b.is_blocked,
+    b.has_manual_override,
+    b.manual_only,
+    b.override_id,
+    b.override_reason,
+    b.source_id,
+    b.valid_from,
+    b.valid_to,
+    b.metadata_json,
+    b.updated_at
+from core.vw_bom_component_current b
+join core.product parent_product on parent_product.product_id = b.parent_product_id
+join core.product component_product on component_product.product_id = b.component_product_id;
+
+create or replace view mart.vw_programming_current as
+select
+    f.forecast_key as schedule_key,
+    p.sku,
+    p.description as produto,
+    p.product_type,
+    p.supply_strategy,
+    f.action,
+    nullif(f.meta_json->>'planned_start_at', '')::timestamptz as planned_start_at,
+    f.available_at,
+    f.quantity_planned,
+    nullif(f.meta_json->>'assembly_line_code', '') as assembly_line_code,
+    nullif(f.meta_json->>'workstation_code', '') as workstation_code,
+    nullif(f.meta_json->>'sequence_rank', '')::integer as sequence_rank,
+    coalesce(nullif(f.meta_json->>'planning_status', ''), 'planejado') as planning_status,
+    coalesce(nullif(f.meta_json->>'planning_origin', ''), 'fonte') as planning_origin,
+    f.notes,
+    s.source_code,
+    s.source_area
+from core.vw_supply_forecast_current f
+join core.product p on p.product_id = f.product_id
+left join ops.source_registry s on s.source_id = f.source_id;
 
 create or replace view mart.vw_recycling_projection_last_run as
 select
@@ -1612,9 +2311,8 @@ select
     p.product_type,
     p.supply_strategy
 from core.product p
-left join core.bom_component b
+left join core.vw_bom_component_current b
     on b.parent_product_id = p.product_id
-   and b.is_active
 where p.supply_strategy in ('montar', 'produzir')
 group by
     p.product_id,
@@ -1720,27 +2418,27 @@ values
     'bom_final_pendente',
     'bom_final',
     'manual_load',
-    'parse_bom_final',
-    'unknown',
+    'parse_bom_estrutura_padrao',
+    'xlsx',
     'INPLAST',
     'pending',
     true,
     false,
-    'Aguardando composicao do produto final.',
-    '{"contract_status":"pending","parser_contract":"bom"}'::jsonb
+    'Estrutura de produto acabado em homologacao no layout padrao de composicao.',
+    '{"contract_status":"pending","parser_contract":"bom","source_scope":"bom_final","sheet_name":"Planilha1","layout":"Codigo, Descricao, CODIGO, DESCRICAO, QTDE"}'::jsonb
 ),
 (
     'bom_intermediario_pendente',
     'bom_intermediario',
     'manual_load',
-    'parse_bom_intermediario',
-    'unknown',
+    'parse_bom_estrutura_padrao',
+    'xlsx',
     'INPLAST',
     'pending',
     true,
     false,
-    'Aguardando composicao do produto intermediario.',
-    '{"contract_status":"pending","parser_contract":"bom"}'::jsonb
+    'Estrutura de produto intermediario preparada para o mesmo layout padrao do acabado.',
+    '{"contract_status":"pending","parser_contract":"bom","source_scope":"bom_intermediario","sheet_name":"Planilha1","layout":"Codigo, Descricao, CODIGO, DESCRICAO, QTDE"}'::jsonb
 ),
 (
     'previsao_montagem_pendente',

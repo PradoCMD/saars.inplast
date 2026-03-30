@@ -42,6 +42,13 @@ def json_default(value):
 class PcpApiHandler(BaseHTTPRequestHandler):
     server_version = "PCPSaaSReference/1.1"
 
+    def read_json_body(self) -> dict:
+        content_length = int(self.headers.get("Content-Length", "0") or "0")
+        raw_body = self.rfile.read(content_length) if content_length > 0 else b"{}"
+        if not raw_body.strip():
+            return {}
+        return json.loads(raw_body.decode("utf-8"))
+
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
         if parsed.path.startswith("/api/pcp/"):
@@ -51,18 +58,29 @@ class PcpApiHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
-        if parsed.path == "/api/pcp/runs/mrp":
-            try:
+        try:
+            if parsed.path == "/api/pcp/runs/mrp":
                 self.send_json(HTTPStatus.OK, PROVIDER.run_mrp())
-            except Exception as exc:  # noqa: BLE001
-                self.send_json(
-                    HTTPStatus.INTERNAL_SERVER_ERROR,
-                    {
-                        "error": "Backend PCP unavailable",
-                        "detail": str(exc),
-                        "mode": SETTINGS.data_mode,
-                    },
-                )
+                return
+
+            if parsed.path == "/api/pcp/structure-overrides":
+                payload = self.read_json_body()
+                self.send_json(HTTPStatus.OK, PROVIDER.save_structure_override(payload))
+                return
+
+            if parsed.path == "/api/pcp/programming-entries":
+                payload = self.read_json_body()
+                self.send_json(HTTPStatus.OK, PROVIDER.save_programming_entry(payload))
+                return
+        except Exception as exc:  # noqa: BLE001
+            self.send_json(
+                HTTPStatus.INTERNAL_SERVER_ERROR,
+                {
+                    "error": "Backend PCP unavailable",
+                    "detail": str(exc),
+                    "mode": SETTINGS.data_mode,
+                },
+            )
             return
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "Route not found"})
 
@@ -107,6 +125,23 @@ class PcpApiHandler(BaseHTTPRequestHandler):
 
             if path == "/api/pcp/production":
                 self.send_json(HTTPStatus.OK, PROVIDER.production())
+                return
+
+            if path == "/api/pcp/structures":
+                self.send_json(
+                    HTTPStatus.OK,
+                    PROVIDER.structures(
+                        source_scope=(query.get("source_scope", [""])[0] or "").strip() or None,
+                        search=(query.get("search", [""])[0] or "").strip() or None,
+                    ),
+                )
+                return
+
+            if path == "/api/pcp/programming":
+                self.send_json(
+                    HTTPStatus.OK,
+                    PROVIDER.programming(action=(query.get("action", [""])[0] or "").strip() or None),
+                )
                 return
 
             if path == "/api/pcp/purchases":

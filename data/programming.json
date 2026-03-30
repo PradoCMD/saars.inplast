@@ -1,0 +1,42 @@
+{
+  "items": [
+    {
+      "schedule_key": "montar:4600001:2026-03-31T10:00:00-03:00",
+      "sku": "4600001",
+      "produto": "CX MED MONO SULGIPE",
+      "product_type": "acabado",
+      "supply_strategy": "montar",
+      "action": "montar",
+      "planned_start_at": "2026-03-31T07:30:00-03:00",
+      "available_at": "2026-03-31T10:00:00-03:00",
+      "quantity_planned": 1800,
+      "assembly_line_code": "LINHA-01",
+      "workstation_code": "POSTO-A",
+      "sequence_rank": 1,
+      "planning_status": "planejado",
+      "planning_origin": "pcp_manual",
+      "notes": "Montagem priorizada por romaneio antigo.",
+      "source_code": null,
+      "source_area": null
+    },
+    {
+      "schedule_key": "produzir:4100006:2026-03-31T06:00:00-03:00",
+      "sku": "4100006",
+      "produto": "TAMPA ALOJAMENTO DISJUNTOR MONO PC CR",
+      "product_type": "intermediario",
+      "supply_strategy": "produzir",
+      "action": "produzir",
+      "planned_start_at": "2026-03-30T22:00:00-03:00",
+      "available_at": "2026-03-31T06:00:00-03:00",
+      "quantity_planned": 2400,
+      "assembly_line_code": "INJ-03",
+      "workstation_code": "MAQ-03",
+      "sequence_rank": 1,
+      "planning_status": "planejado",
+      "planning_origin": "pcp_manual",
+      "notes": "Rodada noturna da injecao.",
+      "source_code": null,
+      "source_area": null
+    }
+  ]
+}

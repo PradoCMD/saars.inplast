@@ -189,7 +189,9 @@ table td .cell {
 .hero-actions,
 .stats,
 .stack,
-.cost-grid {
+.cost-grid,
+.inline-metrics,
+.form-grid {
   display: grid;
   gap: 12px;
 }
@@ -227,7 +229,8 @@ table td .cell {
 .stat-card,
 .list-card,
 .detail-card,
-.cost-card {
+.cost-card,
+.mini-card {
   padding: 16px;
   border-radius: var(--radius-lg);
   border: 1px solid var(--line);
@@ -237,7 +240,9 @@ table td .cell {
 .stat-card small,
 .list-card small,
 .detail-card small,
-.cost-card small {
+.cost-card small,
+.mini-card small,
+.editor-form label span {
   display: block;
   color: var(--muted);
   font-size: 11px;
@@ -246,7 +251,8 @@ table td .cell {
 }
 
 .stat-card strong,
-.cost-card strong {
+.cost-card strong,
+.mini-card strong {
   display: block;
   margin-top: 10px;
   font-size: 28px;
@@ -267,6 +273,48 @@ table td .cell {
   align-items: end;
 }
 
+.inline-metrics {
+  margin-bottom: 16px;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+}
+
+.editor-form {
+  display: grid;
+  gap: 14px;
+}
+
+.form-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.editor-form label {
+  display: grid;
+  gap: 8px;
+}
+
+.editor-form input,
+.editor-form select,
+.editor-form textarea {
+  width: 100%;
+  padding: 12px 14px;
+  border-radius: 14px;
+  border: 1px solid var(--line);
+  background: rgba(255, 255, 255, 0.92);
+  color: var(--ink);
+  font: inherit;
+}
+
+.editor-form textarea {
+  resize: vertical;
+}
+
+.form-actions {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 12px;
+}
+
 .hero-foot small {
   display: block;
   color: var(--muted);
@@ -284,6 +332,11 @@ table td .cell {
   background: rgba(15, 118, 110, 0.08);
   color: var(--brand);
   font-weight: 700;
+}
+
+.run-status.error {
+  color: var(--danger);
+  background: rgba(185, 56, 45, 0.08);
 }
 
 .grid {
@@ -476,7 +529,9 @@ tr:last-child td {
   }
 
   .stats,
-  .cost-grid {
+  .cost-grid,
+  .inline-metrics,
+  .form-grid.two {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
 
@@ -503,11 +558,17 @@ tr:last-child td {
 
   .stats,
   .cost-grid,
-  .detail-grid {
+  .detail-grid,
+  .inline-metrics,
+  .form-grid.two {
     grid-template-columns: 1fr;
   }
 
   .hero-actions {
     grid-auto-flow: row;
+  }
+
+  .form-actions {
+    display: grid;
   }
 }

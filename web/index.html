@@ -18,6 +18,8 @@
         <nav class="nav">
           <a href="#cockpit">Cockpit</a>
           <a href="#romaneios">Romaneios</a>
+          <a href="#estruturas">Estruturas</a>
+          <a href="#programacao">Programacao</a>
           <a href="#montagem">Montagem</a>
           <a href="#producao">Producao</a>
           <a href="#compras">Compras</a>
@@ -102,6 +104,184 @@
             </div>
             <div id="romaneio-detail" class="detail-empty">
               Selecione um romaneio para ver itens e historico.
+            </div>
+          </article>
+        </section>
+
+        <section id="estruturas" class="grid">
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <small>Engenharia operacional</small>
+                <h3>Estruturas homologadas</h3>
+              </div>
+            </div>
+            <div class="inline-metrics" id="structure-summary"></div>
+            <form id="structure-form" class="editor-form">
+              <div class="form-grid two">
+                <label>
+                  <span>Escopo</span>
+                  <select name="source_scope" required>
+                    <option value="bom_final">Produto acabado</option>
+                    <option value="bom_intermediario">Produto intermediario</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Etapa</span>
+                  <select name="process_stage">
+                    <option value="montagem">Montagem</option>
+                    <option value="producao">Producao</option>
+                  </select>
+                </label>
+                <label>
+                  <span>SKU pai</span>
+                  <input type="text" name="parent_sku" placeholder="4600001" required />
+                </label>
+                <label>
+                  <span>SKU componente</span>
+                  <input type="text" name="component_sku" placeholder="4100006" required />
+                </label>
+                <label>
+                  <span>Quantidade</span>
+                  <input type="number" step="0.000001" name="quantity_per" placeholder="1" />
+                </label>
+                <label>
+                  <span>Scrap %</span>
+                  <input type="number" step="0.0001" name="scrap_pct" placeholder="0" />
+                </label>
+                <label>
+                  <span>Sequencia</span>
+                  <input type="number" step="1" name="sequence_no" placeholder="10" />
+                </label>
+                <label>
+                  <span>Papel</span>
+                  <input type="text" name="component_role" placeholder="componente" />
+                </label>
+                <label>
+                  <span>Linha</span>
+                  <input type="text" name="assembly_line_code" placeholder="LINHA-01" />
+                </label>
+                <label>
+                  <span>Posto</span>
+                  <input type="text" name="workstation_code" placeholder="POSTO-A" />
+                </label>
+              </div>
+              <label>
+                <span>Observacao</span>
+                <textarea name="usage_notes" rows="3" placeholder="Ajuste manual do PCP, dependencia de molde, componente alternativo..."></textarea>
+              </label>
+              <div class="form-actions">
+                <button type="submit" class="button primary">Salvar estrutura</button>
+                <div id="structure-status" class="run-status">Sem ajuste manual nesta sessao.</div>
+              </div>
+            </form>
+          </article>
+
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <small>Visao atual</small>
+                <h3>Componentes por estrutura</h3>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>Pai</th>
+                    <th>Componente</th>
+                    <th>Escopo</th>
+                    <th>Qtde</th>
+                    <th>Linha</th>
+                    <th>Status</th>
+                  </tr>
+                </thead>
+                <tbody id="structure-table"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+
+        <section id="programacao" class="grid">
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <small>Planejamento manual</small>
+                <h3>Programacao de producao e montagem</h3>
+              </div>
+            </div>
+            <form id="programming-form" class="editor-form">
+              <div class="form-grid two">
+                <label>
+                  <span>SKU</span>
+                  <input type="text" name="sku" placeholder="4600001" required />
+                </label>
+                <label>
+                  <span>Acao</span>
+                  <select name="action" required>
+                    <option value="montar">Montar</option>
+                    <option value="produzir">Produzir</option>
+                    <option value="comprar">Comprar</option>
+                  </select>
+                </label>
+                <label>
+                  <span>Inicio previsto</span>
+                  <input type="datetime-local" name="planned_start_at" />
+                </label>
+                <label>
+                  <span>Disponivel em</span>
+                  <input type="datetime-local" name="available_at" required />
+                </label>
+                <label>
+                  <span>Quantidade</span>
+                  <input type="number" step="0.000001" name="quantity_planned" placeholder="1000" required />
+                </label>
+                <label>
+                  <span>Sequencia</span>
+                  <input type="number" step="1" name="sequence_rank" placeholder="1" />
+                </label>
+                <label>
+                  <span>Linha</span>
+                  <input type="text" name="assembly_line_code" placeholder="LINHA-01" />
+                </label>
+                <label>
+                  <span>Posto</span>
+                  <input type="text" name="workstation_code" placeholder="POSTO-A" />
+                </label>
+              </div>
+              <label>
+                <span>Observacao</span>
+                <textarea name="notes" rows="3" placeholder="Prioridade alterada pelo PCP, encaixe de molde, complemento de lote..."></textarea>
+              </label>
+              <div class="form-actions">
+                <button type="submit" class="button primary">Salvar programacao</button>
+                <div id="programming-status" class="run-status">Sem programacao manual nesta sessao.</div>
+              </div>
+            </form>
+          </article>
+
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <small>Calendario operacional</small>
+                <h3>Previsoes ativas</h3>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Acao</th>
+                    <th>Inicio</th>
+                    <th>Disponivel</th>
+                    <th>Qtde</th>
+                    <th>Linha</th>
+                    <th>Origem</th>
+                  </tr>
+                </thead>
+                <tbody id="programming-table"></tbody>
+              </table>
             </div>
           </article>
         </section>

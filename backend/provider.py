@@ -43,6 +43,14 @@ class DataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def structures(self, source_scope: str | None = None, search: str | None = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def programming(self, action: str | None = None) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def purchases(self, product_type: str | None = None) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -64,6 +72,14 @@ class DataProvider(ABC):
 
     @abstractmethod
     def run_mrp(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_structure_override(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_programming_entry(self, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
 
@@ -116,6 +132,26 @@ class MockProvider(DataProvider):
     def production(self) -> dict[str, Any]:
         return self._read_json("production.json")
 
+    def structures(self, source_scope: str | None = None, search: str | None = None) -> dict[str, Any]:
+        payload = self._read_json("structures.json")
+        scope_value = (source_scope or "").strip().lower()
+        search_value = (search or "").strip().lower()
+        items = []
+        for item in payload["items"]:
+            if scope_value and item["source_scope"].lower() != scope_value:
+                continue
+            if search_value and search_value not in f"{item['parent_sku']} {item['parent_product']} {item['component_sku']} {item['component_product']}".lower():
+                continue
+            items.append(item)
+        return {"summary": payload["summary"], "items": items}
+
+    def programming(self, action: str | None = None) -> dict[str, Any]:
+        payload = self._read_json("programming.json")
+        action_value = (action or "").strip().lower()
+        if not action_value:
+            return payload
+        return {"items": [item for item in payload["items"] if item["action"].lower() == action_value]}
+
     def purchases(self, product_type: str | None = None) -> dict[str, Any]:
         payload = self._read_json("purchases.json")
         type_value = (product_type or "").strip().lower()
@@ -140,6 +176,20 @@ class MockProvider(DataProvider):
             "run_id": int(datetime.now(timezone.utc).timestamp()),
             "status": "queued",
             "queued_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def save_structure_override(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "override_id": int(datetime.now(timezone.utc).timestamp()),
+            "status": "mock_saved",
+            "payload": payload,
+        }
+
+    def save_programming_entry(self, payload: dict[str, Any]) -> dict[str, Any]:
+        return {
+            "entry_id": int(datetime.now(timezone.utc).timestamp()),
+            "status": "mock_saved",
+            "payload": payload,
         }
 
 
@@ -325,6 +375,39 @@ class PostgresProvider(DataProvider):
         sql = queries.MRP_QUEUE_BASE_SQL.format(view_name="mart.vw_mrp_production")
         return {"items": self._fetchall(sql)}
 
+    def structures(self, source_scope: str | None = None, search: str | None = None) -> dict[str, Any]:
+        sql = [queries.STRUCTURES_SQL, "where 1=1"]
+        params: list[Any] = []
+        if source_scope:
+            sql.append("and lower(source_scope) = lower(%s)")
+            params.append(source_scope.strip())
+        if search:
+            like_value = f"%{search.strip()}%"
+            sql.append(
+                "and (parent_sku ilike %s or parent_product ilike %s or component_sku ilike %s or component_product ilike %s)"
+            )
+            params.extend([like_value, like_value, like_value, like_value])
+        sql.append("order by source_scope, parent_product, sequence_no nulls last, component_product")
+        items = self._fetchall("\n".join(sql), tuple(params))
+        return {
+            "summary": {
+                "component_links": len(items),
+                "parent_items": len({item["parent_sku"] for item in items}),
+                "manual_overrides": sum(1 for item in items if item["has_manual_override"]),
+                "lines_configured": len({item["assembly_line_code"] for item in items if item["assembly_line_code"]}),
+            },
+            "items": items,
+        }
+
+    def programming(self, action: str | None = None) -> dict[str, Any]:
+        sql = [queries.PROGRAMMING_SQL, "where 1=1"]
+        params: list[Any] = []
+        if action:
+            sql.append("and lower(action) = lower(%s)")
+            params.append(action.strip())
+        sql.append("order by action, available_at nulls last, sequence_rank nulls last, produto")
+        return {"items": self._fetchall("\n".join(sql), tuple(params))}
+
     def purchases(self, product_type: str | None = None) -> dict[str, Any]:
         sql = [queries.PURCHASE_QUEUE_SQL]
         params: list[Any] = []
@@ -353,6 +436,36 @@ class PostgresProvider(DataProvider):
             "run_id": run_id,
             "status": "queued" if run_id is not None else "error",
             "queued_at": datetime.now(timezone.utc).isoformat(),
+        }
+
+    def save_structure_override(self, payload: dict[str, Any]) -> dict[str, Any]:
+        row = self._fetchone(
+            queries.SAVE_STRUCTURE_OVERRIDE_SQL,
+            (
+                payload["parent_sku"],
+                payload["component_sku"],
+                payload["source_scope"],
+                json.dumps(payload, ensure_ascii=False),
+            ),
+            write=True,
+        )
+        return {
+            "override_id": row["override_id"] if row else None,
+            "status": "saved",
+        }
+
+    def save_programming_entry(self, payload: dict[str, Any]) -> dict[str, Any]:
+        row = self._fetchone(
+            queries.SAVE_PROGRAMMING_ENTRY_SQL,
+            (
+                payload["sku"],
+                json.dumps(payload, ensure_ascii=False),
+            ),
+            write=True,
+        )
+        return {
+            "entry_id": row["entry_id"] if row else None,
+            "status": "saved",
         }
 
 
