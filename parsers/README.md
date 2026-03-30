@@ -1,9 +1,10 @@
-# Parsers de almoxarifado
+# Parsers de estoque
 
 ## Arquivos
 
 - `parse_estoque_almoxarifado_mp.py`
 - `parse_estoque_almoxarifado_componentes.py`
+- `parse_estoque_intermediario_google.py`
 - `xlsx_ledger_parser.py`
 - `run_inventory_parser.py`
 
@@ -28,6 +29,13 @@ python3 parsers/run_inventory_parser.py \
   --source-code estoque_materia_prima_almoxarifado \
   --parser-path parsers/parse_estoque_almoxarifado_mp.py \
   --workbook-path "/caminho/Estoque Almoxarifado.xlsx"
+```
+
+Estoque intermediario publicado:
+
+```bash
+python3 parsers/parse_estoque_intermediario_google.py --summary \
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vSs-C_7_vu6L1lq9ScJEcQNT3F23en4MdgHBUI2FFkqBm9c_Zq8WHdtZuXkMhQvcegp05KewJQzPlCP/pubhtml?widget=true&headers=false"
 ```
 
 ## Saida
@@ -68,12 +76,14 @@ Com `--summary`, o `stderr` devolve um resumo de validacao com:
 - o saldo e calculado a partir das abas de movimentacao
 - a aba de estoque e usada como conferência
 - o banco de dados e usado para resolver codigo legado
-- quando o codigo esta faltando ou conflita com outro item, o parser gera um `sku` tecnico com prefixo `ALMOX-`
+- quando o codigo esta faltando ou conflita com outro item, o parser gera um `sku` tecnico com prefixo especifico da fonte
+- no estoque intermediario publicado, a fonte bruta e a aba `Movimentacoes`
 
 ## Premissas atuais
 
 - materia-prima sai com `unit_code='KG'`
 - componentes comprados saem com `unit_code='UN'`
+- estoque intermediario sai com `unit_code='UN'`
 - ambos saem com `company_code='INPLAST'`
 
 Essas premissas podem ser ajustadas depois sem mudar a estrutura do parser.

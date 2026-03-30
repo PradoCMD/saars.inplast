@@ -1620,15 +1620,15 @@ values
 (
     'estoque_intermediario_atual',
     'estoque_intermediario',
-    'smb_file',
-    'parse_estoque_intermediario',
-    'xlsx_or_pdf',
+    'google_published_sheet',
+    'parse_estoque_intermediario_google',
+    'pubhtml',
     'INPLAST',
     'known',
     true,
     true,
-    'Fonte atual de estoque intermediario.',
-    '{"folder_hint":"\\\\SRV\\ti\\Automacao AI\\Automacao Logistica x PCP","parser_contract":"estoque"}'::jsonb
+    'Fonte atual de estoque intermediario publicada via Google Sheets.',
+    '{"published_url_hint":"https://docs.google.com/spreadsheets/d/e/2PACX-1vSs-C_7_vu6L1lq9ScJEcQNT3F23en4MdgHBUI2FFkqBm9c_Zq8WHdtZuXkMhQvcegp05KewJQzPlCP/pubhtml?widget=true&headers=false","parser_contract":"estoque","sheet_name":"Movimentacoes","stock_scope":"intermediario","location_code":"ESTOQUE_INTERMEDIARIO"}'::jsonb
 ),
 (
     'estoque_materia_prima_almoxarifado',

@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
 def main() -> int:
     args = build_parser().parse_args()
     parser_path = Path(args.parser_path)
-    workbook_path = Path(args.workbook_path)
+    workbook_path = args.workbook_path
     snapshot_at = args.snapshot_at or dt.datetime.now(dt.timezone.utc).isoformat(timespec="seconds")
 
     cmd = [sys.executable, str(parser_path), "--summary", str(workbook_path)]
@@ -36,7 +36,7 @@ def main() -> int:
                 {
                     "source_code": args.source_code,
                     "parser_path": str(parser_path),
-                    "workbook_path": str(workbook_path),
+                    "workbook_path": workbook_path,
                     "snapshot_at": snapshot_at,
                     "error": completed.stderr.strip() or completed.stdout.strip() or f"Parser saiu com codigo {completed.returncode}",
                 },
@@ -70,7 +70,7 @@ def main() -> int:
     payload = {
         "source_code": args.source_code,
         "parser_path": str(parser_path),
-        "workbook_path": str(workbook_path),
+        "workbook_path": workbook_path,
         "snapshot_at": snapshot_at,
         "record_count": len(records),
         "records": records,
@@ -78,7 +78,7 @@ def main() -> int:
         "meta": {
             "workflow_name": args.workflow_name,
             "parser_name": summary.get("parser_name"),
-            "workbook": str(workbook_path),
+            "workbook": workbook_path,
         },
     }
 
