@@ -19,6 +19,7 @@ O objetivo aqui nao e definir a stack final do produto. A ideia e entregar uma b
 - `n8n/`: workflows de webhook e almoxarifado
 - `docs/`: guias de implantacao e operacao
 - `source_templates/`: modelos CSV para previsoes operacionais
+- `scripts/`: scripts para clonar e atualizar o repo na `vm-apps`
 
 ## Estrutura
 
@@ -95,6 +96,15 @@ use esta sequencia:
 3. configurar as variaveis do app conforme `.env.coolify.example`
 4. subir o servico pelo `docker-compose.coolify.yaml`
 5. importar os workflows em `n8n/`
+
+## Repo local na VM apps
+
+Para manter uma copia local estavel do repo para o `n8n`, use:
+
+- `scripts/bootstrap_vm_apps_repo.sh`
+- `scripts/update_vm_apps_repo.sh`
+
+Ou siga o guia em `docs/vm_apps_repo_local.md`.
 
 ## Endpoints incluidos
 
