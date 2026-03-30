@@ -10,10 +10,18 @@ const state = {
 };
 
 function formatDateTime(value) {
+  return formatDateTimeWithFallback(value, "Sem previsao");
+}
+
+function formatDateTimeWithFallback(value, fallback) {
   if (!value) {
-    return "Sem previsao";
+    return fallback;
   }
-  return new Date(value).toLocaleString("pt-BR");
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return fallback;
+  }
+  return parsed.toLocaleString("pt-BR");
 }
 
 function statusClass(value) {
@@ -33,8 +41,14 @@ function statusClass(value) {
     heuristica: "warning",
     heuristica_processo: "warning",
     sem_previsao: "missing",
+    pending: "info",
+    inactive: "info",
   };
   return mapping[normalized] || "info";
+}
+
+function emptyState(message) {
+  return el(`<div class="detail-empty">${message}</div>`);
 }
 
 async function api(path) {
@@ -77,67 +91,82 @@ function renderOverview(data) {
     );
   });
 
-  document.getElementById("snapshot-at").textContent = new Date(data.snapshot_at).toLocaleString("pt-BR");
+  document.getElementById("snapshot-at").textContent = formatDateTimeWithFallback(
+    data.snapshot_at,
+    "Sem snapshot validado",
+  );
 
   const critical = document.getElementById("critical-list");
   critical.innerHTML = "";
-  data.top_criticos.forEach((item) => {
-    critical.appendChild(
-      el(`
-        <div class="list-card">
-          <div class="item-row">
-            <div>
-              <small>${item.sku}</small>
-              <strong>${item.produto}</strong>
+  if (!data.top_criticos.length) {
+    critical.appendChild(emptyState("Nenhum item critico identificado com as cargas atuais."));
+  } else {
+    data.top_criticos.forEach((item) => {
+      critical.appendChild(
+        el(`
+          <div class="list-card">
+            <div class="item-row">
+              <div>
+                <small>${item.sku}</small>
+                <strong>${item.produto}</strong>
+              </div>
+              <span class="tag ${item.criticidade.toLowerCase()}">${item.criticidade}</span>
             </div>
-            <span class="tag ${item.criticidade.toLowerCase()}">${item.criticidade}</span>
+            <em>Saldo ${number.format(item.saldo)} | Acao ${item.acao}</em>
           </div>
-          <em>Saldo ${number.format(item.saldo)} | Acao ${item.acao}</em>
-        </div>
-      `),
-    );
-  });
+        `),
+      );
+    });
+  }
 }
 
 function renderAlerts(data) {
   const wrapper = document.getElementById("alerts-list");
   wrapper.innerHTML = "";
-  data.items.forEach((item) => {
-    wrapper.appendChild(
-      el(`
-        <div class="list-card">
-          <div class="item-row">
-            <div>
-              <small>${item.type}</small>
-              <strong>${item.message}</strong>
+  if (!data.items.length) {
+    wrapper.appendChild(emptyState("Nenhum alerta critico com as fontes ativas neste momento."));
+  } else {
+    data.items.forEach((item) => {
+      wrapper.appendChild(
+        el(`
+          <div class="list-card">
+            <div class="item-row">
+              <div>
+                <small>${item.type}</small>
+                <strong>${item.message}</strong>
+              </div>
+              <span class="tag ${item.severity.toLowerCase()}">${item.severity}</span>
             </div>
-            <span class="tag ${item.severity.toLowerCase()}">${item.severity}</span>
           </div>
-        </div>
-      `),
-    );
-  });
+        `),
+      );
+    });
+  }
 }
 
 function renderRomaneios(data) {
   const wrapper = document.getElementById("romaneios-list");
   wrapper.innerHTML = "";
-  data.items.forEach((item) => {
-    const row = el(`
-      <button class="romaneio-row">
-        <div>
-          <small>${item.empresa}</small>
-          <strong>${item.romaneio}</strong>
-          <span class="muted">${number.format(item.quantidade_total)} unidades | Saida ${formatDateTime(item.previsao_saida_at)}</span>
-        </div>
-        <div>
-          <span class="tag ${statusClass(item.previsao_saida_status)}">${item.previsao_saida_status}</span>
-        </div>
-      </button>
-    `);
-    row.addEventListener("click", () => carregarRomaneio(item.romaneio));
-    wrapper.appendChild(row);
-  });
+  if (!data.items.length) {
+    wrapper.appendChild(emptyState("Nenhum romaneio recebido ou homologado ate o momento."));
+  } else {
+    data.items.forEach((item) => {
+      const row = el(`
+        <button class="romaneio-row">
+          <div>
+            <small>${item.empresa}</small>
+            <strong>${item.romaneio}</strong>
+            <span class="muted">${number.format(item.quantidade_total)} unidades | Saida ${formatDateTime(item.previsao_saida_at)}</span>
+          </div>
+          <div>
+            <span class="tag ${statusClass(item.previsao_saida_status)}">${item.previsao_saida_status}</span>
+          </div>
+        </button>
+      `);
+      row.addEventListener("click", () => carregarRomaneio(item.romaneio));
+      wrapper.appendChild(row);
+    });
+  }
 }
 
 function renderRomaneioDetail(data) {
@@ -210,122 +239,146 @@ function renderRomaneioDetail(data) {
 function renderMrpTable(targetId, items) {
   const tbody = document.getElementById(targetId);
   tbody.innerHTML = "";
-  items.forEach((item) => {
-    tbody.appendChild(
-      el(`
-        <tr>
-          <td>
-            <div class="cell">
-              <div>
-                <b>${item.sku}</b>
-                <span>${item.product_type}</span>
+  if (!items.length) {
+    tbody.appendChild(el(`<tr><td colspan="6" class="muted">Sem itens nesta fila com os dados atuais.</td></tr>`));
+  } else {
+    items.forEach((item) => {
+      tbody.appendChild(
+        el(`
+          <tr>
+            <td>
+              <div class="cell">
+                <div>
+                  <b>${item.sku}</b>
+                  <span>${item.product_type}</span>
+                </div>
               </div>
-            </div>
-          </td>
-          <td>${item.produto}</td>
-          <td>${number.format(item.net_required)}</td>
-          <td>${number.format(item.stock_available)}</td>
-          <td>${money.format(item.estimated_total_cost)}</td>
-          <td><span class="tag ${item.criticidade.toLowerCase()}">${item.criticidade}</span></td>
-        </tr>
-      `),
-    );
-  });
+            </td>
+            <td>${item.produto}</td>
+            <td>${number.format(item.net_required)}</td>
+            <td>${number.format(item.stock_available)}</td>
+            <td>${money.format(item.estimated_total_cost)}</td>
+            <td><span class="tag ${item.criticidade.toLowerCase()}">${item.criticidade}</span></td>
+          </tr>
+        `),
+      );
+    });
+  }
 }
 
 function renderPurchases(items) {
   const tbody = document.getElementById("purchase-table");
   tbody.innerHTML = "";
-  items.forEach((item) => {
-    tbody.appendChild(
-      el(`
-        <tr>
-          <td><b>${item.sku}</b></td>
-          <td>${item.produto}</td>
-          <td>${item.product_type}</td>
-          <td>${number.format(item.net_required)}</td>
-          <td>${money.format(item.estimated_total_cost)}</td>
-        </tr>
-      `),
-    );
-  });
+  if (!items.length) {
+    tbody.appendChild(el(`<tr><td colspan="5" class="muted">Sem compras calculadas com os dados atuais.</td></tr>`));
+  } else {
+    items.forEach((item) => {
+      tbody.appendChild(
+        el(`
+          <tr>
+            <td><b>${item.sku}</b></td>
+            <td>${item.produto}</td>
+            <td>${item.product_type}</td>
+            <td>${number.format(item.net_required)}</td>
+            <td>${money.format(item.estimated_total_cost)}</td>
+          </tr>
+        `),
+      );
+    });
+  }
 }
 
 function renderRecycling(items) {
   const wrapper = document.getElementById("recycling-list");
   wrapper.innerHTML = "";
-  items.forEach((item) => {
-    wrapper.appendChild(
-      el(`
-        <div class="list-card">
-          <div class="item-row">
-            <div>
-              <small>${item.produced_sku}</small>
-              <strong>${item.produced_description}</strong>
+  if (!items.length) {
+    wrapper.appendChild(emptyState("Sem projecoes de reciclagem para a rodada atual."));
+  } else {
+    items.forEach((item) => {
+      wrapper.appendChild(
+        el(`
+          <div class="list-card">
+            <div class="item-row">
+              <div>
+                <small>${item.produced_sku}</small>
+                <strong>${item.produced_description}</strong>
+              </div>
+              <span class="tag ok">${number.format(item.projected_recycled_raw_material_qty)} kg</span>
             </div>
-            <span class="tag ok">${number.format(item.projected_recycled_raw_material_qty)} kg</span>
+            <em>Residuo ${item.residue_sku}: ${number.format(item.projected_residue_qty)} kg | Servico ${money.format(item.projected_recycling_service_cost)}</em>
           </div>
-          <em>Residuo ${item.residue_sku}: ${number.format(item.projected_residue_qty)} kg | Servico ${money.format(item.projected_recycling_service_cost)}</em>
-        </div>
-      `),
-    );
-  });
+        `),
+      );
+    });
+  }
 }
 
 function renderCosts(items) {
   const wrapper = document.getElementById("cost-list");
   wrapper.innerHTML = "";
-  items.forEach((item) => {
-    wrapper.appendChild(
-      el(`
-        <div class="cost-card">
-          <small>${item.category}</small>
-          <strong>${money.format(item.estimated_total_cost)}</strong>
-          <em>${item.label}</em>
-        </div>
-      `),
-    );
-  });
+  if (!items.length) {
+    wrapper.appendChild(emptyState("Sem custos calculados enquanto nao houver rodada de MRP com dados carregados."));
+  } else {
+    items.forEach((item) => {
+      wrapper.appendChild(
+        el(`
+          <div class="cost-card">
+            <small>${item.category}</small>
+            <strong>${money.format(item.estimated_total_cost)}</strong>
+            <em>${item.label}</em>
+          </div>
+        `),
+      );
+    });
+  }
 }
 
 function renderSources(items) {
   const wrapper = document.getElementById("sources-list");
   wrapper.innerHTML = "";
-  items.forEach((item) => {
-    const statusClass = item.freshness_status.toLowerCase();
-    wrapper.appendChild(
-      el(`
-        <div class="list-card">
-          <div class="source-row">
-            <div>
-              <small>${item.source_area}</small>
-              <strong>${item.source_name}</strong>
-              <em>${item.last_success_at ? new Date(item.last_success_at).toLocaleString("pt-BR") : "Sem carga validada"}</em>
+  if (!items.length) {
+    wrapper.appendChild(emptyState("Nenhuma fonte cadastrada para exibicao."));
+  } else {
+    items.forEach((item) => {
+      const cssStatusClass = statusClass(item.freshness_status);
+      wrapper.appendChild(
+        el(`
+          <div class="list-card">
+            <div class="source-row">
+              <div>
+                <small>${item.source_area}</small>
+                <strong>${item.source_name}</strong>
+                <em>${item.last_success_at ? formatDateTimeWithFallback(item.last_success_at, "Sem carga validada") : "Sem carga validada"}</em>
+              </div>
+              <span class="tag ${cssStatusClass}">${item.freshness_status}</span>
             </div>
-            <span class="tag ${statusClass}">${item.freshness_status}</span>
           </div>
-        </div>
-      `),
-    );
-  });
+        `),
+      );
+    });
+  }
 }
 
 function renderPainel(items) {
   const tbody = document.getElementById("painel-table");
   tbody.innerHTML = "";
-  items.forEach((item) => {
-    tbody.appendChild(
-      el(`
-        <tr>
-          <td><b>${item.sku}</b></td>
-          <td>${item.produto}</td>
-          <td>${item.tipo}</td>
-          <td>${number.format(item.saldo)}</td>
-          <td>${item.acao}</td>
-        </tr>
-      `),
-    );
-  });
+  if (!items.length) {
+    tbody.appendChild(el(`<tr><td colspan="5" class="muted">Painel sem itens porque ainda nao ha cargas operacionais validadas.</td></tr>`));
+  } else {
+    items.forEach((item) => {
+      tbody.appendChild(
+        el(`
+          <tr>
+            <td><b>${item.sku}</b></td>
+            <td>${item.produto}</td>
+            <td>${item.tipo}</td>
+            <td>${number.format(item.saldo)}</td>
+            <td>${item.acao}</td>
+          </tr>
+        `),
+      );
+    });
+  }
 }
 
 async function carregarRomaneio(code) {
@@ -337,8 +390,9 @@ async function carregarRomaneio(code) {
 async function dispararMrp() {
   const response = await fetch("/api/pcp/runs/mrp", { method: "POST" });
   const payload = await response.json();
-  document.getElementById("mrp-status").textContent =
-    `MRP enfileirado. Run ${payload.run_id} as ${new Date(payload.queued_at).toLocaleString("pt-BR")}.`;
+  const runId = payload.run_id ?? "n/d";
+  const queuedAt = formatDateTimeWithFallback(payload.queued_at, "agora");
+  document.getElementById("mrp-status").textContent = `MRP enfileirado. Run ${runId} as ${queuedAt}.`;
 }
 
 async function carregarTudo() {
@@ -379,6 +433,11 @@ async function carregarTudo() {
 
   if (!state.romaneioSelecionado && romaneios.items.length) {
     await carregarRomaneio(romaneios.items[0].romaneio);
+  } else if (!romaneios.items.length) {
+    document.getElementById("romaneio-detail").innerHTML = "";
+    document.getElementById("romaneio-detail").appendChild(
+      emptyState("Nenhum romaneio disponivel para detalhamento neste momento."),
+    );
   }
 }
 

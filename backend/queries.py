@@ -35,11 +35,14 @@ romaneios_eta as (
       and r.previsao_saida_status = 'sem_previsao'
 ),
 snapshots as (
-    select greatest(
-        coalesce((select max(snapshot_at) from core.inventory_snapshot), 'epoch'::timestamptz),
-        coalesce((select max(snapshot_at) from core.romaneio_demand_snapshot), 'epoch'::timestamptz),
-        coalesce((select max(snapshot_at) from mart.mrp_run where status = 'completed'), 'epoch'::timestamptz)
-    ) as snapshot_at
+    select max(snapshot_at) as snapshot_at
+    from (
+        select max(snapshot_at) as snapshot_at from core.inventory_snapshot
+        union all
+        select max(snapshot_at) as snapshot_at from core.romaneio_demand_snapshot
+        union all
+        select max(snapshot_at) as snapshot_at from mart.mrp_run where status = 'completed'
+    ) snapshot_candidates
 )
 select
     snapshots.snapshot_at,
@@ -249,12 +252,28 @@ select
         when 'stale' then 'warning'
         else freshness_status
     end as freshness_status
-from ops.vw_source_freshness
-where is_active or is_required
+from (
+    select
+        source_code,
+        source_area,
+        last_success_at,
+        is_active,
+        is_required,
+        contract_status,
+        case
+            when contract_status = 'pending' then 'pending'
+            when not is_active then 'inactive'
+            else freshness_status
+        end as freshness_status
+    from ops.vw_source_freshness
+) sources
+where is_active or contract_status = 'known' or is_required
 order by
     case freshness_status
         when 'missing' then 1
         when 'stale' then 2
+        when 'pending' then 4
+        when 'inactive' then 5
         else 3
     end,
     source_code
@@ -277,6 +296,8 @@ with source_alerts as (
         jsonb_build_object('source_code', source_code, 'source_area', source_area) as context
     from ops.vw_source_freshness
     where is_required
+      and is_active
+      and contract_status = 'known'
       and freshness_status in ('missing', 'stale')
 ),
 bom_alert as (
