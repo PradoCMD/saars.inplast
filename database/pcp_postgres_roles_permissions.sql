@@ -29,9 +29,7 @@ end
 $$;
 
 grant usage on schema ops, core, mart to pcp_app;
-grant select on all tables in schema mart to pcp_app;
-grant select on ops.vw_source_freshness to pcp_app;
-grant select on ops.webhook_event to pcp_app;
+grant select on all tables in schema ops, core, mart to pcp_app;
 
 grant usage on schema ops, raw, core, mart to pcp_integration;
 grant select on all tables in schema ops, raw, core, mart to pcp_integration;
@@ -68,6 +66,20 @@ grant execute on function ops.finish_webhook_event(text, text, bigint, text) to 
 grant execute on function ops.ingest_inventory_payload(text, timestamptz, jsonb, jsonb) to pcp_integration;
 grant execute on function ops.ingest_romaneio_event_payload(text, jsonb, jsonb) to pcp_integration;
 grant execute on function mart.run_mrp(timestamptz) to pcp_integration;
+
+alter default privileges in schema ops grant select on tables to pcp_app;
+alter default privileges in schema core grant select on tables to pcp_app;
+alter default privileges in schema mart grant select on tables to pcp_app;
+
+alter default privileges in schema ops grant select on tables to pcp_integration;
+alter default privileges in schema raw grant select on tables to pcp_integration;
+alter default privileges in schema core grant select on tables to pcp_integration;
+alter default privileges in schema mart grant select on tables to pcp_integration;
+
+alter default privileges in schema ops grant usage, select on sequences to pcp_integration;
+alter default privileges in schema raw grant usage, select on sequences to pcp_integration;
+alter default privileges in schema core grant usage, select on sequences to pcp_integration;
+alter default privileges in schema mart grant usage, select on sequences to pcp_integration;
 
 alter role pcp_app set search_path = mart, core, ops, public;
 alter role pcp_integration set search_path = ops, raw, core, mart, public;
