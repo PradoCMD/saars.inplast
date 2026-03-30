@@ -1,0 +1,46 @@
+{
+  "header": {
+    "romaneio": "RM-240331-003",
+    "empresa": "INPLAST",
+    "status_evento": "shadow_processed",
+    "data_evento": "2026-03-30T09:05:00-03:00",
+    "itens": 4,
+    "quantidade_total": 980,
+    "previsao_saida_at": null,
+    "previsao_saida_status": "sem_previsao",
+    "criterio_previsao": "compra",
+    "previsao_saida_observacao": "Faltam datas confiaveis de compra para liberar a previsao final deste romaneio."
+  },
+  "items": [
+    {
+      "sku": "CMP-70002",
+      "produto": "Etiqueta caixa kit banheiro",
+      "quantidade": 600,
+      "impacto": "Compra",
+      "modo_atendimento": "compra",
+      "quantidade_atendida_estoque": 430,
+      "quantidade_pendente": 170,
+      "previsao_disponibilidade_at": null,
+      "previsao_disponibilidade_status": "sem_previsao"
+    },
+    {
+      "sku": "CMP-60012",
+      "produto": "Parafuso inox 4.2 x 9.5",
+      "quantidade": 380,
+      "impacto": "Compra",
+      "modo_atendimento": "compra",
+      "quantidade_atendida_estoque": 300,
+      "quantidade_pendente": 80,
+      "previsao_disponibilidade_at": null,
+      "previsao_disponibilidade_status": "sem_previsao"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "evt-rom-003",
+      "event_type": "created",
+      "received_at": "2026-03-30T09:05:14-03:00",
+      "status": "processed"
+    }
+  ]
+}

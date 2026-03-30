@@ -1,0 +1,130 @@
+{
+  "name": "PCP | 11 | Sankhya | Romaneio Webhook",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "POST",
+        "path": "pcp/sankhya-romaneio-shadow",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-sankhya-romaneio",
+      "name": "Webhook | Sankhya Romaneio",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [
+        -820,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const requestBody = $json.body || $json;\nconst headers = $json.headers || {};\nconst expectedToken = $env.SANKHYA_PCP_TOKEN || '';\nconst receivedToken = headers['x-pcp-token'] || headers['X-Pcp-Token'] || headers['X-PCP-Token'] || '';\nconst authorized = !expectedToken || receivedToken === expectedToken;\nconst payload = requestBody;\nconst meta = {\n  authorized,\n  webhook_path: 'pcp/sankhya-romaneio-shadow',\n  headers,\n  query: $json.query || {},\n  params: $json.params || {},\n  remote_addr: headers['x-forwarded-for'] || headers['x-real-ip'] || ''\n};\nreturn [{ json: { authorized, payload, meta } }];"
+      },
+      "id": "normalize-webhook-request",
+      "name": "Normalize Webhook Request",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -560,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const esc = (value) => JSON.stringify(value ?? {}).replace(/'/g, \"''\");\nlet sql;\nif ($json.authorized) {\n  sql = `select ops.ingest_romaneio_event_payload(\\n  'romaneio_sankhya_webhook',\\n  '${esc($json.payload)}'::jsonb,\\n  '${esc($json.meta)}'::jsonb\\n) as result;`;\n} else {\n  sql = `select jsonb_build_object('status','unauthorized','processed',false,'message','Token invalido ou ausente') as result;`;\n}\nreturn [{ json: { ...$json, sql_query: sql } }];"
+      },
+      "id": "build-romaneio-sql",
+      "name": "Build Romaneio SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        -300,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql_query }}"
+      },
+      "id": "postgres-ingest-romaneio",
+      "name": "Postgres | Ingest Romaneio Event",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        -40,
+        180
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const row = $json || {};\nlet result = row.result ?? row;\nif (typeof result === 'string') {\n  try {\n    result = JSON.parse(result);\n  } catch (error) {\n    result = { status: 'unknown', raw_result: row.result };\n  }\n}\nconst ok = ['processed', 'duplicate_ignored'].includes(result.status);\nreturn [{\n  json: {\n    ok,\n    workflow: 'PCP | 11 | Sankhya | Romaneio Webhook',\n    mode: 'shadow',\n    ...result\n  }\n}];"
+      },
+      "id": "build-webhook-response",
+      "name": "Build Webhook Response",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        180
+      ]
+    }
+  ],
+  "connections": {
+    "Webhook | Sankhya Romaneio": {
+      "main": [
+        [
+          {
+            "node": "Normalize Webhook Request",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Normalize Webhook Request": {
+      "main": [
+        [
+          {
+            "node": "Build Romaneio SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Romaneio SQL": {
+      "main": [
+        [
+          {
+            "node": "Postgres | Ingest Romaneio Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres | Ingest Romaneio Event": {
+      "main": [
+        [
+          {
+            "node": "Build Webhook Response",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "6fb1aa65-3271-49ba-b8c9-eeb1dd2479df",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

@@ -1,0 +1,2 @@
+snapshot_at,forecast_key,sku,available_at,quantity_planned,company_code,notes,status_programacao,resource_code,resource_name,order_code,turno,responsavel
+2026-03-30T10:00:00-03:00,MON-20260330-001-01,ACB-41002,2026-03-31T16:00:00-03:00,2420,INPLAST,Lote liberado apos conferencia,programado,LINHA-M01,Linha Montagem 01,OM-45871,1,Supervisor A

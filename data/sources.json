@@ -1,0 +1,32 @@
+{
+  "items": [
+    {
+      "source_code": "romaneio_sankhya_webhook",
+      "source_name": "Webhook Sankhya",
+      "source_area": "demanda_romaneio",
+      "last_success_at": "2026-03-30T09:05:00-03:00",
+      "freshness_status": "ok"
+    },
+    {
+      "source_code": "estoque_intermediario_planilha",
+      "source_name": "Estoque intermediario",
+      "source_area": "estoque_intermediario",
+      "last_success_at": "2026-03-30T08:50:00-03:00",
+      "freshness_status": "ok"
+    },
+    {
+      "source_code": "estoque_materia_prima_almoxarifado",
+      "source_name": "Almoxarifado MP",
+      "source_area": "estoque_materia_prima",
+      "last_success_at": "2026-03-30T08:45:00-03:00",
+      "freshness_status": "warning"
+    },
+    {
+      "source_code": "bom_intermediario_pendente",
+      "source_name": "BOM intermediario",
+      "source_area": "bom",
+      "last_success_at": null,
+      "freshness_status": "missing"
+    }
+  ]
+}

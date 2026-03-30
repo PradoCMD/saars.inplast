@@ -1,0 +1,232 @@
+<!DOCTYPE html>
+<html lang="pt-BR">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Modulo PCP | SaaS Mock</title>
+    <link rel="stylesheet" href="/styles.css" />
+  </head>
+  <body>
+    <div class="shell">
+      <aside class="sidebar">
+        <div class="brand">
+          <span class="eyebrow">Modulo operacional</span>
+          <h1>PCP</h1>
+          <p>Painel oficial do planejamento, montagem, producao, compras e reciclagem.</p>
+        </div>
+
+        <nav class="nav">
+          <a href="#cockpit">Cockpit</a>
+          <a href="#romaneios">Romaneios</a>
+          <a href="#montagem">Montagem</a>
+          <a href="#producao">Producao</a>
+          <a href="#compras">Compras</a>
+          <a href="#recicla">Recicla</a>
+          <a href="#fontes">Fontes</a>
+        </nav>
+
+        <div class="sidebar-card">
+          <small>Status do mock</small>
+          <strong>API ativa</strong>
+          <span>Endpoints locais em Python puro, prontos para troca pelos endpoints reais do SaaS.</span>
+        </div>
+      </aside>
+
+      <main class="content">
+        <section id="cockpit" class="hero">
+          <div class="hero-head">
+            <div>
+              <span class="pill">Visao executiva da rodada</span>
+              <h2>Planejamento com dados de demanda, estoque, producao e reciclagem.</h2>
+              <p>
+                Esta tela ja consome a API mock do modulo PCP e reflete o desenho que montamos
+                para o SaaS oficial.
+              </p>
+            </div>
+            <div class="hero-actions">
+              <button id="run-mrp" class="button primary">Disparar MRP</button>
+              <button id="reload-all" class="button">Atualizar painel</button>
+            </div>
+          </div>
+
+          <div class="stats" id="overview-cards"></div>
+
+          <div class="hero-foot">
+            <div>
+              <small>Snapshot atual</small>
+              <strong id="snapshot-at">-</strong>
+            </div>
+            <div id="mrp-status" class="run-status">Nenhum disparo manual nesta sessao.</div>
+          </div>
+        </section>
+
+        <section class="grid">
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <small>Top criticos</small>
+                <h3>Itens com maior impacto</h3>
+              </div>
+            </div>
+            <div id="critical-list" class="stack"></div>
+          </article>
+
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <small>Alertas</small>
+                <h3>Riscos da operacao</h3>
+              </div>
+            </div>
+            <div id="alerts-list" class="stack"></div>
+          </article>
+        </section>
+
+        <section id="romaneios" class="grid">
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <small>Demanda do ERP</small>
+                <h3>Romaneios recebidos</h3>
+              </div>
+            </div>
+            <div id="romaneios-list" class="stack"></div>
+          </article>
+
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <small>Drill-down</small>
+                <h3>Detalhe do romaneio</h3>
+              </div>
+            </div>
+            <div id="romaneio-detail" class="detail-empty">
+              Selecione um romaneio para ver itens e historico.
+            </div>
+          </article>
+        </section>
+
+        <section id="montagem" class="card">
+          <div class="section-head">
+            <div>
+              <small>Fila operacional</small>
+              <h3>Montagem do acabado</h3>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Produto</th>
+                  <th>Necessidade</th>
+                  <th>Estoque</th>
+                  <th>Custo total</th>
+                  <th>Criticidade</th>
+                </tr>
+              </thead>
+              <tbody id="assembly-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="producao" class="card">
+          <div class="section-head">
+            <div>
+              <small>Fila operacional</small>
+              <h3>Producao do intermediario</h3>
+            </div>
+          </div>
+          <div class="table-wrap">
+            <table>
+              <thead>
+                <tr>
+                  <th>SKU</th>
+                  <th>Produto</th>
+                  <th>Necessidade</th>
+                  <th>Estoque</th>
+                  <th>Custo total</th>
+                  <th>Criticidade</th>
+                </tr>
+              </thead>
+              <tbody id="production-table"></tbody>
+            </table>
+          </div>
+        </section>
+
+        <section id="compras" class="grid">
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <small>Fila operacional</small>
+                <h3>Compras planejadas</h3>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Produto</th>
+                    <th>Tipo</th>
+                    <th>Necessidade</th>
+                    <th>Custo total</th>
+                  </tr>
+                </thead>
+                <tbody id="purchase-table"></tbody>
+              </table>
+            </div>
+          </article>
+
+          <article id="recicla" class="card">
+            <div class="section-head">
+              <div>
+                <small>Sustentacao da rodada</small>
+                <h3>Recicla e custos</h3>
+              </div>
+            </div>
+            <div id="recycling-list" class="stack"></div>
+            <div id="cost-list" class="cost-grid"></div>
+          </article>
+        </section>
+
+        <section id="fontes" class="grid">
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <small>Governanca</small>
+                <h3>Saude das fontes</h3>
+              </div>
+            </div>
+            <div id="sources-list" class="stack"></div>
+          </article>
+
+          <article class="card">
+            <div class="section-head">
+              <div>
+                <small>Painel atual</small>
+                <h3>Visao consolidada</h3>
+              </div>
+            </div>
+            <div class="table-wrap">
+              <table>
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Produto</th>
+                    <th>Tipo</th>
+                    <th>Saldo</th>
+                    <th>Acao</th>
+                  </tr>
+                </thead>
+                <tbody id="painel-table"></tbody>
+              </table>
+            </div>
+          </article>
+        </section>
+      </main>
+    </div>
+
+    <script src="/app.js"></script>
+  </body>
+</html>

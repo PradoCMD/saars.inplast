@@ -1,0 +1,44 @@
+{
+  "items": [
+    {
+      "sku": "MP-PPV-001",
+      "produto": "PP virgem branco",
+      "product_type": "materia_prima",
+      "net_required": 770,
+      "stock_available": 210,
+      "estimated_unit_cost": 8.9,
+      "estimated_total_cost": 6853.0,
+      "criticidade": "Alta"
+    },
+    {
+      "sku": "MP-PVC-003",
+      "produto": "PVC vermelho",
+      "product_type": "materia_prima",
+      "net_required": 120,
+      "stock_available": 0,
+      "estimated_unit_cost": 11.7,
+      "estimated_total_cost": 1404.0,
+      "criticidade": "Media"
+    },
+    {
+      "sku": "CMP-60012",
+      "produto": "Parafuso inox 4.2 x 9.5",
+      "product_type": "componente",
+      "net_required": 800,
+      "stock_available": 8400,
+      "estimated_unit_cost": 0.34,
+      "estimated_total_cost": 272.0,
+      "criticidade": "Media"
+    },
+    {
+      "sku": "CMP-70002",
+      "produto": "Etiqueta caixa kit banheiro",
+      "product_type": "componente",
+      "net_required": 1200,
+      "stock_available": 430,
+      "estimated_unit_cost": 0.18,
+      "estimated_total_cost": 216.0,
+      "criticidade": "Alta"
+    }
+  ]
+}

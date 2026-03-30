@@ -1,0 +1,63 @@
+{
+  "header": {
+    "romaneio": "RM-240331-001",
+    "empresa": "INPLAST",
+    "status_evento": "processed",
+    "data_evento": "2026-03-30T08:12:00-03:00",
+    "itens": 12,
+    "quantidade_total": 5420,
+    "previsao_saida_at": "2026-03-31T16:00:00-03:00",
+    "previsao_saida_status": "programado",
+    "criterio_previsao": "estoque, montagem",
+    "previsao_saida_observacao": "O romaneio depende da conclusao da montagem do produto acabado faltante."
+  },
+  "items": [
+    {
+      "sku": "ACB-41002",
+      "produto": "Porta escova slim 2 divisorias",
+      "quantidade": 3240,
+      "impacto": "Montagem",
+      "modo_atendimento": "montagem",
+      "quantidade_atendida_estoque": 820,
+      "quantidade_pendente": 2420,
+      "previsao_disponibilidade_at": "2026-03-31T16:00:00-03:00",
+      "previsao_disponibilidade_status": "previsao_informada"
+    },
+    {
+      "sku": "ACB-52011",
+      "produto": "Porta condimento 6 potes",
+      "quantidade": 1180,
+      "impacto": "Montagem",
+      "modo_atendimento": "montagem",
+      "quantidade_atendida_estoque": 1120,
+      "quantidade_pendente": 60,
+      "previsao_disponibilidade_at": "2026-03-31T10:00:00-03:00",
+      "previsao_disponibilidade_status": "heuristica_processo"
+    },
+    {
+      "sku": "ACB-99010",
+      "produto": "Organizador multiuso M",
+      "quantidade": 1000,
+      "impacto": "Atender estoque",
+      "modo_atendimento": "estoque",
+      "quantidade_atendida_estoque": 1000,
+      "quantidade_pendente": 0,
+      "previsao_disponibilidade_at": "2026-03-30T10:45:00-03:00",
+      "previsao_disponibilidade_status": "estoque"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "evt-rom-001",
+      "event_type": "created",
+      "received_at": "2026-03-30T08:12:03-03:00",
+      "status": "processed"
+    },
+    {
+      "event_id": "evt-rom-001-mrp",
+      "event_type": "mrp_run",
+      "received_at": "2026-03-30T08:12:12-03:00",
+      "status": "queued"
+    }
+  ]
+}

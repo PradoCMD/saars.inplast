@@ -1,0 +1,29 @@
+{
+  "items": [
+    {
+      "category": "montagem",
+      "label": "Custo de montagem do acabado",
+      "estimated_total_cost": 54761.0
+    },
+    {
+      "category": "producao",
+      "label": "Custo de producao do intermediario",
+      "estimated_total_cost": 23548.0
+    },
+    {
+      "category": "compras",
+      "label": "Custo de compras da rodada",
+      "estimated_total_cost": 18745.0
+    },
+    {
+      "category": "reciclagem",
+      "label": "Custo logistica e servico Recicla",
+      "estimated_total_cost": 626.6
+    },
+    {
+      "category": "total",
+      "label": "Custo total estimado",
+      "estimated_total_cost": 487320.45
+    }
+  ]
+}

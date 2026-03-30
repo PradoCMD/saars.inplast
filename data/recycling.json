@@ -1,0 +1,22 @@
+{
+  "items": [
+    {
+      "produced_sku": "INT-33018",
+      "produced_description": "Corpo porta escova slim",
+      "residue_sku": "RES-PP-001",
+      "projected_residue_qty": 112.5,
+      "recycled_sku": "MP-PP-RC1",
+      "projected_recycled_raw_material_qty": 74.2,
+      "projected_recycling_service_cost": 382.0
+    },
+    {
+      "produced_sku": "INT-88014",
+      "produced_description": "Base kit banheiro",
+      "residue_sku": "RES-ABS-002",
+      "projected_residue_qty": 68.0,
+      "recycled_sku": "MP-ABS-RC1",
+      "projected_recycled_raw_material_qty": 42.5,
+      "projected_recycling_service_cost": 244.6
+    }
+  ]
+}

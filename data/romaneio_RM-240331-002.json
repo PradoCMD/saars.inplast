@@ -1,0 +1,46 @@
+{
+  "header": {
+    "romaneio": "RM-240331-002",
+    "empresa": "INPLAST",
+    "status_evento": "processed",
+    "data_evento": "2026-03-30T08:39:00-03:00",
+    "itens": 7,
+    "quantidade_total": 2180,
+    "previsao_saida_at": "2026-03-30T11:30:00-03:00",
+    "previsao_saida_status": "estoque",
+    "criterio_previsao": "estoque",
+    "previsao_saida_observacao": "O romaneio pode sair com base no estoque atual sem depender de nova produção."
+  },
+  "items": [
+    {
+      "sku": "ACB-99010",
+      "produto": "Organizador multiuso M",
+      "quantidade": 980,
+      "impacto": "Atender estoque",
+      "modo_atendimento": "estoque",
+      "quantidade_atendida_estoque": 980,
+      "quantidade_pendente": 0,
+      "previsao_disponibilidade_at": "2026-03-30T10:45:00-03:00",
+      "previsao_disponibilidade_status": "estoque"
+    },
+    {
+      "sku": "ACB-73040",
+      "produto": "Kit banheiro 3 pecas",
+      "quantidade": 1200,
+      "impacto": "Atender estoque",
+      "modo_atendimento": "estoque",
+      "quantidade_atendida_estoque": 1200,
+      "quantidade_pendente": 0,
+      "previsao_disponibilidade_at": "2026-03-30T11:30:00-03:00",
+      "previsao_disponibilidade_status": "estoque"
+    }
+  ],
+  "events": [
+    {
+      "event_id": "evt-rom-002",
+      "event_type": "created",
+      "received_at": "2026-03-30T08:39:08-03:00",
+      "status": "processed"
+    }
+  ]
+}

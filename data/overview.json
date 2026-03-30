@@ -1,0 +1,47 @@
+{
+  "snapshot_at": "2026-03-30T10:45:00-03:00",
+  "totals": {
+    "estoque_atual": 128940,
+    "necessidade_romaneios": 84210,
+    "necessidade_montagem": 18430,
+    "necessidade_producao": 12360,
+    "necessidade_compra": 9860,
+    "romaneios_sem_previsao": 1,
+    "custo_estimado_total": 487320.45
+  },
+  "top_criticos": [
+    {
+      "sku": "ACB-41002",
+      "produto": "Porta escova slim 2 divisorias",
+      "tipo": "acabado",
+      "estoque_atual": 820,
+      "necessidade_romaneios": 3240,
+      "saldo": -2420,
+      "necessidade_producao": 2420,
+      "criticidade": "Alta",
+      "acao": "Montar"
+    },
+    {
+      "sku": "INT-33018",
+      "produto": "Corpo porta escova slim",
+      "tipo": "intermediario",
+      "estoque_atual": 1400,
+      "necessidade_romaneios": 3620,
+      "saldo": -2220,
+      "necessidade_producao": 2220,
+      "criticidade": "Alta",
+      "acao": "Produzir"
+    },
+    {
+      "sku": "MP-PPV-001",
+      "produto": "PP virgem branco",
+      "tipo": "materia_prima",
+      "estoque_atual": 210,
+      "necessidade_romaneios": 980,
+      "saldo": -770,
+      "necessidade_producao": 770,
+      "criticidade": "Alta",
+      "acao": "Comprar"
+    }
+  ]
+}

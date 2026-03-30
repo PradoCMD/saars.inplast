@@ -1,0 +1,37 @@
+{
+  "items": [
+    {
+      "romaneio": "RM-240331-001",
+      "empresa": "INPLAST",
+      "status_evento": "processed",
+      "data_evento": "2026-03-30T08:12:00-03:00",
+      "itens": 12,
+      "quantidade_total": 5420,
+      "previsao_saida_at": "2026-03-31T16:00:00-03:00",
+      "previsao_saida_status": "programado",
+      "criterio_previsao": "estoque, montagem"
+    },
+    {
+      "romaneio": "RM-240331-002",
+      "empresa": "INPLAST",
+      "status_evento": "processed",
+      "data_evento": "2026-03-30T08:39:00-03:00",
+      "itens": 7,
+      "quantidade_total": 2180,
+      "previsao_saida_at": "2026-03-30T11:30:00-03:00",
+      "previsao_saida_status": "estoque",
+      "criterio_previsao": "estoque"
+    },
+    {
+      "romaneio": "RM-240331-003",
+      "empresa": "INPLAST",
+      "status_evento": "shadow_processed",
+      "data_evento": "2026-03-30T09:05:00-03:00",
+      "itens": 4,
+      "quantidade_total": 980,
+      "previsao_saida_at": null,
+      "previsao_saida_status": "sem_previsao",
+      "criterio_previsao": "compra"
+    }
+  ]
+}

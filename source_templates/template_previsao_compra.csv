@@ -1,0 +1,2 @@
+snapshot_at,forecast_key,sku,available_at,quantity_planned,company_code,notes,status_programacao,document_code,order_code,resource_name,responsavel
+2026-03-30T10:00:00-03:00,COMP-20260330-70002-01,CMP-70002,2026-04-01T14:00:00-03:00,170,INPLAST,Recebimento previsto no almoxarifado,confirmado,NF-PREV-7782,PC-44098,Fornecedor XPTO,Compras

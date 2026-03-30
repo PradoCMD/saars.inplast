@@ -1,0 +1,2 @@
+snapshot_at,forecast_key,sku,available_at,quantity_planned,company_code,notes,status_programacao,resource_code,resource_name,order_code,molde,turno,responsavel
+2026-03-30T10:00:00-03:00,PROD-20260330-018-01,INT-33018,2026-03-31T08:30:00-03:00,2220,INPLAST,Quantidade liquida apos refugo esperado,programado,INJ-04,Injetora 04,OP-99318,MD-210,2,Lider Injeção

@@ -1,0 +1,34 @@
+{
+  "items": [
+    {
+      "sku": "INT-33018",
+      "produto": "Corpo porta escova slim",
+      "product_type": "intermediario",
+      "net_required": 2220,
+      "stock_available": 1400,
+      "estimated_unit_cost": 5.2,
+      "estimated_total_cost": 11544.0,
+      "criticidade": "Alta"
+    },
+    {
+      "sku": "INT-44100",
+      "produto": "Tampa porta condimento",
+      "product_type": "intermediario",
+      "net_required": 320,
+      "stock_available": 2800,
+      "estimated_unit_cost": 2.65,
+      "estimated_total_cost": 848.0,
+      "criticidade": "Baixa"
+    },
+    {
+      "sku": "INT-88014",
+      "produto": "Base kit banheiro",
+      "product_type": "intermediario",
+      "net_required": 760,
+      "stock_available": 210,
+      "estimated_unit_cost": 7.4,
+      "estimated_total_cost": 5624.0,
+      "criticidade": "Alta"
+    }
+  ]
+}

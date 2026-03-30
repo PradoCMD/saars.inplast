@@ -1,0 +1,70 @@
+{
+  "items": [
+    {
+      "sku": "ACB-41002",
+      "produto": "Porta escova slim 2 divisorias",
+      "tipo": "acabado",
+      "estoque_atual": 820,
+      "necessidade_romaneios": 3240,
+      "saldo": -2420,
+      "necessidade_producao": 2420,
+      "criticidade": "Alta",
+      "acao": "Montar"
+    },
+    {
+      "sku": "ACB-52011",
+      "produto": "Porta condimento 6 potes",
+      "tipo": "acabado",
+      "estoque_atual": 1120,
+      "necessidade_romaneios": 1860,
+      "saldo": -740,
+      "necessidade_producao": 740,
+      "criticidade": "Media",
+      "acao": "Montar"
+    },
+    {
+      "sku": "INT-33018",
+      "produto": "Corpo porta escova slim",
+      "tipo": "intermediario",
+      "estoque_atual": 1400,
+      "necessidade_romaneios": 3620,
+      "saldo": -2220,
+      "necessidade_producao": 2220,
+      "criticidade": "Alta",
+      "acao": "Produzir"
+    },
+    {
+      "sku": "INT-44100",
+      "produto": "Tampa porta condimento",
+      "tipo": "intermediario",
+      "estoque_atual": 2800,
+      "necessidade_romaneios": 2100,
+      "saldo": 700,
+      "necessidade_producao": 0,
+      "criticidade": "Baixa",
+      "acao": "Monitorar"
+    },
+    {
+      "sku": "MP-PPV-001",
+      "produto": "PP virgem branco",
+      "tipo": "materia_prima",
+      "estoque_atual": 210,
+      "necessidade_romaneios": 980,
+      "saldo": -770,
+      "necessidade_producao": 770,
+      "criticidade": "Alta",
+      "acao": "Comprar"
+    },
+    {
+      "sku": "CMP-60012",
+      "produto": "Parafuso inox 4.2 x 9.5",
+      "tipo": "componente",
+      "estoque_atual": 8400,
+      "necessidade_romaneios": 9200,
+      "saldo": -800,
+      "necessidade_producao": 800,
+      "criticidade": "Media",
+      "acao": "Comprar"
+    }
+  ]
+}

@@ -1,0 +1,28 @@
+{
+  "items": [
+    {
+      "type": "source",
+      "severity": "warning",
+      "message": "Fonte de estoque de materia-prima esta atrasada ha mais de 2 horas.",
+      "context": {
+        "source_code": "estoque_materia_prima_almoxarifado"
+      }
+    },
+    {
+      "type": "bom",
+      "severity": "high",
+      "message": "Existem itens com necessidade e sem BOM homologada para explosao completa.",
+      "context": {
+        "count": 6
+      }
+    },
+    {
+      "type": "quality",
+      "severity": "medium",
+      "message": "Codigos duplicados foram encontrados no cadastro de materia-prima do almoxarifado.",
+      "context": {
+        "sample_code": "100101"
+      }
+    }
+  ]
+}
