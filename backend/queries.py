@@ -2,36 +2,36 @@ OVERVIEW_SQL = """
 with painel as (
     select *
     from mart.vw_painel_current
-    where (%s is null or company_code = %s)
+    where (%s::text is null or company_code = %s::text)
 ),
 assembly as (
     select coalesce(sum(m.net_required), 0) as total
     from mart.vw_mrp_assembly m
     join core.product p on p.product_id = m.product_id
-    where (%s is null or p.company_code = %s)
+    where (%s::text is null or p.company_code = %s::text)
 ),
 production as (
     select coalesce(sum(m.net_required), 0) as total
     from mart.vw_mrp_production m
     join core.product p on p.product_id = m.product_id
-    where (%s is null or p.company_code = %s)
+    where (%s::text is null or p.company_code = %s::text)
 ),
 purchase as (
     select coalesce(sum(m.net_required), 0) as total
     from mart.vw_mrp_purchase m
     join core.product p on p.product_id = m.product_id
-    where (%s is null or p.company_code = %s)
+    where (%s::text is null or p.company_code = %s::text)
 ),
 costs as (
     select coalesce(sum(m.estimated_total_cost), 0) as total
     from mart.vw_mrp_cost_last_run m
     join core.product p on p.product_id = m.product_id
-    where (%s is null or p.company_code = %s)
+    where (%s::text is null or p.company_code = %s::text)
 ),
 romaneios_eta as (
     select count(*) as sem_previsao
     from mart.vw_romaneio_eta_current r
-    where (%s is null or r.empresa = %s)
+    where (%s::text is null or r.empresa = %s::text)
       and r.previsao_saida_status = 'sem_previsao'
 ),
 snapshots as (

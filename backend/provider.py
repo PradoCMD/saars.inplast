@@ -210,7 +210,7 @@ class PostgresProvider(DataProvider):
         company_code: str | None = None,
         limit: int | None = None,
     ) -> tuple[str, tuple[Any, ...]]:
-        sql = [f"select * from ({queries.PANEL_ENRICHED_SQL}) painel where (%s is null or company_code = %s)"]
+        sql = [f"select * from ({queries.PANEL_ENRICHED_SQL}) painel where (%s::text is null or company_code = %s::text)"]
         params: list[Any] = [company_code, company_code]
 
         if search:
