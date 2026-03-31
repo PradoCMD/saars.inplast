@@ -27,7 +27,6 @@ Opcionalmente, o script tambem suporta:
 ## Variaveis esperadas no `n8n`
 
 - `PCP_REPO_ROOT=/opt/saars.inplast`
-- `SANKHYA_AUTHORIZATION=Bearer SEU_TOKEN`
 - `SANKHYA_ORDENS_CARGA_LIST_URL=https://api.sankhya.com.br/v1/logistica/ordens-carga`
 - `SANKHYA_ORDENS_CARGA_DETAIL_URL_TEMPLATE=https://api.sankhya.com.br/v1/logistica/empresas/{codigoEmpresa}/ordens-carga/{codigoOrdemCarga}`
 - `SANKHYA_ORDENS_CARGA_PEDIDOS_URL_TEMPLATE=`
@@ -37,14 +36,44 @@ Opcionalmente, o script tambem suporta:
 - `SANKHYA_ORDENS_CARGA_MAX_PAGES=1`
 - `SANKHYA_ORDENS_CARGA_INCLUDE_EMPTY_ITEMS=false`
 
+Opcional de fallback:
+
+- `SANKHYA_AUTHORIZATION=Bearer ...`
+
+Esse fallback so vale se voce quiser testar manualmente sem reaproveitar o seu node de autenticacao.
+
+## Token de autenticacao
+
+Este workflow foi ajustado para receber o bearer do node anterior.
+
+Ou seja:
+
+- se voce ja tem um `HTTP Request` que autentica no Sankhya, mantenha esse node
+- conecte a saida dele no node `Build Poll Config`
+- o `Build Poll Config` aceita estes formatos de entrada:
+  - `access_token`
+  - `accessToken`
+  - `token`
+  - `authorization`
+  - `Authorization`
+  - `bearer`
+  - `bearer_token`
+  - `bearerToken`
+  - e os mesmos campos dentro de `data`
+
+Se o node anterior ja devolver o valor completo `Bearer ...`, o workflow usa direto.
+
+Se o node anterior devolver so o token puro, o workflow monta `Bearer <token>` automaticamente.
+
 ## Como o fluxo funciona
 
 1. dispara manualmente ou a cada 15 minutos
-2. executa o script `scripts/sankhya_ordens_carga_poll.py`
-3. o script consulta a lista de ordens de carga
-4. se existir template de detalhe, consulta cada ordem individualmente
-5. se existir template de pedidos, consulta os pedidos por ordem
-6. normaliza tudo para payloads no formato:
+2. recebe o bearer do seu node de autenticacao
+3. executa o script `scripts/sankhya_ordens_carga_poll.py`
+4. o script consulta a lista de ordens de carga
+5. se existir template de detalhe, consulta cada ordem individualmente
+6. se existir template de pedidos, consulta os pedidos por ordem
+7. normaliza tudo para payloads no formato:
 
 ```json
 {
@@ -76,8 +105,24 @@ Opcionalmente, o script tambem suporta:
 }
 ```
 
-7. monta uma unica query SQL com todos os eventos
-8. grava tudo em `ops.ingest_romaneio_event_payload(...)`
+8. monta uma unica query SQL com todos os eventos
+9. grava tudo em `ops.ingest_romaneio_event_payload(...)`
+
+## Autenticacao oficial da Sankhya
+
+Se voce precisar montar ou revisar o node de autenticacao, a documentacao oficial da Sankhya recomenda OAuth 2.0 `client_credentials` em:
+
+- [Autenticação com OAuth 2.0 (Client Credentials)](https://developer.sankhya.com.br/reference/post_authenticate)
+
+Essa chamada usa:
+
+- `POST https://api.sankhya.com.br/authenticate`
+- header `X-Token`
+- body `grant_type=client_credentials`
+- body `client_id`
+- body `client_secret`
+
+Mas esse node nao precisa ficar dentro deste workflow de polling se voce ja possui um fluxo/autenticacao pronta no n8n.
 
 ## Observacao importante
 
@@ -95,9 +140,10 @@ Se ainda assim os itens nao vierem, o fluxo vai devolver avisos em `summary.warn
 
 1. criar um novo workflow no `n8n`
 2. importar `n8n/n8n_workflow_sankhya_ordens_carga_poll.json`
-3. configurar a credencial do node `Postgres | Ingest Romaneio Event`
-4. preencher as variaveis de ambiente acima
-5. testar primeiro com o workflow `inactive`
+3. encaixar o seu node de autenticacao antes do node `Build Poll Config`
+4. configurar a credencial do node `Postgres | Ingest Romaneio Event`
+5. preencher as variaveis de ambiente acima
+6. testar primeiro com o workflow `inactive`
 
 ## Teste manual sugerido
 
