@@ -100,6 +100,9 @@ Campos mais importantes:
 - `max_pages`
 - `pedidos_page`
 - `include_empty_items`
+- `only_pending_orders`
+- `status_exclude_terms`
+- `max_orders_per_run`
 
 Default atual:
 
@@ -111,13 +114,28 @@ const CONFIG = {
   loadrecords_url: 'https://api.sankhya.com.br/gateway/v1/mge/service.sbr?serviceName=CRUDServiceProvider.loadRecords&outputType=json',
   pedidos_url: 'https://api.sankhya.com.br/v1/vendas/pedidos',
   codigo_empresa: '',
-  modified_since: '',
+  modified_since: new Date(Date.now() - (48 * 60 * 60 * 1000)).toISOString(),
   start_page: 0,
-  max_pages: 3,
+  max_pages: 1,
   pedidos_page: 1,
-  include_empty_items: false
+  include_empty_items: false,
+  only_pending_orders: true,
+  status_exclude_terms: ['entregue', 'finalizada', 'finalizado', 'fechada', 'fechado', 'cancelada', 'cancelado', 'concluida', 'concluido'],
+  max_orders_per_run: 25
 };
 ```
+
+Para carga historica:
+
+- aumente `max_pages`
+- aumente `max_orders_per_run`
+- ou zere/ajuste `modified_since`
+
+Para polling de producao:
+
+- mantenha `only_pending_orders: true`
+- mantenha uma janela curta em `modified_since`
+- mantenha `max_orders_per_run` baixo
 
 ## Formato real da resposta de lista
 
@@ -137,6 +155,8 @@ Esse workflow:
 
 - autentica
 - busca a lista paginada de ordens
+- descarta ordens com status de entrega/fechamento/cancelamento
+- limita a quantidade de ordens processadas por execucao
 - explode uma ordem por item de execucao
 - consulta `CabecalhoNota` via `loadRecords` usando `CODEMP` e `ORDEMCARGA`
 - expande as `NUNOTA` vinculadas a cada ordem
