@@ -28,6 +28,10 @@ DEFAULT_PARSER_BY_SOURCE = {
     "estoque_materia_prima_almoxarifado": "parse_estoque_almoxarifado_mp",
     "estoque_componente_almoxarifado": "parse_estoque_almoxarifado_componentes",
 }
+GOOGLE_PARSER_BY_SOURCE = {
+    "estoque_materia_prima_almoxarifado": "parse_estoque_almoxarifado_mp_google",
+    "estoque_componente_almoxarifado": "parse_estoque_almoxarifado_componentes_google",
+}
 
 
 class SourceSyncError(RuntimeError):
@@ -41,6 +45,11 @@ class InventorySourceRequest:
     parser_name: str
     workbook_path: str
     config_json: dict[str, Any]
+
+
+def is_google_published_url(value: str) -> bool:
+    text = str(value or "").strip().lower()
+    return text.startswith("https://docs.google.com/spreadsheets/d/e/") and "/pubhtml" in text
 
 
 def repo_root_candidates(settings: Settings) -> list[Path]:
@@ -110,7 +119,13 @@ def resolve_workbook_path(
         raise SourceSyncError("Fonte `estoque_intermediario_atual` sem URL publicada configurada.")
 
     if source_code in {"estoque_materia_prima_almoxarifado", "estoque_componente_almoxarifado"}:
-        workbook_path = settings.almox_workbook or str(config_json.get("workbook_path_hint") or "").strip() or ALMOX_DEFAULT_WORKBOOK
+        workbook_path = (
+            settings.almox_published_url
+            or str(config_json.get("published_url_hint") or "").strip()
+            or settings.almox_workbook
+            or str(config_json.get("workbook_path_hint") or "").strip()
+            or ALMOX_DEFAULT_WORKBOOK
+        )
         if workbook_path:
             return workbook_path
         raise SourceSyncError(f"Fonte `{source_code}` sem workbook configurado.")
@@ -133,6 +148,8 @@ def build_source_request(source_row: dict[str, Any], settings: Settings) -> Inve
         raise SourceSyncError(f"Fonte `{source_code}` sem parser associado em `ops.source_registry`.")
 
     workbook_path = resolve_workbook_path(source_code=source_code, config_json=config_json, settings=settings)
+    if source_code in GOOGLE_PARSER_BY_SOURCE and is_google_published_url(workbook_path):
+        parser_name = GOOGLE_PARSER_BY_SOURCE[source_code]
     return InventorySourceRequest(
         source_code=source_code,
         source_area=source_area,

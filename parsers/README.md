@@ -4,9 +4,12 @@
 
 - `parse_estoque_almoxarifado_mp.py`
 - `parse_estoque_almoxarifado_componentes.py`
+- `parse_estoque_almoxarifado_mp_google.py`
+- `parse_estoque_almoxarifado_componentes_google.py`
 - `parse_estoque_intermediario_google.py`
 - `parse_estoque_acabado_google.py`
 - `parse_bom_estrutura_padrao.py`
+- `published_ledger_parser.py`
 - `xlsx_ledger_parser.py`
 - `run_inventory_parser.py`
 - `run_bom_parser.py`
@@ -23,6 +26,20 @@ Componentes:
 
 ```bash
 python3 parsers/parse_estoque_almoxarifado_componentes.py --summary "/caminho/Estoque Almoxarifado.xlsx"
+```
+
+Materia-prima publicada:
+
+```bash
+python3 parsers/parse_estoque_almoxarifado_mp_google.py --summary \
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTTPIHy6_gEBngeXzFQQGvPdCxNPeBP_le2etDdbTPTbF8XcGRPiuzVT5QSa1YRQsLQFb_7GiFNKCFa/pubhtml?widget=true&headers=false"
+```
+
+Componentes publicados:
+
+```bash
+python3 parsers/parse_estoque_almoxarifado_componentes_google.py --summary \
+  "https://docs.google.com/spreadsheets/d/e/2PACX-1vTTPIHy6_gEBngeXzFQQGvPdCxNPeBP_le2etDdbTPTbF8XcGRPiuzVT5QSa1YRQsLQFb_7GiFNKCFa/pubhtml?widget=true&headers=false"
 ```
 
 Envelope unico para `n8n`:

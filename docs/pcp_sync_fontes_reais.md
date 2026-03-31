@@ -14,13 +14,16 @@ O backend do SaaS agora consegue puxar fontes reais de estoque diretamente, sem 
 - `PCP_REPO_ROOT=/opt/saars.inplast`
 - `PCP_ACABADO_PUBLISHED_URL=https://docs.google.com/.../pubhtml?widget=true&headers=false`
 - `PCP_INTERMEDIARIO_PUBLISHED_URL=https://docs.google.com/.../pubhtml?widget=true&headers=false`
+- `PCP_ALMOX_PUBLISHED_URL=https://docs.google.com/.../pubhtml?widget=true&headers=false`
 - `PCP_ALMOX_WORKBOOK=/data/ingest/Estoque Almoxarifado.xlsx`
 - `PCP_SYNC_API_TOKEN=defina-um-token-se-quiser-proteger-a-rota`
 
 Observacoes:
 
 - se `PCP_ACABADO_PUBLISHED_URL` ou `PCP_INTERMEDIARIO_PUBLISHED_URL` nao forem definidos, o backend tenta usar o `published_url_hint` cadastrado em `ops.source_registry`
-- se `PCP_ALMOX_WORKBOOK` nao for definido, o backend tenta `/data/ingest/Estoque Almoxarifado.xlsx`
+- se `PCP_ALMOX_PUBLISHED_URL` existir, o backend usa os parsers Google de almoxarifado
+- se `PCP_ALMOX_PUBLISHED_URL` nao existir, o backend ainda aceita `PCP_ALMOX_WORKBOOK`
+- se nenhuma das duas variaveis de almox existir, o backend tenta `published_url_hint`, depois `workbook_path_hint`, e por fim `/data/ingest/Estoque Almoxarifado.xlsx`
 - se `PCP_SYNC_API_TOKEN` nao existir, a rota fica sem autenticacao adicional
 
 ## Endpoint

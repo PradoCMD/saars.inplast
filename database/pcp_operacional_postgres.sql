@@ -2460,7 +2460,7 @@ values
     true,
     false,
     'Planilha de almoxarifado recebida para homologacao da frente de materia-prima.',
-    '{"parser_contract":"estoque","sheet_name":"MOVIMENTACOES DE MP","stock_scope":"materia_prima","location_code":"ALMOXARIFADO_MP"}'::jsonb
+    '{"published_url_hint":"https://docs.google.com/spreadsheets/d/e/2PACX-1vTTPIHy6_gEBngeXzFQQGvPdCxNPeBP_le2etDdbTPTbF8XcGRPiuzVT5QSa1YRQsLQFb_7GiFNKCFa/pubhtml?widget=true&headers=false","parser_contract":"estoque","sheet_name":"MOVIMENTACOES DE MP","stock_scope":"materia_prima","location_code":"ALMOXARIFADO_MP"}'::jsonb
 ),
 (
     'estoque_componente_almoxarifado',
@@ -2473,7 +2473,7 @@ values
     true,
     false,
     'Planilha de almoxarifado recebida para homologacao da frente de componentes comprados.',
-    '{"parser_contract":"estoque","sheet_name":"MOVIMENTACOES DE PARAFUSOS","stock_scope":"componente","location_code":"ALMOXARIFADO_COMPONENTES"}'::jsonb
+    '{"published_url_hint":"https://docs.google.com/spreadsheets/d/e/2PACX-1vTTPIHy6_gEBngeXzFQQGvPdCxNPeBP_le2etDdbTPTbF8XcGRPiuzVT5QSa1YRQsLQFb_7GiFNKCFa/pubhtml?widget=true&headers=false","parser_contract":"estoque","sheet_name":"MOVIMENTACOES DE PARAFUSOS","stock_scope":"componente","location_code":"ALMOXARIFADO_COMPONENTES"}'::jsonb
 ),
 (
     'bom_final_pendente',

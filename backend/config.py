@@ -15,6 +15,7 @@ class Settings:
     repo_root: Path
     acabado_published_url: str | None
     intermediario_published_url: str | None
+    almox_published_url: str | None
     almox_workbook: str | None
     sync_api_token: str | None
 
@@ -40,6 +41,7 @@ class Settings:
             repo_root=Path((os.getenv("PCP_REPO_ROOT") or "").strip() or default_repo_root),
             acabado_published_url=(os.getenv("PCP_ACABADO_PUBLISHED_URL") or "").strip() or None,
             intermediario_published_url=(os.getenv("PCP_INTERMEDIARIO_PUBLISHED_URL") or "").strip() or None,
+            almox_published_url=(os.getenv("PCP_ALMOX_PUBLISHED_URL") or "").strip() or None,
             almox_workbook=(os.getenv("PCP_ALMOX_WORKBOOK") or "").strip() or None,
             sync_api_token=(os.getenv("PCP_SYNC_API_TOKEN") or "").strip() or None,
         )
