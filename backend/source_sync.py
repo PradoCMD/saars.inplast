@@ -5,6 +5,7 @@ import json
 import subprocess
 import sys
 from dataclasses import dataclass
+from pathlib import Path
 from typing import Any
 
 from .config import Settings
@@ -40,6 +41,31 @@ class InventorySourceRequest:
     parser_name: str
     workbook_path: str
     config_json: dict[str, Any]
+
+
+def repo_root_candidates(settings: Settings) -> list[Path]:
+    candidates = [
+        settings.repo_root,
+        Path(__file__).resolve().parent.parent,
+    ]
+    unique_candidates: list[Path] = []
+    for candidate in candidates:
+        resolved = candidate.resolve()
+        if resolved not in unique_candidates:
+            unique_candidates.append(resolved)
+    return unique_candidates
+
+
+def resolve_runtime_repo_root(settings: Settings, parser_name: str) -> Path:
+    for repo_root in repo_root_candidates(settings):
+        parser_path = repo_root / "parsers" / f"{parser_name}.py"
+        runner_path = repo_root / "parsers" / "run_inventory_parser.py"
+        if parser_path.exists() and runner_path.exists():
+            return repo_root
+    first_candidate = repo_root_candidates(settings)[0]
+    raise SourceSyncError(
+        f"Parser nao encontrado: {first_candidate / 'parsers' / f'{parser_name}.py'}"
+    )
 
 
 def resolve_requested_codes(payload: dict[str, Any]) -> list[str]:
@@ -122,12 +148,9 @@ def run_parser_envelope(
     source_request: InventorySourceRequest,
     snapshot_at: str,
 ) -> dict[str, Any]:
-    parser_path = settings.repo_root / "parsers" / f"{source_request.parser_name}.py"
-    runner_path = settings.repo_root / "parsers" / "run_inventory_parser.py"
-    if not parser_path.exists():
-        raise SourceSyncError(f"Parser nao encontrado: {parser_path}")
-    if not runner_path.exists():
-        raise SourceSyncError(f"Runner nao encontrado: {runner_path}")
+    runtime_repo_root = resolve_runtime_repo_root(settings, source_request.parser_name)
+    parser_path = runtime_repo_root / "parsers" / f"{source_request.parser_name}.py"
+    runner_path = runtime_repo_root / "parsers" / "run_inventory_parser.py"
 
     cmd = [
         sys.executable,
@@ -143,7 +166,7 @@ def run_parser_envelope(
         "--workflow-name",
         "PCP SaaS | Sync Fontes Reais",
     ]
-    completed = subprocess.run(cmd, capture_output=True, text=True, cwd=str(settings.repo_root))
+    completed = subprocess.run(cmd, capture_output=True, text=True, cwd=str(runtime_repo_root))
     if completed.returncode != 0:
         detail = (completed.stderr or completed.stdout).strip()
         try:
