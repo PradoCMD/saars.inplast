@@ -32,7 +32,7 @@ Opcionalmente, o script tambem suporta:
 - `SANKHYA_ORDENS_CARGA_PEDIDOS_URL_TEMPLATE=`
 - `SANKHYA_CODIGO_EMPRESA=`
 - `SANKHYA_ORDENS_CARGA_MODIFIED_SINCE=`
-- `SANKHYA_ORDENS_CARGA_PAGE=1`
+- `SANKHYA_ORDENS_CARGA_PAGE=0`
 - `SANKHYA_ORDENS_CARGA_MAX_PAGES=1`
 - `SANKHYA_ORDENS_CARGA_INCLUDE_EMPTY_ITEMS=false`
 
@@ -64,6 +64,20 @@ Ou seja:
 Se o node anterior ja devolver o valor completo `Bearer ...`, o workflow usa direto.
 
 Se o node anterior devolver so o token puro, o workflow monta `Bearer <token>` automaticamente.
+
+## Formato real da resposta de lista
+
+No payload real que voce trouxe, a lista vem assim:
+
+- um array externo
+- dentro dele um objeto com `ordensCarga`
+- e `pagination.hasMore`
+
+O parser foi ajustado para esse formato e para paginacao zero-based:
+
+- `pagination.page` começa em `0`
+- por isso o default recomendado e `SANKHYA_ORDENS_CARGA_PAGE=0`
+- se `pagination.hasMore=true`, aumente `SANKHYA_ORDENS_CARGA_MAX_PAGES` para buscar as paginas seguintes
 
 ## Como o fluxo funciona
 
@@ -127,6 +141,8 @@ Mas esse node nao precisa ficar dentro deste workflow de polling se voce ja poss
 ## Observacao importante
 
 O endpoint de lista sozinho pode nao trazer os itens do romaneio.
+
+E foi exatamente isso que apareceu no seu retorno: vieram os cabecalhos das ordens, mas nao vieram os produtos/itens.
 
 Se isso acontecer no seu tenant:
 

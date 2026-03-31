@@ -5,6 +5,7 @@ from __future__ import annotations
 
 import argparse
 import datetime as dt
+import hashlib
 import json
 import os
 import re
@@ -50,7 +51,7 @@ def parse_args() -> argparse.Namespace:
     parser.add_argument("--source-code", default=os.getenv("SANKHYA_SOURCE_CODE") or SOURCE_CODE_DEFAULT)
     parser.add_argument("--codigo-empresa", default=os.getenv("SANKHYA_CODIGO_EMPRESA") or "")
     parser.add_argument("--modified-since", default=os.getenv("SANKHYA_ORDENS_CARGA_MODIFIED_SINCE") or "")
-    parser.add_argument("--page", type=int, default=int(os.getenv("SANKHYA_ORDENS_CARGA_PAGE") or "1"))
+    parser.add_argument("--page", type=int, default=int(os.getenv("SANKHYA_ORDENS_CARGA_PAGE") or "0"))
     parser.add_argument("--max-pages", type=int, default=int(os.getenv("SANKHYA_ORDENS_CARGA_MAX_PAGES") or "1"))
     parser.add_argument("--include-empty-items", action="store_true")
     parser.add_argument("--pretty", action="store_true")
@@ -113,6 +114,20 @@ def parse_datetime(value: Any, fallback: dt.datetime) -> str:
         return parsed.isoformat(timespec="seconds")
     except ValueError:
         return fallback.isoformat(timespec="seconds")
+
+
+def build_event_timestamp(date_value: Any, time_value: Any, fallback: dt.datetime) -> str:
+    date_text = clean_text(date_value)
+    time_text = clean_text(time_value) or "00:00"
+    if date_text:
+        return parse_datetime(f"{date_text} {time_text}", fallback)
+    return fallback.isoformat(timespec="seconds")
+
+
+def parse_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return clean_text(value).lower() in {"1", "true", "yes", "y", "sim"}
 
 
 def get_nested(payload: Any, path: str) -> Any:
@@ -179,6 +194,27 @@ def find_first_mapping(payload: Any, depth: int = 0) -> dict[str, Any]:
             if found:
                 return found
     return {}
+
+
+def extract_order_batch(payload: Any) -> tuple[list[dict[str, Any]], bool]:
+    if isinstance(payload, list):
+        for entry in payload:
+            batch, has_more = extract_order_batch(entry)
+            if batch:
+                return batch, has_more
+        return [], False
+
+    if isinstance(payload, dict):
+        if isinstance(payload.get("ordensCarga"), list):
+            pagination = payload.get("pagination") if isinstance(payload.get("pagination"), dict) else {}
+            batch = [item for item in payload["ordensCarga"] if isinstance(item, dict)]
+            return batch, parse_bool(pagination.get("hasMore"))
+
+        batch = find_first_collection(payload)
+        if batch:
+            return [item for item in batch if isinstance(item, dict)], False
+
+    return [], False
 
 
 def append_query(url: str, params: dict[str, Any]) -> str:
@@ -368,18 +404,23 @@ def build_event(
     if not codigo:
         return None, "ordem_sem_codigo"
 
-    event_at = parse_datetime(
-        first_value(
-            "dataAlteracao",
-            "dhAlter",
-            "ultimaAlteracao",
-            "modifiedAt",
-            "modifiedSince",
-            "dataHoraAlteracao",
-            "dataCadastro",
-        ),
-        now_utc,
+    raw_event_at = first_value(
+        "dataAlteracao",
+        "dhAlter",
+        "ultimaAlteracao",
+        "modifiedAt",
+        "modifiedSince",
+        "dataHoraAlteracao",
+        "dataCadastro",
     )
+    if raw_event_at not in (None, "", []):
+        event_at = parse_datetime(raw_event_at, now_utc)
+    else:
+        event_at = build_event_timestamp(
+            first_value("dataPrevistaSaida", "dataInicio", "data"),
+            first_value("horaSaida", "hora"),
+            now_utc,
+        )
     status = clean_text(first_value("situacao", "status", "statusOrdemCarga")) or "aberto"
     parceiro = clean_text(first_value("parceiro", "nomeParceiro", "cliente", "destinatario"))
     cidade = clean_text(first_value("cidade", "nomeCidade", "municipio", "destinoCidade"))
@@ -398,7 +439,21 @@ def build_event(
     if not items and not config.include_empty_items:
         return None, f"ordem_sem_itens:{codigo}"
 
-    event_key = f"{config.source_code}:{codigo}:{event_at.replace(':', '').replace('-', '')}"
+    fingerprint_source = {
+        "codigo": codigo,
+        "empresa": empresa,
+        "status": status,
+        "pedido": pedido,
+        "parceiro": parceiro,
+        "cidade": cidade,
+        "valor_total": valor_total,
+        "item_count": len(items),
+        "items": items,
+    }
+    fingerprint = hashlib.sha1(
+        json.dumps(fingerprint_source, ensure_ascii=False, sort_keys=True).encode("utf-8")
+    ).hexdigest()[:10]
+    event_key = f"{config.source_code}:{codigo}:{event_at.replace(':', '').replace('-', '')}:{fingerprint}"
     payload = {
         "event_id": event_key,
         "event_type": "update",
@@ -426,7 +481,7 @@ def build_config(args: argparse.Namespace) -> PollConfig:
         source_code=clean_text(args.source_code) or SOURCE_CODE_DEFAULT,
         company_code=clean_text(args.codigo_empresa),
         modified_since=clean_text(args.modified_since),
-        page=max(int(args.page or 1), 1),
+        page=max(int(args.page if args.page is not None else 0), 0),
         max_pages=max(int(args.max_pages or 1), 1),
         include_empty_items=bool(args.include_empty_items),
     )
@@ -449,12 +504,12 @@ def poll_ordens(config: PollConfig) -> dict[str, Any]:
             },
         )
         response_payload = fetch_json(page_url, config.authorization)
-        batch = find_first_collection(response_payload)
+        batch, has_more = extract_order_batch(response_payload)
         pages_fetched += 1
         if not batch:
             break
         orders.extend(item for item in batch if isinstance(item, dict))
-        if len(batch) == 0:
+        if len(batch) == 0 or not has_more:
             break
 
     events: list[dict[str, Any]] = []
