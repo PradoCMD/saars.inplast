@@ -42,18 +42,21 @@ O fluxo importado fica assim:
 7. `Expand Orders`
 8. `HTTP Request | Notas Vinculadas (loadRecords)`
 9. `Expand Notas Vinculadas`
-10. `HTTP Request | Pedidos Venda`
-11. `Attach Pedido Context`
-12. `Normalize Romaneio Event`
-13. `Build Romaneio SQL`
-14. `Postgres | Ingest Romaneio Event`
-15. `Build Workflow Result`
+10. `HTTP Request | Ligacao Nota Pedido (loadRecords)`
+11. `Expand Ligacao Nota Pedido`
+12. `HTTP Request | Pedidos Venda`
+13. `Attach Pedido Context`
+14. `Normalize Romaneio Event`
+15. `Build Romaneio SQL`
+16. `Postgres | Ingest Romaneio Event`
+17. `Build Workflow Result`
 
 Os modos dos `Code` nodes ja ficam definidos no JSON importado:
 
 - `Build Config and Pages`: `Run Once for All Items`
 - `Expand Orders`: `Run Once for All Items`
 - `Expand Notas Vinculadas`: `Run Once for All Items`
+- `Expand Ligacao Nota Pedido`: `Run Once for All Items`
 - `Attach Pedido Context`: `Run Once for Each Item`
 - `Normalize Romaneio Event`: `Run Once for All Items`
 - `Build Romaneio SQL`: `Run Once for Each Item`
@@ -162,7 +165,8 @@ Esse workflow:
 - explode uma ordem por item de execucao
 - consulta `CabecalhoNota` via `loadRecords` usando `CODEMP` e `ORDEMCARGA`
 - expande as `NUNOTA` vinculadas a cada ordem
-- consulta `vendas/pedidos` usando `codigoNota=NUNOTA`
+- consulta `LigacaoNotaPedido` para descobrir o `NUNOTAORIG` do pedido
+- consulta `vendas/pedidos` usando `codigoNota=NUNOTAORIG`
 - consolida `registros[].itens` de todas as notas da ordem
 - normaliza para o contrato do PCP
 - grava cada evento via `ops.ingest_romaneio_event_payload(...)`
@@ -171,10 +175,11 @@ Esse workflow:
 
 O endpoint de lista de ordens continua trazendo apenas o cabecalho do romaneio.
 
-Por isso o workflow passa a depender de uma ponte em duas etapas:
+Por isso o workflow passa a depender de uma ponte em tres etapas:
 
 - `loadRecords(CabecalhoNota)` para encontrar as notas vinculadas por `ORDEMCARGA`
-- `vendas/pedidos?codigoNota=...` para trazer os itens reais
+- `loadRecords(CompraVendavariosPedido)` via `LigacaoNotaPedido` para encontrar o `NUNOTAORIG`
+- `vendas/pedidos?codigoNota=NUNOTAORIG` para trazer os itens reais
 
 Essa ponte foi validada no tenant da Inplast com a ordem `298`, retornando `NUNOTA 28269` e `31016`.
 

@@ -181,7 +181,7 @@
     {
       "parameters": {
         "mode": "runOnceForAllItems",
-        "jsCode": "const sourceRows = $('Expand Orders').all();\nconst responseRows = $input.all();\nfunction cleanText(value) {\n  return String(value ?? '').replace(/\\s+/g, ' ').trim();\n}\nfunction asArray(value) {\n  if (Array.isArray(value)) return value;\n  return value ? [value] : [];\n}\nfunction unwrapValue(value) {\n  if (value && typeof value === 'object' && '$' in value) {\n    return value.$;\n  }\n  return value;\n}\nfunction flattenRow(row, fieldDefs) {\n  const result = {};\n  for (const [key, value] of Object.entries(row || {})) {\n    if (/^f\\d+$/.test(key)) {\n      const fieldIndex = Number(key.slice(1));\n      const fieldName = cleanText((fieldDefs[fieldIndex] || {}).name || key) || key;\n      result[fieldName] = unwrapValue(value);\n    } else {\n      result[key] = unwrapValue(value);\n    }\n  }\n  return result;\n}\nconst outputs = [];\nfor (let index = 0; index < responseRows.length; index += 1) {\n  const source = ((sourceRows[index] || {}).json) || {};\n  const payload = ((responseRows[index] || {}).json) || {};\n  const entities = (((payload || {}).responseBody || {}).entities) || {};\n  const fieldDefs = asArray((((entities.metadata || {}).fields || {}).field));\n  const rows = asArray(entities.entity);\n  const notes = rows.map((row) => flattenRow(row, fieldDefs)).filter((note) => cleanText(note.NUNOTA));\n  for (const note of notes) {\n    const codigoNota = cleanText(note.NUNOTA);\n    outputs.push({\n      json: {\n        ...source,\n        note_row: note,\n        codigo_nota: codigoNota,\n        numero_nota: cleanText(note.NUMNOTA),\n        pedidos_query_url: `${source.pedidos_url}?page=${encodeURIComponent(String(source.pedidos_page || 1))}&codigoEmpresa=${encodeURIComponent(source.codigo_empresa)}&codigoNota=${encodeURIComponent(codigoNota)}`\n      },\n      pairedItem: {\n        item: index\n      }\n    });\n  }\n}\nreturn outputs;"
+        "jsCode": "const sourceRows = $('Expand Orders').all();\nconst responseRows = $input.all();\nfunction cleanText(value) {\n  return String(value ?? '').replace(/\\s+/g, ' ').trim();\n}\nfunction asArray(value) {\n  if (Array.isArray(value)) return value;\n  return value ? [value] : [];\n}\nfunction unwrapValue(value) {\n  if (value && typeof value === 'object' && '$' in value) {\n    return value.$;\n  }\n  return value;\n}\nfunction flattenRow(row, fieldDefs) {\n  const result = {};\n  for (const [key, value] of Object.entries(row || {})) {\n    if (/^f\\d+$/.test(key)) {\n      const fieldIndex = Number(key.slice(1));\n      const fieldName = cleanText((fieldDefs[fieldIndex] || {}).name || key) || key;\n      result[fieldName] = unwrapValue(value);\n    } else {\n      result[key] = unwrapValue(value);\n    }\n  }\n  return result;\n}\nfunction buildLigacaoNotaPedidoBody(codigoNota) {\n  return {\n    serviceName: 'CRUDServiceProvider.loadRecords',\n    requestBody: {\n      dataSet: {\n        rootEntity: 'CompraVendavariosPedido',\n        includePresentationFields: 'S',\n        offsetPage: '0',\n        criteria: {\n          expression: {\n            $: '(this.NUNOTA = ? )'\n          },\n          parameter: [\n            {\n              $: codigoNota,\n              type: 'I'\n            }\n          ]\n        },\n        entity: {\n          fieldset: {\n            list: 'NUNOTA,SEQUENCIA,QTDATENDIDA,STATUSNOTA,NUNOTAORIG,SEQUENCIAORIG'\n          }\n        }\n      }\n    }\n  };\n}\nconst outputs = [];\nfor (let index = 0; index < responseRows.length; index += 1) {\n  const source = ((sourceRows[index] || {}).json) || {};\n  const payload = ((responseRows[index] || {}).json) || {};\n  const entities = (((payload || {}).responseBody || {}).entities) || {};\n  const fieldDefs = asArray((((entities.metadata || {}).fields || {}).field));\n  const rows = asArray(entities.entity);\n  const notes = rows.map((row) => flattenRow(row, fieldDefs)).filter((note) => cleanText(note.NUNOTA));\n  for (const note of notes) {\n    const codigoNota = cleanText(note.NUNOTA);\n    outputs.push({\n      json: {\n        ...source,\n        note_row: note,\n        codigo_nota: codigoNota,\n        numero_nota: cleanText(note.NUMNOTA),\n        ligacao_notapedido_body: buildLigacaoNotaPedidoBody(codigoNota),\n        pedidos_query_url_fallback: `${source.pedidos_url}?page=${encodeURIComponent(String(source.pedidos_page || 1))}&codigoEmpresa=${encodeURIComponent(source.codigo_empresa)}&codigoNota=${encodeURIComponent(codigoNota)}`\n      },\n      pairedItem: {\n        item: index\n      }\n    });\n  }\n}\nreturn outputs;"
       },
       "id": "expand-notas-vinculadas",
       "name": "Expand Notas Vinculadas",
@@ -190,6 +190,51 @@
       "position": [
         540,
         140
+      ]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "={{ $json.loadrecords_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authorization }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.ligacao_notapedido_body }}",
+        "options": {}
+      },
+      "id": "loadrecords-ligacao-nota-pedido",
+      "name": "HTTP Request | Ligacao Nota Pedido (loadRecords)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        800,
+        0
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const sourceRows = $('Expand Notas Vinculadas').all();\nconst responseRows = $input.all();\nfunction cleanText(value) {\n  return String(value ?? '').replace(/\\s+/g, ' ').trim();\n}\nfunction asArray(value) {\n  if (Array.isArray(value)) return value;\n  return value ? [value] : [];\n}\nfunction unwrapValue(value) {\n  if (value && typeof value === 'object' && '$' in value) {\n    return value.$;\n  }\n  return value;\n}\nfunction flattenRow(row, fieldDefs) {\n  const result = {};\n  for (const [key, value] of Object.entries(row || {})) {\n    if (/^f\\d+$/.test(key)) {\n      const fieldIndex = Number(key.slice(1));\n      const fieldName = cleanText((fieldDefs[fieldIndex] || {}).name || key) || key;\n      result[fieldName] = unwrapValue(value);\n    } else {\n      result[key] = unwrapValue(value);\n    }\n  }\n  return result;\n}\nfunction buildPedidosQueryUrl(source, codigoNota) {\n  return `${source.pedidos_url}?page=${encodeURIComponent(String(source.pedidos_page || 1))}&codigoEmpresa=${encodeURIComponent(source.codigo_empresa)}&codigoNota=${encodeURIComponent(codigoNota)}`;\n}\nconst outputs = [];\nfor (let index = 0; index < responseRows.length; index += 1) {\n  const source = ((sourceRows[index] || {}).json) || {};\n  const payload = ((responseRows[index] || {}).json) || {};\n  const entities = (((payload || {}).responseBody || {}).entities) || {};\n  const fieldDefs = asArray((((entities.metadata || {}).fields || {}).field));\n  const rows = asArray(entities.entity);\n  const links = rows.map((row) => flattenRow(row, fieldDefs)).filter((row) => cleanText(row.NUNOTAORIG));\n  if (!links.length) {\n    const fallbackCodigoNota = cleanText(source.codigo_nota);\n    if (!fallbackCodigoNota) {\n      continue;\n    }\n    outputs.push({\n      json: {\n        ...source,\n        ligacao_note_row: {},\n        pedido_origem_nunota: fallbackCodigoNota,\n        pedidos_query_url: source.pedidos_query_url_fallback || buildPedidosQueryUrl(source, fallbackCodigoNota),\n        ligacao_fallback: true\n      },\n      pairedItem: {\n        item: index\n      }\n    });\n    continue;\n  }\n  for (const link of links) {\n    const pedidoOrigemNunota = cleanText(link.NUNOTAORIG);\n    if (!pedidoOrigemNunota) {\n      continue;\n    }\n    outputs.push({\n      json: {\n        ...source,\n        ligacao_note_row: link,\n        pedido_origem_nunota: pedidoOrigemNunota,\n        pedidos_query_url: buildPedidosQueryUrl(source, pedidoOrigemNunota)\n      },\n      pairedItem: {\n        item: index\n      }\n    });\n  }\n}\nreturn outputs;"
+      },
+      "id": "expand-ligacao-nota-pedido",
+      "name": "Expand Ligacao Nota Pedido",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        0
       ]
     },
     {
@@ -223,7 +268,7 @@
     {
       "parameters": {
         "mode": "runOnceForEachItem",
-        "jsCode": "const source = $('Expand Notas Vinculadas').item.json;\nreturn {\n  json: {\n    ...source,\n    pedidos_payload: $json\n  }\n};"
+        "jsCode": "const source = $('Expand Ligacao Nota Pedido').item.json;\nreturn {\n  json: {\n    ...source,\n    pedidos_payload: $json\n  }\n};"
       },
       "id": "attach-pedido-context",
       "name": "Attach Pedido Context",
@@ -381,6 +426,28 @@
       ]
     },
     "Expand Notas Vinculadas": {
+      "main": [
+        [
+          {
+            "node": "HTTP Request | Ligacao Nota Pedido (loadRecords)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request | Ligacao Nota Pedido (loadRecords)": {
+      "main": [
+        [
+          {
+            "node": "Expand Ligacao Nota Pedido",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Ligacao Nota Pedido": {
       "main": [
         [
           {
