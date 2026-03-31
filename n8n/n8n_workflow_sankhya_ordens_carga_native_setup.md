@@ -95,7 +95,6 @@ Campos mais importantes:
 - `loadrecords_url`
 - `pedidos_url`
 - `codigo_empresa`
-- `modified_since`
 - `start_page`
 - `max_pages`
 - `pedidos_page`
@@ -114,7 +113,6 @@ const CONFIG = {
   loadrecords_url: 'https://api.sankhya.com.br/gateway/v1/mge/service.sbr?serviceName=CRUDServiceProvider.loadRecords&outputType=json',
   pedidos_url: 'https://api.sankhya.com.br/v1/vendas/pedidos',
   codigo_empresa: '',
-  modified_since: '2026-03-29T13:51:17',
   start_page: 0,
   max_pages: 1,
   pedidos_page: 1,
@@ -129,25 +127,17 @@ Para carga historica:
 
 - aumente `max_pages`
 - aumente `max_orders_per_run`
-- ou zere/ajuste `modified_since`
 
 Para polling de producao:
 
 - mantenha `only_pending_orders: true`
-- mantenha uma janela curta em `modified_since`
 - mantenha `max_orders_per_run` baixo
 
-Formato importante do `modified_since`:
+Observacao importante sobre a lista de ordens:
 
-- use `YYYY-MM-DDTHH:MM:SS`
-- nao use milissegundos
-- nao use sufixo `Z`
-
-Exemplo valido:
-
-```txt
-2026-03-29T13:51:17
-```
+- nesse workflow o endpoint `GET /v1/logistica/ordens-carga` usa apenas `page` e, opcionalmente, `codigoEmpresa`
+- o `modifiedSince` foi removido desse passo porque estava causando `ORA-01861` no tenant testado
+- o controle de volume passa a ser por `max_pages`, `max_orders_per_run` e filtro local de status
 
 ## Formato real da resposta de lista
 
