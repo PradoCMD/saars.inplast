@@ -105,6 +105,17 @@ O parser desse workflow ja foi preparado para o payload real que voce trouxe:
 
 Por isso o `start_page` default ficou em `0`.
 
+No detalhe da ordem, o workflow tambem ja considera o caso em que a resposta venha embrulhada assim:
+
+```json
+{
+  "ordensCarga": {
+    "codigoOrdemCarga": 54,
+    "codigoEmpresa": 1
+  }
+}
+```
+
 ## Comportamento atual
 
 Esse workflow:
