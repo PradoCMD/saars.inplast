@@ -17,6 +17,16 @@ STOCK_SOURCE_CODES = (
     "estoque_materia_prima_almoxarifado",
     "estoque_componente_almoxarifado",
 )
+PARSER_NAME_ALIASES = {
+    "parse_estoque_acabado": "parse_estoque_acabado_google",
+    "parse_estoque_intermediario": "parse_estoque_intermediario_google",
+}
+DEFAULT_PARSER_BY_SOURCE = {
+    "estoque_acabado_atual": "parse_estoque_acabado_google",
+    "estoque_intermediario_atual": "parse_estoque_intermediario_google",
+    "estoque_materia_prima_almoxarifado": "parse_estoque_almoxarifado_mp",
+    "estoque_componente_almoxarifado": "parse_estoque_almoxarifado_componentes",
+}
 
 
 class SourceSyncError(RuntimeError):
@@ -85,6 +95,7 @@ def resolve_workbook_path(
 def build_source_request(source_row: dict[str, Any], settings: Settings) -> InventorySourceRequest:
     source_code = str(source_row.get("source_code") or "").strip()
     parser_name = str(source_row.get("parser_name") or "").strip()
+    parser_name = PARSER_NAME_ALIASES.get(parser_name, parser_name) or DEFAULT_PARSER_BY_SOURCE.get(source_code, "")
     source_area = str(source_row.get("source_area") or "").strip()
     config_json = source_row.get("config_json")
     if not isinstance(config_json, dict):
