@@ -692,6 +692,28 @@ begin
     with src as (
         select src.record_json
         from jsonb_array_elements(coalesce(p_records, '[]'::jsonb)) as src(record_json)
+    ),
+    parent_src as (
+        select distinct on (sku)
+            sku,
+            description,
+            product_type,
+            supply_strategy,
+            unit_code,
+            company_code
+        from (
+            select
+                src.record_json->>'parent_sku' as sku,
+                src.record_json->>'parent_description' as description,
+                nullif(src.record_json->>'parent_product_type', '') as product_type,
+                nullif(src.record_json->>'parent_supply_strategy', '') as supply_strategy,
+                coalesce(nullif(src.record_json->>'unit_code', ''), 'UN') as unit_code,
+                nullif(src.record_json->>'company_code', '') as company_code
+            from src
+        ) parent_candidates
+        where coalesce(sku, '') <> ''
+          and coalesce(description, '') <> ''
+        order by sku, description desc
     )
     insert into core.product (
         sku,
@@ -701,16 +723,14 @@ begin
         unit_code,
         company_code
     )
-    select distinct
-        src.record_json->>'parent_sku' as sku,
-        src.record_json->>'parent_description' as description,
-        nullif(src.record_json->>'parent_product_type', '') as product_type,
-        nullif(src.record_json->>'parent_supply_strategy', '') as supply_strategy,
-        coalesce(nullif(src.record_json->>'unit_code', ''), 'UN') as unit_code,
-        nullif(src.record_json->>'company_code', '') as company_code
-    from src
-    where coalesce(src.record_json->>'parent_sku', '') <> ''
-      and coalesce(src.record_json->>'parent_description', '') <> ''
+    select
+        sku,
+        description,
+        product_type,
+        supply_strategy,
+        unit_code,
+        company_code
+    from parent_src
     on conflict (sku) do update
     set
         description = excluded.description,
@@ -722,6 +742,28 @@ begin
     with src as (
         select src.record_json
         from jsonb_array_elements(coalesce(p_records, '[]'::jsonb)) as src(record_json)
+    ),
+    component_src as (
+        select distinct on (sku)
+            sku,
+            description,
+            product_type,
+            supply_strategy,
+            unit_code,
+            company_code
+        from (
+            select
+                src.record_json->>'component_sku' as sku,
+                src.record_json->>'component_description' as description,
+                nullif(src.record_json->>'component_product_type', '') as product_type,
+                nullif(src.record_json->>'component_supply_strategy', '') as supply_strategy,
+                coalesce(nullif(src.record_json->>'unit_code', ''), 'UN') as unit_code,
+                nullif(src.record_json->>'company_code', '') as company_code
+            from src
+        ) component_candidates
+        where coalesce(sku, '') <> ''
+          and coalesce(description, '') <> ''
+        order by sku, description desc
     )
     insert into core.product (
         sku,
@@ -731,16 +773,14 @@ begin
         unit_code,
         company_code
     )
-    select distinct
-        src.record_json->>'component_sku' as sku,
-        src.record_json->>'component_description' as description,
-        nullif(src.record_json->>'component_product_type', '') as product_type,
-        nullif(src.record_json->>'component_supply_strategy', '') as supply_strategy,
-        coalesce(nullif(src.record_json->>'unit_code', ''), 'UN') as unit_code,
-        nullif(src.record_json->>'company_code', '') as company_code
-    from src
-    where coalesce(src.record_json->>'component_sku', '') <> ''
-      and coalesce(src.record_json->>'component_description', '') <> ''
+    select
+        sku,
+        description,
+        product_type,
+        supply_strategy,
+        unit_code,
+        company_code
+    from component_src
     on conflict (sku) do update
     set
         description = excluded.description,
@@ -788,6 +828,30 @@ begin
       and source_scope = p_source_scope
       and valid_from = p_snapshot_at::date;
 
+    with bom_src as (
+        select
+            parent_product.product_id as parent_product_id,
+            component_product.product_id as component_product_id,
+            sum(coalesce(nullif(src.record_json->>'quantity_per', '')::numeric, 0)) as quantity_per,
+            max(coalesce(nullif(src.record_json->>'scrap_pct', '')::numeric, 0)) as scrap_pct,
+            min(nullif(src.record_json->>'sequence_no', '')::integer) as sequence_no,
+            max(
+                coalesce(
+                    nullif(src.record_json->>'process_stage', ''),
+                    case when p_source_scope = 'bom_final' then 'montagem' else 'producao' end
+                )
+            ) as process_stage,
+            max(coalesce(nullif(src.record_json->>'component_role', ''), 'componente')) as component_role,
+            max(nullif(src.record_json->>'assembly_line_code', '')) as assembly_line_code,
+            max(nullif(src.record_json->>'workstation_code', '')) as workstation_code,
+            max(nullif(src.record_json->>'usage_notes', '')) as usage_notes,
+            jsonb_agg(coalesce(src.record_json->'metadata', '{}'::jsonb) order by nullif(src.record_json->>'sequence_no', '')::integer nulls last) as metadata_json
+        from jsonb_array_elements(coalesce(p_records, '[]'::jsonb)) as src(record_json)
+        join core.product parent_product on parent_product.sku = src.record_json->>'parent_sku'
+        join core.product component_product on component_product.sku = src.record_json->>'component_sku'
+        where coalesce(nullif(src.record_json->>'quantity_per', '')::numeric, 0) > 0
+        group by parent_product.product_id, component_product.product_id
+    )
     insert into core.bom_component (
         parent_product_id,
         component_product_id,
@@ -824,10 +888,7 @@ begin
         p_snapshot_at::date,
         v_source_id,
         true
-    from jsonb_array_elements(coalesce(p_records, '[]'::jsonb)) as src(record_json)
-    join core.product parent_product on parent_product.sku = src.record_json->>'parent_sku'
-    join core.product component_product on component_product.sku = src.record_json->>'component_sku'
-    where coalesce(nullif(src.record_json->>'quantity_per', '')::numeric, 0) > 0
+    from bom_src
     on conflict (parent_product_id, component_product_id, source_scope, valid_from) do update
     set
         quantity_per = excluded.quantity_per,
