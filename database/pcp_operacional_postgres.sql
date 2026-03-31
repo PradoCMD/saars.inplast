@@ -870,21 +870,18 @@ begin
         is_active
     )
     select
-        parent_product.product_id,
-        component_product.product_id,
-        coalesce(nullif(src.record_json->>'quantity_per', '')::numeric, 0),
-        coalesce(nullif(src.record_json->>'scrap_pct', '')::numeric, 0),
+        bom_src.parent_product_id,
+        bom_src.component_product_id,
+        bom_src.quantity_per,
+        bom_src.scrap_pct,
         p_source_scope,
-        nullif(src.record_json->>'sequence_no', '')::integer,
-        coalesce(
-            nullif(src.record_json->>'process_stage', ''),
-            case when p_source_scope = 'bom_final' then 'montagem' else 'producao' end
-        ) as process_stage,
-        coalesce(nullif(src.record_json->>'component_role', ''), 'componente') as component_role,
-        nullif(src.record_json->>'assembly_line_code', '') as assembly_line_code,
-        nullif(src.record_json->>'workstation_code', '') as workstation_code,
-        nullif(src.record_json->>'usage_notes', '') as usage_notes,
-        coalesce(src.record_json->'metadata', '{}'::jsonb) as metadata_json,
+        bom_src.sequence_no,
+        bom_src.process_stage,
+        bom_src.component_role,
+        bom_src.assembly_line_code,
+        bom_src.workstation_code,
+        bom_src.usage_notes,
+        bom_src.metadata_json,
         p_snapshot_at::date,
         v_source_id,
         true
@@ -2161,6 +2158,9 @@ join core.process_byproduct_rule br
 join core.product p on p.product_id = m.product_id
 join core.product r on r.product_id = br.byproduct_product_id
 left join core.product rr on rr.product_id = br.recovery_target_product_id;
+
+drop view if exists mart.vw_romaneio_eta_current;
+drop view if exists mart.vw_romaneio_eta_line_current;
 
 create or replace view mart.vw_romaneio_eta_line_current as
 with line_base as (
