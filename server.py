@@ -63,6 +63,13 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 self.send_json(HTTPStatus.OK, PROVIDER.run_mrp())
                 return
 
+            if parsed.path == "/api/pcp/sources/sync":
+                if not self.authorize_sync():
+                    return
+                payload = self.read_json_body()
+                self.send_json(HTTPStatus.OK, PROVIDER.sync_sources(payload))
+                return
+
             if parsed.path == "/api/pcp/structure-overrides":
                 payload = self.read_json_body()
                 self.send_json(HTTPStatus.OK, PROVIDER.save_structure_override(payload))
@@ -83,6 +90,23 @@ class PcpApiHandler(BaseHTTPRequestHandler):
             )
             return
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "Route not found"})
+
+    def authorize_sync(self) -> bool:
+        expected_token = SETTINGS.sync_api_token
+        if not expected_token:
+            return True
+        header_token = self.headers.get("X-PCP-Sync-Token", "").strip()
+        auth_header = self.headers.get("Authorization", "").strip()
+        bearer_token = ""
+        if auth_header.lower().startswith("bearer "):
+            bearer_token = auth_header[7:].strip()
+        if header_token == expected_token or bearer_token == expected_token:
+            return True
+        self.send_json(
+            HTTPStatus.UNAUTHORIZED,
+            {"error": "Sync token required for this operation"},
+        )
+        return False
 
     def handle_api_get(self, parsed) -> None:
         query = parse_qs(parsed.query)

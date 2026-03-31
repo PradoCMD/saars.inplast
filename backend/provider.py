@@ -9,6 +9,15 @@ from typing import Any
 
 from . import queries
 from .config import Settings
+from .source_sync import (
+    STOCK_SOURCE_CODES,
+    SourceSyncError,
+    build_meta,
+    build_source_request,
+    resolve_requested_codes,
+    resolve_snapshot_at,
+    run_parser_envelope,
+)
 
 
 class DataProvider(ABC):
@@ -80,6 +89,10 @@ class DataProvider(ABC):
 
     @abstractmethod
     def save_programming_entry(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def sync_sources(self, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
 
@@ -192,11 +205,21 @@ class MockProvider(DataProvider):
             "payload": payload,
         }
 
+    def sync_sources(self, payload: dict[str, Any]) -> dict[str, Any]:
+        requested_codes = resolve_requested_codes(payload)
+        return {
+            "status": "mock_synced",
+            "requested_sources": requested_codes or list(STOCK_SOURCE_CODES),
+            "results": [],
+            "errors": [],
+        }
+
 
 class PostgresProvider(DataProvider):
     def __init__(self, settings: Settings) -> None:
         if not settings.database_url:
             raise RuntimeError("PCP_DATABASE_URL ou DATABASE_URL e obrigatoria no modo postgres")
+        self.settings = settings
         self.database_url = settings.database_url
         self.actions_database_url = settings.actions_database_url or settings.database_url
         self.driver_name, self.driver = self._load_driver()
@@ -466,6 +489,80 @@ class PostgresProvider(DataProvider):
         return {
             "entry_id": row["entry_id"] if row else None,
             "status": "saved",
+        }
+
+    def sync_sources(self, payload: dict[str, Any]) -> dict[str, Any]:
+        requested_codes = resolve_requested_codes(payload)
+        snapshot_at = resolve_snapshot_at(payload)
+        if requested_codes:
+            source_rows = self._fetchall(queries.SYNC_STOCK_SOURCES_BY_CODE_SQL, (requested_codes,))
+        else:
+            source_rows = self._fetchall(queries.ACTIVE_SYNC_STOCK_SOURCES_SQL)
+
+        loaded_codes = {row["source_code"] for row in source_rows}
+        errors: list[dict[str, Any]] = []
+        results: list[dict[str, Any]] = []
+
+        for source_code in requested_codes:
+            if source_code not in loaded_codes:
+                errors.append(
+                    {
+                        "source_code": source_code,
+                        "error": "Fonte nao encontrada em `ops.source_registry` ou sem contrato conhecido.",
+                    }
+                )
+
+        if not source_rows and not errors:
+            raise SourceSyncError("Nenhuma fonte de estoque ativa foi encontrada para sincronizacao.")
+
+        for row in source_rows:
+            source_code = row["source_code"]
+            try:
+                source_request = build_source_request(row, self.settings)
+                envelope = run_parser_envelope(
+                    settings=self.settings,
+                    source_request=source_request,
+                    snapshot_at=snapshot_at,
+                )
+                records_json = json.dumps(envelope.get("records") or [], ensure_ascii=False)
+                meta_json = json.dumps(build_meta(envelope), ensure_ascii=False)
+                db_row = self._fetchone(
+                    queries.INGEST_INVENTORY_PAYLOAD_SQL,
+                    (
+                        source_request.source_code,
+                        envelope.get("snapshot_at") or snapshot_at,
+                        records_json,
+                        meta_json,
+                    ),
+                    write=True,
+                )
+                summary = envelope.get("summary")
+                results.append(
+                    {
+                        "source_code": source_code,
+                        "source_area": row["source_area"],
+                        "workbook_path": source_request.workbook_path,
+                        "record_count": int(envelope.get("record_count") or len(envelope.get("records") or [])),
+                        "run_id": db_row["run_id"] if db_row else None,
+                        "snapshot_at": envelope.get("snapshot_at") or snapshot_at,
+                        "summary": summary if isinstance(summary, dict) else {},
+                    }
+                )
+            except Exception as exc:  # noqa: BLE001
+                errors.append({"source_code": source_code, "error": str(exc)})
+
+        status = "success"
+        if errors and results:
+            status = "partial"
+        elif errors and not results:
+            status = "error"
+
+        return {
+            "status": status,
+            "requested_sources": requested_codes or [row["source_code"] for row in source_rows],
+            "results": results,
+            "errors": errors,
+            "snapshot_at": snapshot_at,
         }
 
 

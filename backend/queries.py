@@ -327,6 +327,42 @@ order by
     source_code
 """
 
+ACTIVE_SYNC_STOCK_SOURCES_SQL = """
+select
+    source_code,
+    source_area,
+    parser_name,
+    format_hint,
+    is_active,
+    contract_status,
+    config_json
+from ops.source_registry
+where source_code in (
+    'estoque_acabado_atual',
+    'estoque_intermediario_atual',
+    'estoque_materia_prima_almoxarifado',
+    'estoque_componente_almoxarifado'
+)
+  and contract_status = 'known'
+  and is_active
+order by source_code
+"""
+
+SYNC_STOCK_SOURCES_BY_CODE_SQL = """
+select
+    source_code,
+    source_area,
+    parser_name,
+    format_hint,
+    is_active,
+    contract_status,
+    config_json
+from ops.source_registry
+where source_code = any(%s)
+  and contract_status = 'known'
+order by source_code
+"""
+
 ALERTS_SQL = """
 with source_alerts as (
     select
@@ -396,4 +432,8 @@ select ops.save_bom_override(%s, %s, %s, %s::jsonb) as override_id
 
 SAVE_PROGRAMMING_ENTRY_SQL = """
 select ops.save_supply_programming_entry(%s, %s::jsonb) as entry_id
+"""
+
+INGEST_INVENTORY_PAYLOAD_SQL = """
+select ops.ingest_inventory_payload(%s, %s::timestamptz, %s::jsonb, %s::jsonb) as run_id
 """
