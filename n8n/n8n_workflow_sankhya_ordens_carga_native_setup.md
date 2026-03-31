@@ -49,6 +49,16 @@ O fluxo importado fica assim:
 14. `Postgres | Ingest Romaneio Event`
 15. `Build Workflow Result`
 
+Os modos dos `Code` nodes ja ficam definidos no JSON importado:
+
+- `Build Config and Pages`: `Run Once for All Items`
+- `Expand Orders`: `Run Once for Each Item`
+- `Expand Notas Vinculadas`: `Run Once for Each Item`
+- `Attach Pedido Context`: `Run Once for Each Item`
+- `Normalize Romaneio Event`: `Run Once for All Items`
+- `Build Romaneio SQL`: `Run Once for Each Item`
+- `Build Workflow Result`: `Run Once for Each Item`
+
 ## O que preencher apos importar
 
 ### 1. Node `HTTP Request | Authenticate Sankhya`
