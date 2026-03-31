@@ -7,7 +7,7 @@ Arquivos:
 
 ## Objetivo
 
-Consultar periodicamente as Ordens de Carga no Sankhya usando apenas nodes nativos do `n8n`, sem `Execute Command` e sem depender de `$env` dentro de `Code` nodes, cruzando a lista de ordens com os pedidos de venda para obter os itens.
+Consultar periodicamente as Ordens de Carga no Sankhya usando apenas nodes nativos do `n8n`, sem `Execute Command` e sem depender de `$env` dentro de `Code` nodes, cruzando a lista de ordens com o `loadRecords` de `CabecalhoNota` para descobrir as notas vinculadas e, depois, buscando os itens reais em `vendas/pedidos`.
 
 Esse fluxo grava no Postgres pela funcao:
 
@@ -17,10 +17,15 @@ Esse fluxo grava no Postgres pela funcao:
 
 - lista de ordens:
   - [GET /v1/logistica/ordens-carga](https://developer.sankhya.com.br/reference/getordenscarga)
+- consultas genericas:
+  - [GET /loadRecords](https://developer.sankhya.com.br/reference/get_loadrecords)
 - pedidos de venda:
   - [GET /v1/vendas/pedidos](https://developer.sankhya.com.br/reference/getpedidos)
 - referencia adicional de logística:
   - [GET /v1/logistica/empresas/{codigoEmpresa}/ordens-carga/{codigoOrdemCarga}/pedidos/{codigoPedido}](https://developer.sankhya.com.br/reference/getpedidosbyordemcarga)
+- referencias legadas uteis:
+  - [Consulta de Ordens de Carga](https://developer.sankhya.com.br/reference/get_ordemcarga)
+  - [Vincular de Ordem de Carga](https://developer.sankhya.com.br/reference/post_vincularordemcarga)
 - autenticacao:
   - [POST /authenticate](https://developer.sankhya.com.br/reference/post_authenticate)
 
@@ -35,11 +40,14 @@ O fluxo importado fica assim:
 5. `Build Config and Pages`
 6. `HTTP Request | Lista Ordens`
 7. `Expand Orders`
-8. `HTTP Request | Pedidos Venda`
-9. `Normalize Romaneio Event`
-10. `Build Romaneio SQL`
-11. `Postgres | Ingest Romaneio Event`
-12. `Build Workflow Result`
+8. `HTTP Request | Notas Vinculadas (loadRecords)`
+9. `Expand Notas Vinculadas`
+10. `HTTP Request | Pedidos Venda`
+11. `Attach Pedido Context`
+12. `Normalize Romaneio Event`
+13. `Build Romaneio SQL`
+14. `Postgres | Ingest Romaneio Event`
+15. `Build Workflow Result`
 
 ## O que preencher apos importar
 
@@ -74,6 +82,7 @@ Abra o codigo e ajuste o objeto `CONFIG` no topo.
 Campos mais importantes:
 
 - `list_url`
+- `loadrecords_url`
 - `pedidos_url`
 - `codigo_empresa`
 - `modified_since`
@@ -89,6 +98,7 @@ const CONFIG = {
   source_code: 'romaneio_sankhya_webhook',
   workflow_name: 'PCP | 15A | Sankhya | Ordens de Carga Native',
   list_url: 'https://api.sankhya.com.br/v1/logistica/ordens-carga',
+  loadrecords_url: 'https://api.sankhya.com.br/gateway/v1/mge/service.sbr?serviceName=CRUDServiceProvider.loadRecords&outputType=json',
   pedidos_url: 'https://api.sankhya.com.br/v1/vendas/pedidos',
   codigo_empresa: '',
   modified_since: '',
@@ -118,8 +128,10 @@ Esse workflow:
 - autentica
 - busca a lista paginada de ordens
 - explode uma ordem por item de execucao
-- consulta `vendas/pedidos` filtrando por `codigoEmpresa` e `codigoOrdemCarga`
-- consolida `registros[].itens`
+- consulta `CabecalhoNota` via `loadRecords` usando `CODEMP` e `ORDEMCARGA`
+- expande as `NUNOTA` vinculadas a cada ordem
+- consulta `vendas/pedidos` usando `codigoNota=NUNOTA`
+- consolida `registros[].itens` de todas as notas da ordem
 - normaliza para o contrato do PCP
 - grava cada evento via `ops.ingest_romaneio_event_payload(...)`
 
@@ -127,12 +139,12 @@ Esse workflow:
 
 O endpoint de lista de ordens continua trazendo apenas o cabecalho do romaneio.
 
-Por isso o workflow passa a depender de `HTTP Request | Pedidos Venda` para achar os itens.
+Por isso o workflow passa a depender de uma ponte em duas etapas:
 
-Se o seu tenant nao aceitar o filtro por `codigoOrdemCarga` no endpoint `vendas/pedidos`:
+- `loadRecords(CabecalhoNota)` para encontrar as notas vinculadas por `ORDEMCARGA`
+- `vendas/pedidos?codigoNota=...` para trazer os itens reais
 
-- use como fallback o endpoint de logística de pedidos da ordem
-- e depois refinamos o fluxo para uma segunda consulta por pedido
+Essa ponte foi validada no tenant da Inplast com a ordem `298`, retornando `NUNOTA 28269` e `31016`.
 
 Se `vendas/pedidos` voltar sem `registros[].itens`:
 
@@ -152,13 +164,15 @@ Depois de importar:
 1. deixe `max_pages=1`
 2. execute pelo `Manual Trigger`
 3. confira a saida do node `HTTP Request | Lista Ordens`
-4. confira a saida do node `HTTP Request | Pedidos Venda`
-5. confira a saida do node `Normalize Romaneio Event`
+4. confira a saida do node `HTTP Request | Notas Vinculadas (loadRecords)`
+5. confira a saida do node `Expand Notas Vinculadas`
+6. confira a saida do node `HTTP Request | Pedidos Venda`
+7. confira a saida do node `Normalize Romaneio Event`
 
 Resultado esperado:
 
-- `Build Workflow Result.ok=true` quando `registros[].itens` vierem preenchidos
-- ou nenhum item saindo de `Normalize Romaneio Event` se os pedidos vierem sem itens
+- `Build Workflow Result.ok=true` quando as notas vinculadas forem encontradas e `registros[].itens` vierem preenchidos
+- ou nenhum item saindo de `Normalize Romaneio Event` se a ordem nao tiver `CabecalhoNota` vinculada ou se os pedidos vierem sem itens
 
 ## Consultas uteis
 

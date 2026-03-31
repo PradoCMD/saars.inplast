@@ -93,7 +93,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const accessToken = $json.access_token || $json.accessToken || $json.token || (($json.data || {}).access_token) || (($json.data || {}).accessToken) || (($json.data || {}).token) || '';\nconst rawAuthorization = $json.authorization || $json.Authorization || (($json.data || {}).authorization) || (($json.data || {}).Authorization) || '';\nconst authorization = rawAuthorization || (accessToken ? (String(accessToken).startsWith('Bearer ') ? String(accessToken) : `Bearer ${accessToken}`) : '');\nif (!authorization) {\n  throw new Error('Bearer Sankhya ausente. Ajuste o node de autenticacao para retornar authorization ou access_token.');\n}\nconst CONFIG = {\n  source_code: 'romaneio_sankhya_webhook',\n  workflow_name: 'PCP | 15A | Sankhya | Ordens de Carga Native',\n  list_url: 'https://api.sankhya.com.br/v1/logistica/ordens-carga',\n  pedidos_url: 'https://api.sankhya.com.br/v1/vendas/pedidos',\n  codigo_empresa: '',\n  modified_since: '',\n  start_page: 0,\n  max_pages: 3,\n  pedidos_page: 1,\n  include_empty_items: false\n};\nreturn Array.from({ length: CONFIG.max_pages }, (_, offset) => ({\n  json: {\n    ...CONFIG,\n    page: CONFIG.start_page + offset,\n    authorization,\n    auth_response_preview: {\n      token_type: $json.token_type || (($json.data || {}).token_type) || '',\n      expires_in: $json.expires_in || (($json.data || {}).expires_in) || null\n    }\n  }\n}));"
+        "jsCode": "const accessToken = $json.access_token || $json.accessToken || $json.token || (($json.data || {}).access_token) || (($json.data || {}).accessToken) || (($json.data || {}).token) || '';\nconst rawAuthorization = $json.authorization || $json.Authorization || (($json.data || {}).authorization) || (($json.data || {}).Authorization) || '';\nconst authorization = rawAuthorization || (accessToken ? (String(accessToken).startsWith('Bearer ') ? String(accessToken) : `Bearer ${accessToken}`) : '');\nif (!authorization) {\n  throw new Error('Bearer Sankhya ausente. Ajuste o node de autenticacao para retornar authorization ou access_token.');\n}\nconst CONFIG = {\n  source_code: 'romaneio_sankhya_webhook',\n  workflow_name: 'PCP | 15A | Sankhya | Ordens de Carga Native',\n  list_url: 'https://api.sankhya.com.br/v1/logistica/ordens-carga',\n  loadrecords_url: 'https://api.sankhya.com.br/gateway/v1/mge/service.sbr?serviceName=CRUDServiceProvider.loadRecords&outputType=json',\n  pedidos_url: 'https://api.sankhya.com.br/v1/vendas/pedidos',\n  codigo_empresa: '',\n  modified_since: '',\n  start_page: 0,\n  max_pages: 3,\n  pedidos_page: 1,\n  include_empty_items: false\n};\nreturn Array.from({ length: CONFIG.max_pages }, (_, offset) => ({\n  json: {\n    ...CONFIG,\n    page: CONFIG.start_page + offset,\n    authorization,\n    auth_response_preview: {\n      token_type: $json.token_type || (($json.data || {}).token_type) || '',\n      expires_in: $json.expires_in || (($json.data || {}).expires_in) || null\n    }\n  }\n}));"
       },
       "id": "build-config-pages",
       "name": "Build Config and Pages",
@@ -134,7 +134,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const cfg = $('Build Config and Pages').item.json;\nfunction cleanText(value) {\n  return String(value ?? '').replace(/\\s+/g, ' ').trim();\n}\nfunction parseBool(value) {\n  return ['1', 'true', 'yes', 'y', 'sim'].includes(cleanText(value).toLowerCase());\n}\nfunction extractOrderBatch(payload) {\n  if (Array.isArray(payload)) {\n    for (const entry of payload) {\n      const found = extractOrderBatch(entry);\n      if (found.orders.length) {\n        return found;\n      }\n    }\n    return { orders: [], pagination: {}, hasMore: false };\n  }\n  if (payload && typeof payload === 'object') {\n    if (Array.isArray(payload.ordensCarga)) {\n      const pagination = payload.pagination && typeof payload.pagination === 'object' ? payload.pagination : {};\n      return {\n        orders: payload.ordensCarga.filter((item) => item && typeof item === 'object'),\n        pagination,\n        hasMore: parseBool(pagination.hasMore)\n      };\n    }\n    for (const key of ['data', 'items', 'results', 'records', 'content', 'rows', 'value', 'response']) {\n      const value = payload[key];\n      if (Array.isArray(value)) {\n        return {\n          orders: value.filter((item) => item && typeof item === 'object'),\n          pagination: {},\n          hasMore: false\n        };\n      }\n    }\n  }\n  return { orders: [], pagination: {}, hasMore: false };\n}\nconst { orders, pagination, hasMore } = extractOrderBatch($json);\nreturn orders.map((order) => {\n  const codigoEmpresa = cleanText(order.codigoEmpresa ?? cfg.codigo_empresa ?? '');\n  const codigoOrdemCarga = cleanText(order.codigoOrdemCarga ?? order.codigo ?? order.codOrdemCarga ?? '');\n  if (!codigoEmpresa || !codigoOrdemCarga) {\n    return null;\n  }\n  const pedidosUrl = `${cfg.pedidos_url}?page=${encodeURIComponent(String(cfg.pedidos_page || 1))}&codigoEmpresa=${encodeURIComponent(codigoEmpresa)}&codigoOrdemCarga=${encodeURIComponent(codigoOrdemCarga)}`;\n  return {\n    json: {\n      source_code: cfg.source_code,\n      workflow_name: cfg.workflow_name,\n      authorization: cfg.authorization,\n      include_empty_items: cfg.include_empty_items,\n      order_row: order,\n      codigo_empresa: codigoEmpresa,\n      codigo_ordem_carga: codigoOrdemCarga,\n      pedidos_url: pedidosUrl,\n      pedidos_page: Number(cfg.pedidos_page || 1),\n      page: cfg.page,\n      pagination,\n      has_more: hasMore,\n      auth_response_preview: cfg.auth_response_preview || {}\n    }\n  };\n}).filter(Boolean);"
+        "jsCode": "const cfg = $('Build Config and Pages').item.json;\nfunction cleanText(value) {\n  return String(value ?? '').replace(/\\s+/g, ' ').trim();\n}\nfunction parseBool(value) {\n  return ['1', 'true', 'yes', 'y', 'sim'].includes(cleanText(value).toLowerCase());\n}\nfunction extractOrderBatch(payload) {\n  if (Array.isArray(payload)) {\n    for (const entry of payload) {\n      const found = extractOrderBatch(entry);\n      if (found.orders.length) {\n        return found;\n      }\n    }\n    return { orders: [], pagination: {}, hasMore: false };\n  }\n  if (payload && typeof payload === 'object') {\n    if (Array.isArray(payload.ordensCarga)) {\n      const pagination = payload.pagination && typeof payload.pagination === 'object' ? payload.pagination : {};\n      return {\n        orders: payload.ordensCarga.filter((item) => item && typeof item === 'object'),\n        pagination,\n        hasMore: parseBool(pagination.hasMore)\n      };\n    }\n    for (const key of ['data', 'items', 'results', 'records', 'content', 'rows', 'value', 'response']) {\n      const value = payload[key];\n      if (Array.isArray(value)) {\n        return {\n          orders: value.filter((item) => item && typeof item === 'object'),\n          pagination: {},\n          hasMore: false\n        };\n      }\n    }\n  }\n  return { orders: [], pagination: {}, hasMore: false };\n}\nfunction buildLoadRecordsBody(codigoEmpresa, codigoOrdemCarga) {\n  return {\n    serviceName: 'CRUDServiceProvider.loadRecords',\n    requestBody: {\n      dataSet: {\n        rootEntity: 'CabecalhoNota',\n        includePresentationFields: 'S',\n        offsetPage: '0',\n        criteria: {\n          expression: {\n            $: 'this.CODEMP = ? and this.ORDEMCARGA = ?'\n          },\n          parameter: [\n            {\n              type: 'I',\n              $: codigoEmpresa\n            },\n            {\n              type: 'I',\n              $: codigoOrdemCarga\n            }\n          ]\n        },\n        entity: [\n          {\n            path: '',\n            fieldset: {\n              list: 'NUNOTA,NUMNOTA,CODEMP,ORDEMCARGA,CODPARC,DTNEG,VLRNOTA'\n            }\n          }\n        ]\n      }\n    }\n  };\n}\nconst { orders, pagination, hasMore } = extractOrderBatch($json);\nreturn orders.map((order) => {\n  const codigoEmpresa = cleanText(order.codigoEmpresa ?? cfg.codigo_empresa ?? '');\n  const codigoOrdemCarga = cleanText(order.codigoOrdemCarga ?? order.codigo ?? order.codOrdemCarga ?? '');\n  if (!codigoEmpresa || !codigoOrdemCarga) {\n    return null;\n  }\n  return {\n    json: {\n      source_code: cfg.source_code,\n      workflow_name: cfg.workflow_name,\n      authorization: cfg.authorization,\n      include_empty_items: cfg.include_empty_items,\n      order_row: order,\n      codigo_empresa: codigoEmpresa,\n      codigo_ordem_carga: codigoOrdemCarga,\n      loadrecords_url: cfg.loadrecords_url,\n      loadrecords_body: buildLoadRecordsBody(codigoEmpresa, codigoOrdemCarga),\n      pedidos_url: cfg.pedidos_url,\n      pedidos_page: Number(cfg.pedidos_page || 1),\n      page: cfg.page,\n      pagination,\n      has_more: hasMore,\n      auth_response_preview: cfg.auth_response_preview || {}\n    }\n  };\n}).filter(Boolean);"
       },
       "id": "expand-ordens",
       "name": "Expand Orders",
@@ -147,8 +147,52 @@
     },
     {
       "parameters": {
+        "method": "POST",
+        "url": "={{ $json.loadrecords_url }}",
+        "sendHeaders": true,
+        "headerParameters": {
+          "parameters": [
+            {
+              "name": "Content-Type",
+              "value": "application/json"
+            },
+            {
+              "name": "Authorization",
+              "value": "={{ $json.authorization }}"
+            }
+          ]
+        },
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ $json.loadrecords_body }}",
+        "options": {}
+      },
+      "id": "loadrecords-notas-vinculadas",
+      "name": "HTTP Request | Notas Vinculadas (loadRecords)",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [
+        280,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "jsCode": "const source = $('Expand Orders').item.json;\nconst payload = $json;\nfunction cleanText(value) {\n  return String(value ?? '').replace(/\\s+/g, ' ').trim();\n}\nfunction asArray(value) {\n  if (Array.isArray(value)) return value;\n  return value ? [value] : [];\n}\nfunction unwrapValue(value) {\n  if (value && typeof value === 'object' && '$' in value) {\n    return value.$;\n  }\n  return value;\n}\nconst entities = (((payload || {}).responseBody || {}).entities) || {};\nconst fieldDefs = asArray((((entities.metadata || {}).fields || {}).field));\nconst rows = asArray(entities.entity);\nfunction flattenRow(row) {\n  const result = {};\n  for (const [key, value] of Object.entries(row || {})) {\n    if (/^f\\d+$/.test(key)) {\n      const index = Number(key.slice(1));\n      const fieldName = cleanText((fieldDefs[index] || {}).name || key) || key;\n      result[fieldName] = unwrapValue(value);\n    } else {\n      result[key] = unwrapValue(value);\n    }\n  }\n  return result;\n}\nconst notes = rows.map(flattenRow).filter((note) => cleanText(note.NUNOTA));\nif (!notes.length) {\n  return [];\n}\nreturn notes.map((note) => {\n  const codigoNota = cleanText(note.NUNOTA);\n  return {\n    json: {\n      ...source,\n      note_row: note,\n      codigo_nota: codigoNota,\n      numero_nota: cleanText(note.NUMNOTA),\n      pedidos_query_url: `${source.pedidos_url}?page=${encodeURIComponent(String(source.pedidos_page || 1))}&codigoEmpresa=${encodeURIComponent(source.codigo_empresa)}&codigoNota=${encodeURIComponent(codigoNota)}`\n    }\n  };\n});"
+      },
+      "id": "expand-notas-vinculadas",
+      "name": "Expand Notas Vinculadas",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        540,
+        140
+      ]
+    },
+    {
+      "parameters": {
         "method": "GET",
-        "url": "={{ $json.pedidos_url }}",
+        "url": "={{ $json.pedidos_query_url }}",
         "sendHeaders": true,
         "headerParameters": {
           "parameters": [
@@ -169,20 +213,34 @@
       "type": "n8n-nodes-base.httpRequest",
       "typeVersion": 4.2,
       "position": [
-        280,
+        800,
         140
       ]
     },
     {
       "parameters": {
-        "jsCode": "const source = $('Expand Orders').item.json;\nconst orderRow = source.order_row || {};\nconst pedidosPayload = $json;\nfunction cleanText(value) {\n  return String(value ?? '').replace(/\\s+/g, ' ').trim();\n}\nfunction parseNumber(value) {\n  if (value === null || value === undefined || value === '') return 0;\n  if (typeof value === 'number') return value;\n  let text = cleanText(value);\n  if (!text) return 0;\n  if (text.includes(',') && text.includes('.')) {\n    if (text.lastIndexOf(',') > text.lastIndexOf('.')) {\n      text = text.replace(/\\./g, '').replace(',', '.');\n    } else {\n      text = text.replace(/,/g, '');\n    }\n  } else {\n    text = text.replace(',', '.');\n  }\n  const parsed = Number(text);\n  return Number.isFinite(parsed) ? parsed : 0;\n}\nfunction parseDateTime(value, fallback) {\n  const text = cleanText(value);\n  if (!text) return fallback;\n  const isoTry = new Date(text);\n  if (!Number.isNaN(isoTry.getTime())) return isoTry.toISOString();\n  const dateTimeMatch = text.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})(?:\\s+(\\d{2}):(\\d{2})(?::(\\d{2}))?)?$/);\n  if (dateTimeMatch) {\n    const [, dd, mm, yyyy, hh = '00', mi = '00', ss = '00'] = dateTimeMatch;\n    return new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(mi), Number(ss))).toISOString();\n  }\n  const dateOnlyMatch = text.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);\n  if (dateOnlyMatch) {\n    const [, yyyy, mm, dd] = dateOnlyMatch;\n    return new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd), 0, 0, 0)).toISOString();\n  }\n  return fallback;\n}\nfunction buildEventTimestamp(dateValue, timeValue, fallback) {\n  const dateText = cleanText(dateValue);\n  const timeText = cleanText(timeValue) || '00:00';\n  return dateText ? parseDateTime(`${dateText} ${timeText}`, fallback) : fallback;\n}\nfunction getNested(payload, path) {\n  return path.split('.').reduce((acc, part) => (acc && typeof acc === 'object' ? acc[part] : undefined), payload);\n}\nfunction pickFirst(payloads, paths) {\n  for (const payload of payloads) {\n    if (!payload || typeof payload !== 'object') continue;\n    for (const path of paths) {\n      const value = getNested(payload, path);\n      if (value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && !value.length)) {\n        return value;\n      }\n    }\n  }\n  return undefined;\n}\nfunction extractRecords(payload) {\n  if (Array.isArray(payload)) {\n    for (const entry of payload) {\n      const found = extractRecords(entry);\n      if (found.length) return found;\n    }\n    return [];\n  }\n  if (payload && typeof payload === 'object') {\n    for (const key of ['registros', 'records', 'items', 'results', 'data']) {\n      if (Array.isArray(payload[key])) {\n        return payload[key].filter((item) => item && typeof item === 'object');\n      }\n    }\n  }\n  return [];\n}\nfunction normalizeItem(rawItem) {\n  const sku = cleanText(rawItem.sku ?? rawItem.codigoProduto ?? rawItem.codProduto ?? getNested(rawItem, 'produto.codigo') ?? getNested(rawItem, 'produto.codigoProduto') ?? '');\n  const descricao = cleanText(rawItem.descricao ?? rawItem.descricaoProduto ?? rawItem.nomeProduto ?? rawItem.produto ?? getNested(rawItem, 'produto.descricao') ?? getNested(rawItem, 'produto.nome') ?? '');\n  const unidade = cleanText(rawItem.unidade ?? rawItem.unidadeMedida ?? rawItem.siglaUnidade ?? 'UN') || 'UN';\n  const tipoProduto = cleanText(rawItem.tipo_produto ?? rawItem.tipoProduto ?? getNested(rawItem, 'produto.tipoProduto') ?? getNested(rawItem, 'produto.tipo') ?? 'PRODUTO ACABADO') || 'PRODUTO ACABADO';\n  const quantidade = parseNumber(rawItem.quantidade ?? rawItem.qtd ?? rawItem.quantidadeTotal ?? rawItem.qtdTotal ?? rawItem.quantidadeSeparada ?? 0);\n  const quantidadeNeg = parseNumber(rawItem.quantidade_neg ?? rawItem.quantidadeNeg ?? rawItem.quantidadeNegociada ?? rawItem.qtdNegociada ?? 0);\n  const quantidadeVol = parseNumber(rawItem.quantidade_vol ?? rawItem.quantidadeVol ?? rawItem.quantidadeVolume ?? rawItem.qtdVolume ?? 0);\n  const quantityTotal = Math.max(quantidade, quantidadeNeg + quantidadeVol);\n  if (!sku && !descricao) return null;\n  const produto = cleanText(sku && descricao ? `${sku} - ${descricao}` : (descricao || sku));\n  return {\n    sku,\n    descricao: descricao || produto,\n    produto,\n    unidade,\n    tipo_produto: tipoProduto,\n    quantidade: Number((quantidade || quantityTotal).toFixed(6)),\n    quantidade_neg: Number(quantidadeNeg.toFixed(6)),\n    quantidade_vol: Number(quantidadeVol.toFixed(6)),\n    quantity_total: Number(quantityTotal.toFixed(6))\n  };\n}\nfunction extractItemsFromPedidos(records) {\n  const normalized = [];\n  for (const record of records) {\n    const itens = Array.isArray(record.itens) ? record.itens : [];\n    for (const item of itens) {\n      const prepared = normalizeItem(item);\n      if (prepared && prepared.quantity_total > 0) normalized.push(prepared);\n    }\n  }\n  return normalized;\n}\nfunction hashText(text) {\n  let hash = 0;\n  for (let index = 0; index < text.length; index += 1) {\n    hash = ((hash << 5) - hash) + text.charCodeAt(index);\n    hash |= 0;\n  }\n  return Math.abs(hash).toString(16);\n}\nconst records = extractRecords(pedidosPayload);\nconst filteredRecords = records.filter((record) => cleanText(record.codigoOrdemCarga ?? '') === cleanText(source.codigo_ordem_carga));\nconst pedidos = filteredRecords.length ? filteredRecords : records;\nconst firstPedido = pedidos[0] || {};\nconst payloads = [firstPedido, orderRow];\nconst codigo = cleanText(source.codigo_ordem_carga ?? pickFirst(payloads, ['codigoOrdemCarga', 'codigo', 'codOrdemCarga', 'nuOrdemCarga', 'numero', 'romaneio']) ?? '');\nconst empresa = cleanText(source.codigo_empresa ?? pickFirst(payloads, ['codigoEmpresa', 'codEmp', 'empresa.codigo', 'empresa']) ?? '') || 'INPLAST';\nif (!codigo) {\n  return [];\n}\nconst nowIso = new Date().toISOString();\nconst rawEventAt = pickFirst(payloads, ['dataHoraAlteracao', 'dataAlteracao', 'dhAlter', 'ultimaAlteracao', 'modifiedAt', 'modifiedSince', 'dataCadastro']);\nconst eventAt = rawEventAt ? parseDateTime(rawEventAt, nowIso) : buildEventTimestamp(\n  pickFirst(payloads, ['dataPrevistaSaida', 'dataInicio', 'dataNegociacao', 'data']),\n  pickFirst(payloads, ['horaSaida', 'hora']),\n  nowIso\n);\nconst status = cleanText(pickFirst(payloads, ['situacao', 'status', 'statusOrdemCarga']) ?? 'aberto') || 'aberto';\nconst parceiro = cleanText(pickFirst(payloads, ['nomeDestinatario', 'destinatario', 'cliente.razao', 'cliente.nome', 'parceiro', 'nomeParceiro']) ?? '');\nconst cidade = cleanText(pickFirst(payloads, ['cliente.endereco.cidade', 'cidade', 'nomeCidade', 'municipio', 'destinoCidade', 'nomeRegiao']) ?? '');\nconst pedido = pedidos.map((record) => cleanText(record.codigoNota ?? record.numeroNota ?? record.codigoPedido ?? record.pedido ?? record.numeroPedido ?? '')).filter(Boolean).join(', ');\nconst valorTotal = Number(pedidos.reduce((sum, record) => sum + parseNumber(record.valorNota ?? record.valorTotal ?? record.valor_total ?? 0), 0).toFixed(2));\nconst items = extractItemsFromPedidos(pedidos);\nif (!items.length && !source.include_empty_items) {\n  return [];\n}\nconst metadados = pedidosPayload.metadados && typeof pedidosPayload.metadados === 'object' ? pedidosPayload.metadados : {};\nconst fingerprintSource = JSON.stringify({ codigo, empresa, status, pedido, parceiro, cidade, valorTotal, pedidosCount: pedidos.length, itemCount: items.length, items });\nconst eventId = `${source.source_code}:${codigo}:${eventAt.replace(/[:\\-]/g, '').replace('.000Z', 'Z')}:${hashText(fingerprintSource)}`;\nreturn [{\n  json: {\n    source_code: source.source_code,\n    workflow_name: source.workflow_name,\n    payload: {\n      event_id: eventId,\n      event_type: 'update',\n      event_at: eventAt,\n      romaneio: {\n        codigo,\n        empresa,\n        status,\n        pedido,\n        parceiro,\n        cidade,\n        valor_total: valorTotal,\n        itens: items\n      }\n    },\n    meta: {\n      polling: true,\n      native_n8n: true,\n      workflow_name: source.workflow_name,\n      auth_response_preview: source.auth_response_preview || {},\n      page: source.page,\n      pagination: source.pagination || {},\n      pedidos_page: source.pedidos_page,\n      pedidos_metadados: metadados,\n      pedidos_count: pedidos.length,\n      order_row: orderRow,\n      pedidos_wrapper_keys: Object.keys(pedidosPayload || {})\n    }\n  }\n}];"
+        "jsCode": "const source = $('Expand Notas Vinculadas').item.json;\nreturn [{\n  json: {\n    ...source,\n    pedidos_payload: $json\n  }\n}];"
+      },
+      "id": "attach-pedido-context",
+      "name": "Attach Pedido Context",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1060,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForAllItems",
+        "jsCode": "const inputRows = $input.all().map((entry) => entry.json).filter(Boolean);\nfunction cleanText(value) {\n  return String(value ?? '').replace(/\\s+/g, ' ').trim();\n}\nfunction parseNumber(value) {\n  if (value === null || value === undefined || value === '') return 0;\n  if (typeof value === 'number') return value;\n  let text = cleanText(value);\n  if (!text) return 0;\n  if (text.includes(',') && text.includes('.')) {\n    if (text.lastIndexOf(',') > text.lastIndexOf('.')) {\n      text = text.replace(/\\./g, '').replace(',', '.');\n    } else {\n      text = text.replace(/,/g, '');\n    }\n  } else {\n    text = text.replace(',', '.');\n  }\n  const parsed = Number(text);\n  return Number.isFinite(parsed) ? parsed : 0;\n}\nfunction parseDateTime(value, fallback) {\n  const text = cleanText(value);\n  if (!text) return fallback;\n  const isoTry = new Date(text);\n  if (!Number.isNaN(isoTry.getTime())) return isoTry.toISOString();\n  const dateTimeMatch = text.match(/^(\\d{2})\\/(\\d{2})\\/(\\d{4})(?:\\s+(\\d{2}):(\\d{2})(?::(\\d{2}))?)?$/);\n  if (dateTimeMatch) {\n    const [, dd, mm, yyyy, hh = '00', mi = '00', ss = '00'] = dateTimeMatch;\n    return new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd), Number(hh), Number(mi), Number(ss))).toISOString();\n  }\n  const dateOnlyMatch = text.match(/^(\\d{4})-(\\d{2})-(\\d{2})$/);\n  if (dateOnlyMatch) {\n    const [, yyyy, mm, dd] = dateOnlyMatch;\n    return new Date(Date.UTC(Number(yyyy), Number(mm) - 1, Number(dd), 0, 0, 0)).toISOString();\n  }\n  return fallback;\n}\nfunction buildEventTimestamp(dateValue, timeValue, fallback) {\n  const dateText = cleanText(dateValue);\n  const timeText = cleanText(timeValue) || '00:00';\n  return dateText ? parseDateTime(`${dateText} ${timeText}`, fallback) : fallback;\n}\nfunction getNested(payload, path) {\n  return path.split('.').reduce((acc, part) => (acc && typeof acc === 'object' ? acc[part] : undefined), payload);\n}\nfunction pickFirst(payloads, paths) {\n  for (const payload of payloads) {\n    if (!payload || typeof payload !== 'object') continue;\n    for (const path of paths) {\n      const value = getNested(payload, path);\n      if (value !== undefined && value !== null && value !== '' && !(Array.isArray(value) && !value.length)) {\n        return value;\n      }\n    }\n  }\n  return undefined;\n}\nfunction extractRecords(payload) {\n  if (Array.isArray(payload)) {\n    for (const entry of payload) {\n      const found = extractRecords(entry);\n      if (found.length) return found;\n    }\n    return [];\n  }\n  if (payload && typeof payload === 'object') {\n    for (const key of ['registros', 'records', 'items', 'results', 'data']) {\n      if (Array.isArray(payload[key])) {\n        return payload[key].filter((item) => item && typeof item === 'object');\n      }\n    }\n  }\n  return [];\n}\nfunction normalizeItem(rawItem) {\n  const sku = cleanText(rawItem.sku ?? rawItem.codigoProduto ?? rawItem.codProduto ?? getNested(rawItem, 'produto.codigo') ?? getNested(rawItem, 'produto.codigoProduto') ?? '');\n  const descricao = cleanText(rawItem.descricao ?? rawItem.descricaoProduto ?? rawItem.nomeProduto ?? rawItem.produto ?? getNested(rawItem, 'produto.descricao') ?? getNested(rawItem, 'produto.nome') ?? '');\n  const unidade = cleanText(rawItem.unidade ?? rawItem.unidadeMedida ?? rawItem.siglaUnidade ?? 'UN') || 'UN';\n  const tipoProduto = cleanText(rawItem.tipo_produto ?? rawItem.tipoProduto ?? getNested(rawItem, 'produto.tipoProduto') ?? getNested(rawItem, 'produto.tipo') ?? 'PRODUTO ACABADO') || 'PRODUTO ACABADO';\n  const quantidade = parseNumber(rawItem.quantidade ?? rawItem.qtd ?? rawItem.quantidadeTotal ?? rawItem.qtdTotal ?? rawItem.quantidadeSeparada ?? 0);\n  const quantidadeNeg = parseNumber(rawItem.quantidade_neg ?? rawItem.quantidadeNeg ?? rawItem.quantidadeNegociada ?? rawItem.qtdNegociada ?? 0);\n  const quantidadeVol = parseNumber(rawItem.quantidade_vol ?? rawItem.quantidadeVol ?? rawItem.quantidadeVolume ?? rawItem.qtdVolume ?? 0);\n  const quantityTotal = Math.max(quantidade, quantidadeNeg + quantidadeVol);\n  if (!sku && !descricao) return null;\n  const produto = cleanText(sku && descricao ? `${sku} - ${descricao}` : (descricao || sku));\n  return {\n    sku,\n    descricao: descricao || produto,\n    produto,\n    unidade,\n    tipo_produto: tipoProduto,\n    quantidade: Number((quantidade || quantityTotal).toFixed(6)),\n    quantidade_neg: Number(quantidadeNeg.toFixed(6)),\n    quantidade_vol: Number(quantidadeVol.toFixed(6)),\n    quantity_total: Number(quantityTotal.toFixed(6))\n  };\n}\nfunction hashText(text) {\n  let hash = 0;\n  for (let index = 0; index < text.length; index += 1) {\n    hash = ((hash << 5) - hash) + text.charCodeAt(index);\n    hash |= 0;\n  }\n  return Math.abs(hash).toString(16);\n}\nconst groups = new Map();\nfor (const row of inputRows) {\n  const key = `${cleanText(row.codigo_empresa)}::${cleanText(row.codigo_ordem_carga)}`;\n  if (!key || key === '::') continue;\n  if (!groups.has(key)) {\n    groups.set(key, {\n      source: row,\n      pedidosPayloads: [],\n      noteRows: []\n    });\n  }\n  const group = groups.get(key);\n  group.source = row;\n  group.pedidosPayloads.push(row.pedidos_payload || {});\n  group.noteRows.push(row.note_row || {});\n}\nconst outputs = [];\nfor (const group of groups.values()) {\n  const source = group.source;\n  const orderRow = source.order_row || {};\n  const noteRows = group.noteRows.filter((row) => row && Object.keys(row).length);\n  let pedidos = [];\n  for (let index = 0; index < group.pedidosPayloads.length; index += 1) {\n    const payload = group.pedidosPayloads[index] || {};\n    const noteRow = noteRows[index] || {};\n    const codigoNota = cleanText(noteRow.NUNOTA ?? source.codigo_nota ?? '');\n    const numeroNota = cleanText(noteRow.NUMNOTA ?? source.numero_nota ?? '');\n    const records = extractRecords(payload);\n    const filtered = records.filter((record) => {\n      const recordCodigoNota = cleanText(record.codigoNota ?? record.codigo_nota ?? record.nunota ?? '');\n      const recordNumeroNota = cleanText(record.numeroNota ?? record.numero_nota ?? '');\n      return (codigoNota && recordCodigoNota === codigoNota) || (numeroNota && recordNumeroNota === numeroNota);\n    });\n    pedidos.push(...(filtered.length ? filtered : records));\n  }\n  const uniquePedidos = [];\n  const seenPedidos = new Set();\n  for (const record of pedidos) {\n    const key = cleanText(record.codigoNota ?? record.codigo_nota ?? record.nunota ?? record.numeroNota ?? record.numero_nota ?? JSON.stringify(record));\n    if (!seenPedidos.has(key)) {\n      seenPedidos.add(key);\n      uniquePedidos.push(record);\n    }\n  }\n  const firstPedido = uniquePedidos[0] || {};\n  const payloads = [firstPedido, orderRow, ...noteRows];\n  const codigo = cleanText(source.codigo_ordem_carga ?? pickFirst(payloads, ['codigoOrdemCarga', 'codigo', 'codOrdemCarga', 'nuOrdemCarga', 'numero', 'romaneio']) ?? '');\n  const empresa = cleanText(source.codigo_empresa ?? pickFirst(payloads, ['codigoEmpresa', 'codEmp', 'empresa.codigo', 'empresa', 'CODEMP']) ?? '') || 'INPLAST';\n  if (!codigo) {\n    continue;\n  }\n  const nowIso = new Date().toISOString();\n  const rawEventAt = pickFirst(payloads, ['dataHoraAlteracao', 'dataAlteracao', 'dhAlter', 'ultimaAlteracao', 'modifiedAt', 'modifiedSince', 'dataCadastro']);\n  const eventAt = rawEventAt ? parseDateTime(rawEventAt, nowIso) : buildEventTimestamp(\n    pickFirst(payloads, ['dataPrevistaSaida', 'dataInicio', 'dataNegociacao', 'DTNEG', 'data']),\n    pickFirst(payloads, ['horaSaida', 'hora']),\n    nowIso\n  );\n  const status = cleanText(pickFirst(payloads, ['situacao', 'status', 'statusOrdemCarga']) ?? 'aberto') || 'aberto';\n  const parceiro = cleanText(pickFirst(payloads, ['nomeDestinatario', 'destinatario', 'cliente.razao', 'cliente.nome', 'parceiro', 'nomeParceiro', 'Parceiro_NOMEPARC']) ?? '');\n  const cidade = cleanText(pickFirst(payloads, ['cliente.endereco.cidade', 'cidade', 'nomeCidade', 'municipio', 'destinoCidade', 'nomeRegiao']) ?? '');\n  const pedido = uniquePedidos.map((record) => cleanText(record.codigoNota ?? record.numeroNota ?? record.codigoPedido ?? record.pedido ?? record.numeroPedido ?? '')).filter(Boolean).join(', ');\n  const valorTotal = Number(uniquePedidos.reduce((sum, record) => sum + parseNumber(record.valorNota ?? record.valorTotal ?? record.valor_total ?? 0), 0).toFixed(2));\n  const items = [];\n  for (const record of uniquePedidos) {\n    const rawItems = Array.isArray(record.itens) ? record.itens : [];\n    for (const rawItem of rawItems) {\n      const normalized = normalizeItem(rawItem);\n      if (normalized && normalized.quantity_total > 0) {\n        items.push(normalized);\n      }\n    }\n  }\n  if (!items.length && !source.include_empty_items) {\n    continue;\n  }\n  const pedidosMetadados = group.pedidosPayloads.map((payload) => (payload && typeof payload.metadados === 'object') ? payload.metadados : null).filter(Boolean);\n  const wrapperKeys = Array.from(new Set(group.pedidosPayloads.flatMap((payload) => Object.keys(payload || {}))));\n  const fingerprintSource = JSON.stringify({ codigo, empresa, status, pedido, parceiro, cidade, valorTotal, pedidosCount: uniquePedidos.length, itemCount: items.length, items });\n  const eventId = `${source.source_code}:${codigo}:${eventAt.replace(/[:\\-]/g, '').replace('.000Z', 'Z')}:${hashText(fingerprintSource)}`;\n  outputs.push({\n    json: {\n      source_code: source.source_code,\n      workflow_name: source.workflow_name,\n      payload: {\n        event_id: eventId,\n        event_type: 'update',\n        event_at: eventAt,\n        romaneio: {\n          codigo,\n          empresa,\n          status,\n          pedido,\n          parceiro,\n          cidade,\n          valor_total: valorTotal,\n          itens: items\n        }\n      },\n      meta: {\n        polling: true,\n        native_n8n: true,\n        workflow_name: source.workflow_name,\n        auth_response_preview: source.auth_response_preview || {},\n        page: source.page,\n        pagination: source.pagination || {},\n        pedidos_page: source.pedidos_page,\n        pedidos_metadados: pedidosMetadados,\n        pedidos_count: uniquePedidos.length,\n        notas_vinculadas: noteRows,\n        order_row: orderRow,\n        pedidos_wrapper_keys: wrapperKeys\n      }\n    }\n  });\n}\nreturn outputs;"
       },
       "id": "normalize-romaneio-event",
       "name": "Normalize Romaneio Event",
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        540,
+        1320,
         140
       ]
     },
@@ -195,7 +253,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        800,
+        1580,
         140
       ]
     },
@@ -209,7 +267,7 @@
       "type": "n8n-nodes-base.postgres",
       "typeVersion": 2.5,
       "position": [
-        1060,
+        1840,
         140
       ]
     },
@@ -222,7 +280,7 @@
       "type": "n8n-nodes-base.code",
       "typeVersion": 2,
       "position": [
-        1320,
+        2100,
         140
       ]
     }
@@ -298,6 +356,28 @@
       "main": [
         [
           {
+            "node": "HTTP Request | Notas Vinculadas (loadRecords)",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "HTTP Request | Notas Vinculadas (loadRecords)": {
+      "main": [
+        [
+          {
+            "node": "Expand Notas Vinculadas",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Expand Notas Vinculadas": {
+      "main": [
+        [
+          {
             "node": "HTTP Request | Pedidos Venda",
             "type": "main",
             "index": 0
@@ -306,6 +386,17 @@
       ]
     },
     "HTTP Request | Pedidos Venda": {
+      "main": [
+        [
+          {
+            "node": "Attach Pedido Context",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Attach Pedido Context": {
       "main": [
         [
           {
