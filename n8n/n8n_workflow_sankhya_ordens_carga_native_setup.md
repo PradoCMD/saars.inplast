@@ -114,7 +114,7 @@ const CONFIG = {
   loadrecords_url: 'https://api.sankhya.com.br/gateway/v1/mge/service.sbr?serviceName=CRUDServiceProvider.loadRecords&outputType=json',
   pedidos_url: 'https://api.sankhya.com.br/v1/vendas/pedidos',
   codigo_empresa: '',
-  modified_since: new Date(Date.now() - (48 * 60 * 60 * 1000)).toISOString(),
+  modified_since: '2026-03-29T13:51:17',
   start_page: 0,
   max_pages: 1,
   pedidos_page: 1,
@@ -136,6 +136,18 @@ Para polling de producao:
 - mantenha `only_pending_orders: true`
 - mantenha uma janela curta em `modified_since`
 - mantenha `max_orders_per_run` baixo
+
+Formato importante do `modified_since`:
+
+- use `YYYY-MM-DDTHH:MM:SS`
+- nao use milissegundos
+- nao use sufixo `Z`
+
+Exemplo valido:
+
+```txt
+2026-03-29T13:51:17
+```
 
 ## Formato real da resposta de lista
 
