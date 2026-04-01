@@ -859,9 +859,27 @@ function readFileAsBase64(file) {
 async function api(path) {
   const response = await fetch(path);
   if (!response.ok) {
-    throw new Error(`Falha ao carregar ${path}`);
+    let detail = "";
+    try {
+      const data = await response.json();
+      detail = data.detail || data.error || "";
+    } catch (error) {
+      detail = "";
+    }
+    throw new Error(detail ? `Falha ao carregar ${path}: ${detail}` : `Falha ao carregar ${path}`);
   }
   return response.json();
+}
+
+async function safeApi(path, fallback, warnings) {
+  try {
+    return await api(path);
+  } catch (error) {
+    if (Array.isArray(warnings)) {
+      warnings.push({ path, message: error.message });
+    }
+    return fallback;
+  }
 }
 
 async function postJson(path, payload) {
@@ -3848,6 +3866,7 @@ function renderFactorySimulation(items, containerId, numLanes) {
 }
 
 async function carregarTudo() {
+  const warnings = [];
   const [
     overview,
     alerts,
@@ -3864,20 +3883,20 @@ async function carregarTudo() {
     painel,
     users,
   ] = await Promise.all([
-    api("/api/pcp/overview"),
-    api("/api/pcp/alerts"),
-    api("/api/pcp/romaneios"),
-    api("/api/pcp/romaneios-kanban"),
-    api("/api/pcp/structures"),
-    api("/api/pcp/programming"),
-    api("/api/pcp/assembly"),
-    api("/api/pcp/production"),
-    api("/api/pcp/purchases"),
-    api("/api/pcp/recycling"),
-    api("/api/pcp/costs"),
-    api("/api/pcp/sources"),
-    api("/api/pcp/painel"),
-    api("/api/pcp/users"),
+    safeApi("/api/pcp/overview", { totals: {}, top_criticos: [] }, warnings),
+    safeApi("/api/pcp/alerts", { items: [] }, warnings),
+    safeApi("/api/pcp/romaneios", { items: [] }, warnings),
+    safeApi("/api/pcp/romaneios-kanban", { products: [], romaneios: [] }, warnings),
+    safeApi("/api/pcp/structures", { summary: {}, items: [] }, warnings),
+    safeApi("/api/pcp/programming", { items: [] }, warnings),
+    safeApi("/api/pcp/assembly", { items: [] }, warnings),
+    safeApi("/api/pcp/production", { items: [] }, warnings),
+    safeApi("/api/pcp/purchases", { items: [] }, warnings),
+    safeApi("/api/pcp/recycling", { items: [] }, warnings),
+    safeApi("/api/pcp/costs", { items: [] }, warnings),
+    safeApi("/api/pcp/sources", { items: [] }, warnings),
+    safeApi("/api/pcp/painel", { items: [] }, warnings),
+    safeApi("/api/pcp/users", { items: state.users || [] }, warnings),
   ]);
 
   renderOverview(overview);
@@ -3915,6 +3934,19 @@ async function carregarTudo() {
     painel: painel.items,
     alerts: alerts.items,
   });
+
+  const mrpStatus = document.getElementById("mrp-status");
+  if (mrpStatus) {
+    if (warnings.length) {
+      mrpStatus.textContent = `Carga parcial: ${warnings.length} rota(s) com falha`;
+      mrpStatus.className = "status-badge warning";
+      mrpStatus.title = warnings.map((item) => `${item.path} · ${item.message}`).join("\n");
+    } else {
+      mrpStatus.textContent = "Pronto";
+      mrpStatus.className = "status-badge ready";
+      mrpStatus.removeAttribute("title");
+    }
+  }
 
   const mergedRomaneios = buildRomaneiosCollection();
   if (!state.romaneioSelecionado && mergedRomaneios.length) {

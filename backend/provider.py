@@ -52,7 +52,6 @@ def _coerce_user_record(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def load_app_users(users_path: Path) -> list[dict[str, Any]]:
-    users_path.parent.mkdir(parents=True, exist_ok=True)
     if users_path.exists():
         payload = json.loads(users_path.read_text(encoding="utf-8"))
         items = payload.get("items", payload) if isinstance(payload, dict) else payload
@@ -64,7 +63,6 @@ def load_app_users(users_path: Path) -> list[dict[str, Any]]:
         users.insert(0, {**DEFAULT_APP_USER})
 
     users = sorted(users, key=lambda item: (item["username"] != "root", item["full_name"].lower()))
-    users_path.write_text(json.dumps({"items": users}, ensure_ascii=False, indent=2), encoding="utf-8")
     return users
 
 
