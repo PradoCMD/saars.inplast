@@ -18,6 +18,14 @@ def clean_text(value: Any) -> str:
     return re.sub(r"\s+", " ", str(value or "")).strip()
 
 
+def normalize_romaneio_identity(value: Any) -> str:
+    text = clean_text(value).upper()
+    if not text:
+        return ""
+    match = re.search(r"ROMANEIO(?:\s+NOTA)?\s*[-_ ]*\s*(\d+)", text, re.I) or re.search(r"(\d+)", text)
+    return match.group(1) if match else ""
+
+
 def parse_num(value: Any) -> float:
     if not value:
         return 0.0
@@ -52,9 +60,7 @@ def parse_romaneio_pdf_bytes(file_bytes: bytes, filename: str) -> dict[str, Any]
     nome_empresa = clean_text(empresa_match.group(2)) if empresa_match else ""
 
     if not ordem_carga:
-        filename_match = re.search(r"ROMANEIO\s+(\d+)", filename, re.I)
-        if filename_match:
-            ordem_carga = filename_match.group(1)
+        ordem_carga = normalize_romaneio_identity(filename)
 
     if not ordem_carga:
         raise ValueError("Não foi possível identificar a ordem de carga no PDF.")
@@ -131,6 +137,7 @@ def parse_romaneio_pdf_bytes(file_bytes: bytes, filename: str) -> dict[str, Any]
 
     return {
         "ordem_carga": ordem_carga,
+        "romaneio_identity": normalize_romaneio_identity(ordem_carga or filename),
         "empresa": codigo_empresa,
         "nome_empresa": nome_empresa,
         "pedidos": pedidos,
@@ -181,6 +188,7 @@ def build_romaneio_event(parsed: dict[str, Any]) -> tuple[dict[str, Any], dict[s
         "nome_empresa": parsed["nome_empresa"],
         "codigo_empresa": parsed["empresa"],
         "ordem_carga": parsed["ordem_carga"],
+        "romaneio_identity": parsed.get("romaneio_identity") or parsed["ordem_carga"],
         "pedidos_detail": parsed["pedidos"],
     }
 

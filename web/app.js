@@ -10,12 +10,38 @@ const state = {
   romaneiosApi: [],
   romaneiosLocais: [],
   romaneiosFiltro: "",
+  globalSearch: "",
+  kanbanStatusFilter: "todos",
+  kanbanSelecionado: null,
+  programmingActionFilter: "",
+  apontamentoSelecionado: "Máquina 1",
+  apontamentoLogs: [],
+  datasets: {
+    kanban: { products: [], romaneios: [] },
+    programming: [],
+    assembly: [],
+    production: [],
+  },
+  currentUser: null,
+  users: [],
 };
 
 const LOCAL_ROMANEIOS_STORAGE_KEY = "pcp_local_romaneios_v2";
 const LEGACY_LOCAL_ROMANEIOS_STORAGE_KEYS = ["pcp_local_romaneios_v1"];
+const APONTAMENTO_LOGS_STORAGE_KEY = "pcp_apontamento_logs_v1";
+const APP_USERS_STORAGE_KEY = "pcp_app_users_v1";
+const APP_SESSION_STORAGE_KEY = "pcp_app_session_v1";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const DEFAULT_ROOT_USER = {
+  id: "user-root",
+  username: "root",
+  full_name: "Administrador Root",
+  role: "root",
+  password: "root@123",
+  active: true,
+  created_at: "2026-04-01T00:00:00.000Z",
+};
 
 function formatDateTime(value) {
   return formatDateTimeWithFallback(value, "Sem previsao");
@@ -227,6 +253,151 @@ function safeJsonParse(value, fallback) {
   }
 }
 
+function matchesSearch(values, query) {
+  const normalizedQuery = String(query || "").trim().toLowerCase();
+  if (!normalizedQuery) {
+    return true;
+  }
+  return values
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase()
+    .includes(normalizedQuery);
+}
+
+function getGlobalSearchQuery() {
+  return String(state.globalSearch || "").trim().toLowerCase();
+}
+
+function formatRomaneioCode(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "Sem romaneio";
+  }
+  if (!/\d/.test(text)) {
+    return text;
+  }
+  return /^rm[\s-]/i.test(text) ? text.toUpperCase() : `RM ${text}`;
+}
+
+function normalizeRomaneioIdentity(value) {
+  const text = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase()
+    .replace(/\.PDF$/i, "")
+    .trim();
+
+  if (!text) {
+    return "";
+  }
+
+  const explicitMatch = text.match(/ROMANEIO(?:\s+NOTA)?\s*[-_ ]*\s*(\d+)/i) || text.match(/(\d+)/);
+  return explicitMatch ? explicitMatch[1] : text.replace(/[^A-Z0-9]/g, "");
+}
+
+function toDatetimeLocalValue(value) {
+  if (!value) {
+    return "";
+  }
+  const parsed = new Date(value);
+  if (Number.isNaN(parsed.getTime())) {
+    return "";
+  }
+  const offset = parsed.getTimezoneOffset();
+  const local = new Date(parsed.getTime() - offset * 60 * 1000);
+  return local.toISOString().slice(0, 16);
+}
+
+function addHoursToIso(value, hours) {
+  const parsed = parseIsoDate(value) || new Date();
+  parsed.setHours(parsed.getHours() + hours);
+  return parsed.toISOString();
+}
+
+function machineCodeFromLabel(value) {
+  const match = String(value || "").match(/(\d+)/);
+  return match ? `MÁQ ${match[1]}` : String(value || "").toUpperCase();
+}
+
+function loadApontamentoLogs() {
+  return safeJsonParse(window.localStorage.getItem(APONTAMENTO_LOGS_STORAGE_KEY) || "[]", [])
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0))
+    .slice(0, 60);
+}
+
+function saveApontamentoLogs(items) {
+  const sanitized = (Array.isArray(items) ? items : [])
+    .filter(Boolean)
+    .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0))
+    .slice(0, 60);
+  state.apontamentoLogs = sanitized;
+  window.localStorage.setItem(APONTAMENTO_LOGS_STORAGE_KEY, JSON.stringify(sanitized));
+}
+
+function ensureUsersStorage() {
+  const stored = safeJsonParse(window.localStorage.getItem(APP_USERS_STORAGE_KEY) || "null", null);
+  const users = Array.isArray(stored) ? stored.filter(Boolean) : [];
+  const hasRoot = users.some((item) => String(item.username || "").toLowerCase() === "root");
+  if (!hasRoot) {
+    users.unshift({ ...DEFAULT_ROOT_USER });
+  }
+  window.localStorage.setItem(APP_USERS_STORAGE_KEY, JSON.stringify(users));
+  state.users = users;
+  return users;
+}
+
+function saveUsers(items) {
+  const sanitized = (Array.isArray(items) ? items : [])
+    .filter(Boolean)
+    .map((item) => ({
+      ...item,
+      username: String(item.username || "").trim(),
+      full_name: String(item.full_name || "").trim(),
+      role: String(item.role || "operator").trim(),
+      active: item.active !== false,
+    }));
+  state.users = sanitized;
+  window.localStorage.setItem(APP_USERS_STORAGE_KEY, JSON.stringify(sanitized));
+}
+
+function loadSession() {
+  const session = safeJsonParse(window.localStorage.getItem(APP_SESSION_STORAGE_KEY) || "null", null);
+  if (!session?.user_id) {
+    return null;
+  }
+  const user = state.users.find((item) => item.id === session.user_id && item.active);
+  if (!user) {
+    window.localStorage.removeItem(APP_SESSION_STORAGE_KEY);
+    return null;
+  }
+  return {
+    user_id: user.id,
+    username: user.username,
+  };
+}
+
+function persistSession(user) {
+  state.currentUser = user;
+  if (user) {
+    window.localStorage.setItem(APP_SESSION_STORAGE_KEY, JSON.stringify({ user_id: user.id, username: user.username }));
+  } else {
+    window.localStorage.removeItem(APP_SESSION_STORAGE_KEY);
+  }
+}
+
+function getCurrentUserInitials() {
+  const base = state.currentUser?.full_name || state.currentUser?.username || "IP";
+  return base
+    .split(/\s+/)
+    .filter(Boolean)
+    .slice(0, 2)
+    .map((part) => part[0])
+    .join("")
+    .toUpperCase();
+}
+
 function isRecentDate(value, maxAgeDays) {
   const parsed = parseIsoDate(value);
   if (!parsed) {
@@ -296,6 +467,7 @@ function normalizeLocalRomaneio(item) {
   return {
     ...item,
     selection_code: item.local_id,
+    romaneio_identity: item.romaneio_identity || normalizeRomaneioIdentity(item.romaneio || item.pdf_name || ""),
     source_type: item.source_type || "manual",
     previsao_saida_status: item.previsao_saida_status || (item.source_type === "pdf" ? "arquivo_local" : "manual"),
     status_evento: item.status_evento || (item.source_type === "pdf" ? "pdf_local" : "manual_local"),
@@ -312,6 +484,7 @@ function buildRomaneiosCollection() {
   const apiItems = state.romaneiosApi.map((item) => ({
     ...item,
     selection_code: String(item.romaneio),
+    romaneio_identity: normalizeRomaneioIdentity(item.romaneio),
     source_type: "api",
   }));
 
@@ -341,6 +514,30 @@ function findLocalRomaneioBySelectionCode(code) {
   return state.romaneiosLocais.find((item) => item.local_id === code) || null;
 }
 
+function buildExistingRomaneioIdentityMap() {
+  const lookup = new Map();
+  buildRomaneiosCollection().forEach((item) => {
+    const identity = item.romaneio_identity || normalizeRomaneioIdentity(item.romaneio || item.pdf_name || "");
+    if (identity && !lookup.has(identity)) {
+      lookup.set(identity, item);
+    }
+  });
+  return lookup;
+}
+
+function replaceLocalRomaneios(entriesToUpsert, identitiesToRemove = []) {
+  const removeSet = new Set(
+    identitiesToRemove
+      .map((item) => normalizeRomaneioIdentity(item))
+      .filter(Boolean),
+  );
+  const nextItems = state.romaneiosLocais.filter((item) => {
+    const identity = item.romaneio_identity || normalizeRomaneioIdentity(item.romaneio || item.pdf_name || "");
+    return !removeSet.has(identity);
+  });
+  saveLocalRomaneios([...entriesToUpsert, ...nextItems]);
+}
+
 function setElementStatus(id, message, tone) {
   const target = document.getElementById(id);
   if (!target) return;
@@ -349,17 +546,140 @@ function setElementStatus(id, message, tone) {
   if (tone) target.classList.add(tone);
 }
 
+function renderAuthState() {
+  const authScreen = document.getElementById("auth-screen");
+  const appShell = document.getElementById("app-shell");
+  const roleBadge = document.getElementById("current-user-role");
+  const nameBadge = document.getElementById("current-user-name");
+  const avatar = document.getElementById("current-user-avatar");
+  const sessionBadge = document.getElementById("users-session-badge");
+  const logoutButton = document.getElementById("logout-button");
+
+  if (state.currentUser) {
+    authScreen?.classList.add("hidden");
+    appShell?.classList.remove("locked");
+    if (roleBadge) roleBadge.textContent = String(state.currentUser.role || "operator").toUpperCase();
+    if (nameBadge) nameBadge.textContent = state.currentUser.full_name || state.currentUser.username;
+    if (avatar) avatar.textContent = getCurrentUserInitials();
+    if (sessionBadge) sessionBadge.textContent = `${state.currentUser.username} · ${state.currentUser.role}`;
+    if (logoutButton) logoutButton.disabled = false;
+  } else {
+    authScreen?.classList.remove("hidden");
+    appShell?.classList.add("locked");
+    if (roleBadge) roleBadge.textContent = "Sem sessão";
+    if (nameBadge) nameBadge.textContent = "Faça login";
+    if (avatar) avatar.textContent = "IP";
+    if (sessionBadge) sessionBadge.textContent = "Sem sessão";
+    if (logoutButton) logoutButton.disabled = true;
+  }
+}
+
+function renderUsersModule() {
+  const summary = document.getElementById("users-summary");
+  const list = document.getElementById("users-list");
+  const form = document.getElementById("user-form");
+  if (!summary || !list || !form) {
+    return;
+  }
+
+  const users = ensureUsersStorage();
+  const canManageUsers = !!state.currentUser && ["root", "manager"].includes(state.currentUser.role);
+  Array.from(form.elements).forEach((field) => {
+    field.disabled = !canManageUsers;
+  });
+  setElementStatus(
+    "user-status",
+    canManageUsers ? "Administre acessos e redefina senhas por aqui." : "Faça login como root ou gestor para alterar usuários.",
+    canManageUsers ? "success" : "error",
+  );
+  summary.innerHTML = "";
+  [
+    ["Usuários", number.format(users.length)],
+    ["Ativos", number.format(users.filter((item) => item.active).length)],
+    ["Administradores", number.format(users.filter((item) => ["root", "manager"].includes(item.role)).length)],
+  ].forEach(([label, value]) => {
+    summary.appendChild(
+      el(`
+        <div class="mini-card">
+          <small>${label}</small>
+          <strong>${value}</strong>
+        </div>
+      `),
+    );
+  });
+
+  list.innerHTML = "";
+  users
+    .slice()
+    .sort((left, right) => {
+      if (left.role === "root") return -1;
+      if (right.role === "root") return 1;
+      return String(left.full_name || left.username).localeCompare(String(right.full_name || right.username), "pt-BR");
+    })
+    .forEach((user) => {
+      const card = el(`
+        <article class="user-card ${user.active ? "" : "inactive"}">
+          <div>
+            <small>${user.username}</small>
+            <strong>${user.full_name}</strong>
+            <span>${user.role} · ${user.active ? "Ativo" : "Inativo"}</span>
+          </div>
+          <div class="user-card-actions">
+            <button type="button" class="btn btn-secondary btn-xs" data-action="edit">Editar</button>
+            <button type="button" class="btn btn-secondary btn-xs" data-action="toggle">${user.active ? "Desativar" : "Ativar"}</button>
+          </div>
+        </article>
+      `);
+
+      card.querySelector('[data-action="edit"]').addEventListener("click", () => {
+        const form = document.getElementById("user-form");
+        if (!form) return;
+        form.dataset.editingUserId = user.id;
+        form.elements.namedItem("username").value = user.username || "";
+        form.elements.namedItem("full_name").value = user.full_name || "";
+        form.elements.namedItem("role").value = user.role || "operator";
+        form.elements.namedItem("active").value = user.active ? "true" : "false";
+        form.elements.namedItem("password").value = user.password || "";
+        setElementStatus("user-status", `Editando usuário ${user.username}.`, "success");
+        window.location.hash = "#usuarios";
+        switchTab("#usuarios");
+      });
+
+      card.querySelector('[data-action="toggle"]').addEventListener("click", () => {
+        if (user.username === "root" && user.active) {
+          setElementStatus("user-status", "O usuário root não pode ser desativado.", "error");
+          return;
+        }
+        const nextUsers = users.map((item) => (
+          item.id === user.id
+            ? { ...item, active: !item.active, updated_at: new Date().toISOString() }
+            : item
+        ));
+        saveUsers(nextUsers);
+        if (state.currentUser?.id === user.id && !nextUsers.find((item) => item.id === user.id)?.active) {
+          persistSession(null);
+        }
+        renderAuthState();
+        renderUsersModule();
+      });
+
+      list.appendChild(card);
+    });
+}
+
 function inferRomaneioCodeFromFilename(filename) {
-  const base = String(filename || "").replace(/\.pdf$/i, "").trim();
-  return base || `ROM-${Date.now()}`;
+  const normalized = normalizeRomaneioIdentity(filename);
+  return normalized || String(filename || "").replace(/\.pdf$/i, "").trim() || `ROM-${Date.now()}`;
 }
 
 function createPdfRomaneioEntry(file) {
   const nowIso = new Date().toISOString();
+  const romaneio = inferRomaneioCodeFromFilename(file.name);
   return {
     local_id: `local-pdf-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
     source_type: "pdf",
-    romaneio: inferRomaneioCodeFromFilename(file.name),
+    romaneio,
+    romaneio_identity: normalizeRomaneioIdentity(romaneio),
     empresa: "INPLAST",
     pedido: "",
     quantidade_total: 0,
@@ -375,10 +695,12 @@ function createPdfRomaneioEntry(file) {
 }
 
 function createManualRomaneioEntry(payload) {
+  const romaneio = String(payload.romaneio || "").trim();
   return {
     local_id: `local-manual-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
     source_type: "manual",
-    romaneio: payload.romaneio,
+    romaneio,
+    romaneio_identity: normalizeRomaneioIdentity(romaneio),
     empresa: payload.empresa || "INPLAST",
     pedido: payload.pedido || "",
     quantidade_total: Number(payload.quantidade_total) || 0,
@@ -723,7 +1045,7 @@ function renderInsights(payload) {
   if (nextDelivery) {
     insights.push({
       label: "Próxima saída",
-      title: `${nextDelivery.romaneio} é o próximo compromisso da fila`,
+      title: `${formatRomaneioCode(nextDelivery.romaneio)} é o próximo compromisso da fila`,
       detail: `${formatDateTimeWithFallback(nextDelivery.previsao_saida_at, "Sem data")} com ${number.format(nextDelivery.quantidade_total)} unidades.`,
     });
   }
@@ -885,7 +1207,7 @@ function renderStagedRomaneios() {
           <div class="staged-card-head">
             <div>
               <small>${item.source_type === "pdf" ? "PDF local" : "Cadastro manual"}</small>
-              <strong>${item.romaneio}</strong>
+              <strong>${formatRomaneioCode(item.romaneio)}</strong>
             </div>
             <span class="tag ${item.source_type === "pdf" ? "warning" : "info"}">${item.source_type}</span>
           </div>
@@ -927,7 +1249,7 @@ function renderRomaneios() {
         <button class="romaneio-row ${isLocal ? "local" : ""} ${isSelected ? "selected" : ""}">
           <div>
             <small>${item.empresa}</small>
-            <strong>${item.romaneio}</strong>
+            <strong>${formatRomaneioCode(item.romaneio)}</strong>
             <span class="muted">${secondaryLine}</span>
           </div>
           <div>
@@ -953,7 +1275,7 @@ function renderRomaneioDetail(data) {
         <div class="detail-grid">
           <div class="detail-card">
             <small>Romaneio</small>
-            <strong>${header.romaneio || "N/D"}</strong>
+            <strong>${formatRomaneioCode(header.romaneio || "N/D")}</strong>
             <em>${header.empresa || "Sem empresa informada"}</em>
           </div>
           <div class="detail-card">
@@ -1019,7 +1341,7 @@ function renderLocalRomaneioDetail(entry) {
         <div class="detail-grid">
           <div class="detail-card">
             <small>Romaneio</small>
-            <strong>${entry.romaneio}</strong>
+            <strong>${formatRomaneioCode(entry.romaneio)}</strong>
             <em>${entry.empresa || "INPLAST"}</em>
           </div>
           <div class="detail-card">
@@ -1100,26 +1422,137 @@ function renderStructures(data) {
 
 function renderProgramming(items) {
   const tbody = document.getElementById("programming-table");
-  tbody.innerHTML = "";
-  if (!items.length) {
-    tbody.appendChild(el(`<tr><td colspan="7" class="muted">Sem programacoes informadas ate o momento.</td></tr>`));
+  const board = document.getElementById("programming-board");
+  const shortcuts = document.getElementById("programming-shortcuts");
+  if (!tbody || !board || !shortcuts) {
     return;
   }
 
-  items.forEach((item) => {
-    tbody.appendChild(
-      el(`
-        <tr>
+  const searchQuery = getGlobalSearchQuery();
+  const filtered = (Array.isArray(items) ? items : []).filter((item) => {
+    if (state.programmingActionFilter && String(item.action || "") !== state.programmingActionFilter) {
+      return false;
+    }
+    return matchesSearch(
+      [item.sku, item.produto, item.action, item.assembly_line_code, item.workstation_code, item.notes],
+      searchQuery,
+    );
+  });
+
+  const quickCandidates = [
+    ...(state.datasets.assembly || []).map((item) => ({ ...item, suggestedAction: "montar" })),
+    ...(state.datasets.production || []).map((item) => ({ ...item, suggestedAction: "produzir" })),
+  ]
+    .filter((item) => matchesSearch([item.sku, item.produto, item.product_type], searchQuery))
+    .sort((left, right) => (Number(right.net_required) || 0) - (Number(left.net_required) || 0))
+    .slice(0, 6);
+
+  shortcuts.innerHTML = "";
+  if (!quickCandidates.length) {
+    shortcuts.appendChild(emptyState("Nenhum atalho crítico para programação com os filtros atuais."));
+  } else {
+    quickCandidates.forEach((item) => {
+      const card = el(`
+        <article class="programming-shortcut-card">
+          <small>${item.suggestedAction === "montar" ? "Fila de esteiras" : "Fila de extrusoras"}</small>
+          <strong>${item.sku}</strong>
+          <span>${item.produto}</span>
+          <em>${number.format(item.net_required || 0)} un pendentes · estoque ${number.format(item.stock_available || 0)}</em>
+          <button type="button" class="btn btn-secondary btn-xs">Programar</button>
+        </article>
+      `);
+      card.querySelector("button").addEventListener("click", () => {
+        prefillProgrammingForm(
+          { ...item, action: item.suggestedAction },
+          {
+            assembly_line_code: item.suggestedAction === "montar" ? "LINHA-01" : "EXTR-01",
+            workstation_code: item.suggestedAction === "montar" ? "POSTO-A" : "MAQ-01",
+            switchTab: true,
+          },
+        );
+      });
+      shortcuts.appendChild(card);
+    });
+  }
+
+  tbody.innerHTML = "";
+  if (!filtered.length) {
+    tbody.appendChild(el(`<tr><td colspan="7" class="muted">Sem programações registradas com os filtros atuais.</td></tr>`));
+  } else {
+    filtered.forEach((item) => {
+      const row = el(`
+        <tr class="interactive-row">
           <td><b>${item.sku}</b><br /><span class="muted">${item.produto}</span></td>
           <td>${item.action}</td>
-          <td>${formatDateTimeWithFallback(item.planned_start_at, "Nao informado")}</td>
-          <td>${formatDateTime(item.available_at)}</td>
-          <td>${number.format(item.quantity_planned)}</td>
-          <td>${item.assembly_line_code || "-"}</td>
-          <td><span class="tag ${statusClass(item.planning_origin)}">${item.planning_origin}</span></td>
+          <td>${formatDateTimeWithFallback(item.planned_start_at, "Não informado")}</td>
+          <td>${formatDateTimeWithFallback(item.available_at, "Sem disponibilidade")}</td>
+          <td>${number.format(item.quantity_planned || 0)}</td>
+          <td>${item.assembly_line_code || item.workstation_code || "-"}</td>
+          <td>
+            <div class="kanban-inline-actions">
+              <span class="tag ${statusClass(item.planning_origin || item.planning_status)}">${item.planning_status || item.planning_origin || "programado"}</span>
+              <button type="button" class="btn btn-secondary btn-xs" data-action="edit">Editar</button>
+            </div>
+          </td>
         </tr>
-      `),
-    );
+      `);
+      row.addEventListener("click", () => prefillProgrammingForm(item, { switchTab: true }));
+      row.querySelector('[data-action="edit"]').addEventListener("click", (event) => {
+        event.stopPropagation();
+        prefillProgrammingForm(item, { switchTab: true });
+      });
+      tbody.appendChild(row);
+    });
+  }
+
+  const lanes = [
+    { key: "montar", label: "Montagem", subtitle: "Esteiras e postos finais" },
+    { key: "produzir", label: "Produção", subtitle: "Extrusoras e intermediários" },
+    { key: "comprar", label: "Compras", subtitle: "Itens que bloqueiam a carteira" },
+    { key: "analisar", label: "Acompanhar", subtitle: "Ajustes e exceções" },
+  ];
+
+  board.innerHTML = "";
+  lanes.forEach((lane) => {
+    const laneItems = filtered.filter((item) => {
+      if (lane.key === "analisar") {
+        return !["montar", "produzir", "comprar"].includes(String(item.action || ""));
+      }
+      return String(item.action || "") === lane.key;
+    });
+
+    const laneEl = el(`
+      <section class="programming-lane">
+        <header class="programming-lane-header">
+          <div>
+            <h3>${lane.label}</h3>
+            <span>${lane.subtitle}</span>
+          </div>
+          <strong>${laneItems.length}</strong>
+        </header>
+        <div class="programming-lane-body"></div>
+      </section>
+    `);
+
+    const laneBody = laneEl.querySelector(".programming-lane-body");
+    if (!laneItems.length) {
+      laneBody.appendChild(emptyState(`Sem itens em ${lane.label.toLowerCase()}.`));
+    } else {
+      laneItems.slice(0, 12).forEach((item) => {
+        const card = el(`
+          <article class="programming-entry-card">
+            <small>${item.sku}</small>
+            <strong>${item.produto}</strong>
+            <span>${number.format(item.quantity_planned || 0)} un · ${item.assembly_line_code || item.workstation_code || "Sem recurso"}</span>
+            <em>Disponível ${formatDateTimeWithFallback(item.available_at, "sem previsão")}</em>
+          </article>
+        `);
+        card.addEventListener("click", () => prefillProgrammingForm(item, { switchTab: true }));
+        laneBody.appendChild(card);
+      });
+    }
+
+    board.appendChild(laneEl);
   });
 }
 
@@ -1128,16 +1561,42 @@ function renderApontamento() {
   const hourTable = document.getElementById("apontamento-hour-table");
   const flowList = document.getElementById("apontamento-flow-list");
   const lossList = document.getElementById("apontamento-loss-list");
+  const operatorPanel = document.getElementById("apontamento-operator-panel");
+  const logList = document.getElementById("apontamento-log-list");
+  const form = document.getElementById("apontamento-form");
 
-  if (!machineGrid || !hourTable || !flowList || !lossList) {
+  if (!machineGrid || !hourTable || !flowList || !lossList || !operatorPanel || !logList || !form) {
     return;
   }
 
+  const machines = buildApontamentoMachines();
+  const searchQuery = getGlobalSearchQuery();
+  if (!machines.length) {
+    return;
+  }
+  if (!state.apontamentoSelecionado || !machines.some((item) => item.maquina === state.apontamentoSelecionado)) {
+    state.apontamentoSelecionado = machines[0].maquina;
+  }
+  const selectedMachine = machines.find((item) => item.maquina === state.apontamentoSelecionado) || machines[0];
+
+  const machineField = form.elements.namedItem("maquina");
+  if (machineField) {
+    machineField.innerHTML = machines
+      .map((item) => `<option value="${item.maquina}">${item.maquina} · ${item.produto}</option>`)
+      .join("");
+    machineField.value = selectedMachine.maquina;
+  }
+  const operatorField = form.elements.namedItem("operator");
+  if (operatorField && !operatorField.value && state.currentUser) {
+    operatorField.value = state.currentUser.full_name || state.currentUser.username;
+  }
+
   machineGrid.innerHTML = "";
-  apontamentoMachines.forEach((item) => {
-    machineGrid.appendChild(
-      el(`
-        <article class="aponta-machine-card">
+  machines
+    .filter((item) => matchesSearch([item.maquina, item.produto, item.status], searchQuery))
+    .forEach((item) => {
+      const card = el(`
+        <article class="aponta-machine-card ${item.maquina === selectedMachine.maquina ? "selected" : ""}">
           <header>
             <div>
               <small>${item.maquina}</small>
@@ -1165,12 +1624,19 @@ function renderApontamento() {
           </div>
           <em>Previsão inicial de término: ${formatDateTimeWithFallback(item.previstoTermino, "Sem previsão confiável")}</em>
         </article>
-      `),
-    );
-  });
+      `);
+      card.addEventListener("click", () => {
+        state.apontamentoSelecionado = item.maquina;
+        renderApontamento();
+      });
+      machineGrid.appendChild(card);
+    });
 
   hourTable.innerHTML = "";
-  apontamentoRows.forEach((item) => {
+  buildApontamentoTableRows()
+    .filter((item) => matchesSearch([item.maquina, item.motivo], searchQuery))
+    .slice(0, 18)
+    .forEach((item) => {
     hourTable.appendChild(
       el(`
         <tr>
@@ -1184,6 +1650,24 @@ function renderApontamento() {
       `),
     );
   });
+
+  operatorPanel.innerHTML = `
+    <div class="aponta-operator-card">
+      <small>Máquina selecionada</small>
+      <strong>${selectedMachine.maquina}</strong>
+      <span>${selectedMachine.produto}</span>
+    </div>
+    <div class="aponta-operator-card">
+      <small>Status</small>
+      <strong>${selectedMachine.status}</strong>
+      <span>${number.format(selectedMachine.pecasRestantes || 0)} peças restantes</span>
+    </div>
+    <div class="aponta-operator-card">
+      <small>Turno atual</small>
+      <strong>${number.format(selectedMachine.somaTurno || 0)} peças</strong>
+      <span>${number.format(selectedMachine.totalScrap || 0)} refugo(s)</span>
+    </div>
+  `;
 
   flowList.innerHTML = "";
   apontamentoFlows.forEach((item) => {
@@ -1210,34 +1694,90 @@ function renderApontamento() {
       `),
     );
   });
+
+  logList.innerHTML = "";
+  const logs = state.apontamentoLogs
+    .filter((entry) => entry.machine_code === machineCodeFromLabel(selectedMachine.maquina))
+    .slice(0, 10);
+  if (!logs.length) {
+    logList.appendChild(emptyState("Sem registros lançados para esta máquina ainda."));
+  } else {
+    logs.forEach((entry) => {
+      logList.appendChild(
+        el(`
+          <article class="aponta-log-card">
+            <small>${entry.machine_code} · ${entry.event_type}</small>
+            <strong>${entry.operator}</strong>
+            <span>${number.format(entry.pieces || 0)} peças · ${number.format(entry.scrap || 0)} refugo(s)</span>
+            <em>${entry.reason || "Sem observação"} · ${formatDateTimeWithFallback(entry.created_at, "Agora")}</em>
+          </article>
+        `),
+      );
+    });
+  }
 }
 
 function renderMrpTable(targetId, items) {
   const tbody = document.getElementById(targetId);
+  if (!tbody) {
+    return;
+  }
+  const action = targetId === "assembly-table" ? "montar" : "produzir";
+  const filtered = (Array.isArray(items) ? items : []).filter((item) =>
+    matchesSearch([item.sku, item.produto, item.product_type], getGlobalSearchQuery()),
+  );
+
   tbody.innerHTML = "";
-  if (!items.length) {
+  if (!filtered.length) {
     tbody.appendChild(el(`<tr><td colspan="6" class="muted">Sem itens nesta fila com os dados atuais.</td></tr>`));
   } else {
-    items.forEach((item) => {
-      tbody.appendChild(
-        el(`
-          <tr>
-            <td>
-              <div class="cell">
-                <div>
-                  <b>${item.sku}</b>
-                  <span>${item.product_type}</span>
-                </div>
+    filtered.forEach((item, index) => {
+      const lineCode = action === "montar" ? `LINHA-${String((index % 2) + 1).padStart(2, "0")}` : `EXTR-${String((index % 6) + 1).padStart(2, "0")}`;
+      const workstationCode = action === "montar" ? `POSTO-${String.fromCharCode(65 + (index % 4))}` : `MAQ-0${(index % 6) + 1}`;
+      const row = el(`
+        <tr class="interactive-row">
+          <td>
+            <div class="cell">
+              <div>
+                <b>${item.sku}</b>
+                <span>${item.product_type}</span>
               </div>
-            </td>
-            <td>${item.produto}</td>
-            <td>${number.format(item.net_required)}</td>
-            <td>${number.format(item.stock_available)}</td>
-            <td>${money.format(item.estimated_total_cost)}</td>
-            <td><span class="tag ${item.criticidade.toLowerCase()}">${item.criticidade}</span></td>
-          </tr>
-        `),
-      );
+            </div>
+          </td>
+          <td>${item.produto}</td>
+          <td>${number.format(item.net_required)}</td>
+          <td>${number.format(item.stock_available)}</td>
+          <td>${money.format(item.estimated_total_cost)}</td>
+          <td>
+            <div class="kanban-inline-actions">
+              <span class="tag ${item.criticidade.toLowerCase()}">${item.criticidade}</span>
+              <button type="button" class="btn btn-secondary btn-xs" data-action="program">Programar</button>
+            </div>
+          </td>
+        </tr>
+      `);
+      row.addEventListener("click", () => {
+        prefillProgrammingForm(
+          { ...item, action },
+          {
+            assembly_line_code: lineCode,
+            workstation_code: workstationCode,
+            switchTab: true,
+          },
+        );
+      });
+      row.querySelector('[data-action="program"]').addEventListener("click", (event) => {
+        event.stopPropagation();
+        prefillProgrammingForm(
+          { ...item, action },
+          {
+            assembly_line_code: lineCode,
+            workstation_code: workstationCode,
+            switchTab: true,
+          },
+        );
+      });
+      tbody.appendChild(row);
     });
   }
 }
@@ -1378,6 +1918,141 @@ function payloadFromForm(form) {
   return payload;
 }
 
+function buildProgrammingSuggestion(item, action, context = {}) {
+  const baseTime = context.baseTime || new Date().toISOString();
+  const plannedStart = context.planned_start_at || baseTime;
+  return {
+    sku: item.sku || "",
+    produto: item.produto || "",
+    action,
+    product_type: item.product_type || item.tipo || (action === "produzir" ? "intermediario" : "acabado"),
+    planned_start_at: plannedStart,
+    available_at: context.available_at || addHoursToIso(plannedStart, action === "produzir" ? 8 : 4),
+    quantity_planned: Math.max(
+      Number(item.quantity_planned) || 0,
+      Number(item.net_required) || 0,
+      Number(item.quantidade_pendente) || 0,
+      Number(item.quantidade) || 0,
+    ),
+    assembly_line_code: context.assembly_line_code || "",
+    workstation_code: context.workstation_code || "",
+    romaneio_reference: context.romaneio_reference || item.romaneio || "",
+    notes: context.notes || item.notes || item.criterio_previsao || "",
+  };
+}
+
+function prefillProgrammingForm(payload, options = {}) {
+  const form = document.getElementById("programming-form");
+  if (!form) {
+    return;
+  }
+
+  const suggestion = buildProgrammingSuggestion(payload, payload.action || "montar", options);
+  [
+    "sku",
+    "produto",
+    "action",
+    "product_type",
+    "quantity_planned",
+    "assembly_line_code",
+    "workstation_code",
+    "romaneio_reference",
+    "notes",
+  ].forEach((fieldName) => {
+    const field = form.elements.namedItem(fieldName);
+    if (field) {
+      field.value = suggestion[fieldName] ?? "";
+    }
+  });
+
+  const plannedField = form.elements.namedItem("planned_start_at");
+  if (plannedField) {
+    plannedField.value = toDatetimeLocalValue(suggestion.planned_start_at);
+  }
+
+  const availableField = form.elements.namedItem("available_at");
+  if (availableField) {
+    availableField.value = toDatetimeLocalValue(suggestion.available_at);
+  }
+
+  setElementStatus("programming-status", "Programação pré-preenchida a partir da fila operacional.", "success");
+
+  if (options.switchTab !== false) {
+    window.location.hash = "#programacao";
+    switchTab("#programacao");
+  }
+}
+
+function buildApontamentoMachines() {
+  return apontamentoMachines.map((machine) => {
+    const code = machineCodeFromLabel(machine.maquina);
+    const logs = state.apontamentoLogs.filter((entry) => entry.machine_code === code);
+    const totalPieces = sumBy(logs, (entry) => entry.pieces || 0);
+    const totalScrap = sumBy(logs, (entry) => entry.scrap || 0);
+    const latest = logs[0] || null;
+
+    let status = machine.status;
+    let tone = machine.tone;
+    if (latest) {
+      if (latest.event_type === "parada") {
+        status = "Parada";
+        tone = "warning";
+      } else if (latest.event_type === "finalizar") {
+        status = "Finalizada";
+        tone = "info";
+      } else {
+        status = "Produzindo";
+        tone = "ok";
+      }
+    }
+
+    return {
+      ...machine,
+      machineCode: code,
+      pecasRestantes: Math.max((Number(machine.pecasRestantes) || 0) - totalPieces, 0),
+      produzidoHora: latest ? Number(latest.pieces || 0) : machine.produzidoHora,
+      somaTurno: (Number(machine.somaTurno) || 0) + totalPieces,
+      totalScrap,
+      status,
+      tone,
+      latest,
+    };
+  });
+}
+
+function buildApontamentoTableRows() {
+  const logRows = state.apontamentoLogs.map((entry) => ({
+    faixa: entry.time_range || formatDateTimeWithFallback(entry.created_at, "Agora"),
+    maquina: entry.machine_code,
+    pecas: Number(entry.pieces) || 0,
+    refugos: Number(entry.scrap) || 0,
+    paradaInicio: entry.stop_start || "-",
+    paradaFim: entry.stop_end || "-",
+    motivo: entry.reason || `${entry.event_type} por ${entry.operator}`,
+    created_at: entry.created_at,
+  }));
+
+  return [...logRows, ...apontamentoRows].slice(0, 18);
+}
+
+function prefillApontamentoForm(payload) {
+  const form = document.getElementById("apontamento-form");
+  if (!form) {
+    return;
+  }
+
+  if (payload.maquina && form.elements.namedItem("maquina")) {
+    form.elements.namedItem("maquina").value = payload.maquina;
+  }
+  if (payload.event_type && form.elements.namedItem("event_type")) {
+    form.elements.namedItem("event_type").value = payload.event_type;
+  }
+  if (payload.reason && form.elements.namedItem("reason")) {
+    form.elements.namedItem("reason").value = payload.reason;
+  }
+  setElementStatus("apontamento-status", "Painel de apontamento pré-preenchido para a máquina selecionada.", "success");
+}
+
 let kanbanState = { products: [], romaneios: [] };
 
 function kanbanStatusPriority(value) {
@@ -1391,7 +2066,25 @@ function kanbanStatusPriority(value) {
 
 function buildKanbanModel(data) {
   const products = Array.isArray(data.products) ? data.products : [];
-  const romaneios = Array.isArray(data.romaneios) ? data.romaneios : [];
+  const searchQuery = getGlobalSearchQuery();
+  const romaneios = (Array.isArray(data.romaneios) ? data.romaneios : []).filter((romaneio) => {
+    if (state.kanbanStatusFilter !== "todos" && String(romaneio.previsao_saida_status || "") !== state.kanbanStatusFilter) {
+      return false;
+    }
+
+    return matchesSearch(
+      [
+        romaneio.romaneio,
+        romaneio.empresa,
+        romaneio.criterio_previsao,
+        romaneio.previsao_saida_status,
+        ...(Array.isArray(romaneio.items)
+          ? romaneio.items.flatMap((item) => [item.sku, item.produto, item.modo_atendimento, item.impacto])
+          : []),
+      ],
+      searchQuery,
+    );
+  });
   const runningStock = {};
   products.forEach((product) => {
     runningStock[product.sku] = Number(product.estoque_atual) || 0;
@@ -1495,6 +2188,8 @@ function buildKanbanModel(data) {
         data_evento: romaneio.data_evento,
         itemsPreview: previewItems,
         hiddenItems: Math.max(items.length - previewItems.length, 0),
+        items,
+        raw: romaneio,
       };
     });
 
@@ -1509,6 +2204,16 @@ function buildKanbanModel(data) {
   });
 
   return { columns, summary };
+}
+
+function flattenKanbanCards(model) {
+  return model.columns.flatMap((column) =>
+    column.cards.map((card) => ({
+      ...card,
+      columnKey: column.key,
+      columnLabel: column.label,
+    })),
+  );
 }
 
 function renderKanbanSummary(model) {
@@ -1563,7 +2268,7 @@ function renderKanbanSummary(model) {
         el(`
           <div class="kanban-priority-card">
             <small>Prioridade logística</small>
-            <strong>RM ${card.romaneio}</strong>
+            <strong>${formatRomaneioCode(card.romaneio)}</strong>
             <span>${number.format(card.deficit)} un sem cobertura imediata | ${card.riskItems} SKU(s) pressionando o saldo</span>
           </div>
         `),
@@ -1575,10 +2280,297 @@ function renderKanbanSummary(model) {
   wrapper.appendChild(priorityBox);
 }
 
+function renderKanbanInspector(model, data) {
+  const wrapper = document.getElementById("kanban-inspector");
+  const label = document.getElementById("kanban-selected-label");
+  if (!wrapper || !label) {
+    return;
+  }
+
+  wrapper.innerHTML = "";
+  const cards = flattenKanbanCards(model);
+  if (!cards.length) {
+    label.textContent = "Sem seleção";
+    label.className = "status-badge info";
+    wrapper.appendChild(emptyState("Nenhum romaneio atende aos filtros atuais do workbench logístico."));
+    return;
+  }
+
+  const selectedCard =
+    cards.find((card) => String(card.romaneio) === String(state.kanbanSelecionado)) ||
+    cards[0];
+  state.kanbanSelecionado = selectedCard.romaneio;
+  label.textContent = formatRomaneioCode(selectedCard.romaneio);
+  label.className = `status-badge ${selectedCard.statusTone}`;
+
+  const productMap = Object.fromEntries((Array.isArray(data.products) ? data.products : []).map((item) => [item.sku, item]));
+  const selectedIndex = cards.findIndex((card) => String(card.romaneio) === String(selectedCard.romaneio));
+  const cumulativeDemand = {};
+  cards.slice(0, selectedIndex + 1).forEach((card) => {
+    (card.items || []).forEach((item) => {
+      cumulativeDemand[item.sku] = (cumulativeDemand[item.sku] || 0) + (Number(item.quantidade) || 0);
+    });
+  });
+
+  const selectedItems = (selectedCard.items || []).map((item) => {
+    const product = productMap[item.sku] || {};
+    const estoqueAtual = Number(product.estoque_atual ?? item.quantidade_atendida_estoque ?? 0) || 0;
+    const demanda = Number(item.quantidade) || 0;
+    const pendente = Number(item.quantidade_pendente ?? Math.max(demanda - estoqueAtual, 0)) || 0;
+    return {
+      sku: item.sku || "-",
+      produto: item.produto || item.descricao || item.sku || "-",
+      estoqueAtual,
+      demanda,
+      pendente,
+      saldoApos: estoqueAtual - demanda,
+      atendimento: product.acao || item.modo_atendimento || item.impacto || "Analisar",
+      disponibilidade: item.previsao_disponibilidade_at,
+    };
+  }).sort((left, right) => right.pendente - left.pendente);
+
+  const untilRows = selectedItems
+    .map((item) => ({
+      ...item,
+      demandaAteRomaneio: cumulativeDemand[item.sku] || item.demanda,
+      saldoAteRomaneio: item.estoqueAtual - (cumulativeDemand[item.sku] || item.demanda),
+    }))
+    .sort((left, right) => left.saldoAteRomaneio - right.saldoAteRomaneio);
+
+  const generalRows = (Array.isArray(data.products) ? data.products : [])
+    .filter((item) => {
+      if ((Number(item.saldo) || 0) < 0) return true;
+      return (Number(item.necessidade_romaneios) || 0) > (Number(item.estoque_atual) || 0);
+    })
+    .filter((item) => matchesSearch([item.sku, item.produto, item.acao, item.tipo], getGlobalSearchQuery()))
+    .sort((left, right) => (Number(left.saldo) || 0) - (Number(right.saldo) || 0))
+    .slice(0, 8);
+
+  const primaryDemand = selectedItems.find((item) => item.pendente > 0) || selectedItems[0] || null;
+  const manualDateValue = selectedCard.previsao_saida_at ? toDatetimeLocalValue(selectedCard.previsao_saida_at) : "";
+
+  const inspector = el(`
+    <div class="kanban-inspector-stack">
+      <section class="kanban-workbench-card">
+        <div class="kanban-workbench-head">
+          <div>
+            <small>Consulta por romaneio</small>
+            <strong>${formatRomaneioCode(selectedCard.romaneio)}</strong>
+            <span>${selectedCard.empresa} · ${number.format(selectedCard.quantityTotal)} unidades · ${selectedCard.itemCount} SKU(s)</span>
+          </div>
+          <span class="tag ${selectedCard.statusTone}">${selectedCard.statusLabel}</span>
+        </div>
+        <div class="kanban-workbench-metrics">
+          <div>
+            <small>Cobertura simulada</small>
+            <strong>${selectedCard.coveragePct}%</strong>
+          </div>
+          <div>
+            <small>Déficit imediato</small>
+            <strong>${number.format(selectedCard.deficit)}</strong>
+          </div>
+          <div>
+            <small>Critério</small>
+            <strong>${selectedCard.criteria}</strong>
+          </div>
+        </div>
+        <div class="kanban-workbench-actions">
+          <label class="input-group">
+            <span>Data manual de saída</span>
+            <input id="kanban-manual-date" type="datetime-local" class="modern-input" value="${manualDateValue}" />
+          </label>
+          <div class="kanban-inline-actions">
+            <button type="button" id="kanban-save-date" class="btn btn-primary">Salvar data</button>
+            <button type="button" id="kanban-clear-date" class="btn btn-secondary">Sem previsão</button>
+            <button type="button" id="kanban-open-detail" class="btn btn-secondary">Abrir romaneio</button>
+            <button type="button" id="kanban-program-item" class="btn btn-secondary">Planejar atendimento</button>
+          </div>
+          <span id="kanban-inspector-status" class="status-msg"></span>
+        </div>
+      </section>
+
+      <section class="kanban-table-card">
+        <div class="panel-header compact">
+          <h3>Consulta por Romaneio</h3>
+          <span class="section-copy">Mesma visão da planilha: estoque, demanda e pendência do romaneio selecionado.</span>
+        </div>
+        <table class="modern-table dense-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Estoque</th>
+              <th>RM</th>
+              <th>Pendente</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              selectedItems.length
+                ? selectedItems
+                    .slice(0, 10)
+                    .map(
+                      (item) => `
+                        <tr>
+                          <td><b>${item.sku}</b><br /><span class="muted">${item.produto}</span></td>
+                          <td>${number.format(item.estoqueAtual)}</td>
+                          <td>${number.format(item.demanda)}</td>
+                          <td><span class="tag ${item.pendente > 0 ? "high" : "ok"}">${number.format(item.pendente)}</span></td>
+                          <td>${item.atendimento}</td>
+                        </tr>
+                      `,
+                    )
+                    .join("")
+                : `<tr><td colspan="5" class="muted">Sem itens detalhados para este romaneio.</td></tr>`
+            }
+          </tbody>
+        </table>
+      </section>
+
+      <section class="kanban-table-card">
+        <div class="panel-header compact">
+          <h3>Até o Romaneio</h3>
+          <span class="section-copy">Saldo projetado acumulando toda a carteira até ${formatRomaneioCode(selectedCard.romaneio)}.</span>
+        </div>
+        <table class="modern-table dense-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Estoque</th>
+              <th>Até RM</th>
+              <th>Saldo</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              untilRows.length
+                ? untilRows
+                    .slice(0, 10)
+                    .map(
+                      (item) => `
+                        <tr>
+                          <td><b>${item.sku}</b><br /><span class="muted">${item.produto}</span></td>
+                          <td>${number.format(item.estoqueAtual)}</td>
+                          <td>${number.format(item.demandaAteRomaneio)}</td>
+                          <td><span class="tag ${item.saldoAteRomaneio < 0 ? "high" : "ok"}">${number.format(item.saldoAteRomaneio)}</span></td>
+                          <td>${item.atendimento}</td>
+                        </tr>
+                      `,
+                    )
+                    .join("")
+                : `<tr><td colspan="5" class="muted">Sem cálculo acumulado para este romaneio.</td></tr>`
+            }
+          </tbody>
+        </table>
+      </section>
+
+      <section class="kanban-table-card">
+        <div class="panel-header compact">
+          <h3>Necessidade Geral</h3>
+          <span class="section-copy">Itens com saldo negativo na carteira ativa, priorizados para MRP e programação.</span>
+        </div>
+        <table class="modern-table dense-table">
+          <thead>
+            <tr>
+              <th>SKU</th>
+              <th>Saldo</th>
+              <th>Necessidade</th>
+              <th>Ação</th>
+            </tr>
+          </thead>
+          <tbody>
+            ${
+              generalRows.length
+                ? generalRows
+                    .map(
+                      (item) => `
+                        <tr>
+                          <td><b>${item.sku}</b><br /><span class="muted">${item.produto}</span></td>
+                          <td><span class="tag ${(Number(item.saldo) || 0) < 0 ? "high" : "ok"}">${number.format(item.saldo)}</span></td>
+                          <td>${number.format(item.necessidade_romaneios || 0)}</td>
+                          <td>${item.acao || "Analisar"}</td>
+                        </tr>
+                      `,
+                    )
+                    .join("")
+                : `<tr><td colspan="4" class="muted">Nenhum SKU crítico com os filtros atuais.</td></tr>`
+            }
+          </tbody>
+        </table>
+      </section>
+    </div>
+  `);
+
+  inspector.querySelector("#kanban-open-detail").addEventListener("click", async () => {
+    window.location.hash = "#romaneios";
+    await carregarRomaneio(selectedCard.romaneio);
+  });
+
+  inspector.querySelector("#kanban-program-item").addEventListener("click", () => {
+    if (!primaryDemand) {
+      setElementStatus("kanban-inspector-status", "Esse romaneio ainda não tem item pendente para programar.", "error");
+      return;
+    }
+    const baseAction = /produzir/i.test(primaryDemand.atendimento) ? "produzir" : "montar";
+    prefillProgrammingForm(
+      {
+        sku: primaryDemand.sku,
+        produto: primaryDemand.produto,
+        action: baseAction,
+        product_type: (productMap[primaryDemand.sku] || {}).tipo || (baseAction === "produzir" ? "intermediario" : "acabado"),
+        quantity_planned: primaryDemand.pendente || primaryDemand.demanda,
+        romaneio: selectedCard.romaneio,
+        notes: `Atendimento puxado do workbench logístico para ${formatRomaneioCode(selectedCard.romaneio)}.`,
+      },
+      {
+        assembly_line_code: baseAction === "montar" ? "LINHA-01" : "EXTR-01",
+        workstation_code: baseAction === "montar" ? "POSTO-A" : "MAQ-01",
+        switchTab: true,
+      },
+    );
+  });
+
+  inspector.querySelector("#kanban-save-date").addEventListener("click", async () => {
+    const field = inspector.querySelector("#kanban-manual-date");
+    const value = field?.value ? new Date(field.value).toISOString() : null;
+    try {
+      await postJson("/api/pcp/romaneios-kanban/update-date", {
+        romaneio: selectedCard.romaneio,
+        empresa: selectedCard.raw.empresa || "",
+        previsao_saida_at: value,
+        reason: "pcp_manual",
+      });
+      setElementStatus("kanban-inspector-status", "Previsão manual salva no romaneio.", "success");
+      await carregarTudo();
+    } catch (error) {
+      setElementStatus("kanban-inspector-status", error.message, "error");
+    }
+  });
+
+  inspector.querySelector("#kanban-clear-date").addEventListener("click", async () => {
+    try {
+      await postJson("/api/pcp/romaneios-kanban/update-date", {
+        romaneio: selectedCard.romaneio,
+        empresa: selectedCard.raw.empresa || "",
+        previsao_saida_at: null,
+        reason: "sem_previsao",
+      });
+      setElementStatus("kanban-inspector-status", "Romaneio voltou para a coluna sem previsão.", "success");
+      await carregarTudo();
+    } catch (error) {
+      setElementStatus("kanban-inspector-status", error.message, "error");
+    }
+  });
+
+  wrapper.appendChild(inspector);
+}
+
 function renderKanban(data) {
   kanbanState = data;
   const model = buildKanbanModel(data);
   renderKanbanSummary(model);
+  renderKanbanInspector(model, data);
 
   const wrapper = document.getElementById("kanban-board"); // Updated ID
   if (!wrapper) return;
@@ -1609,10 +2601,18 @@ function renderKanban(data) {
       const card = el(`
         <div class="kanban-card" data-romaneio="${cardData.romaneio}" title="Arraste para mudar a data">
           <div class="k-card-top">
-            <span class="k-sku">RM ${cardData.romaneio}</span>
+            <span class="k-sku">${formatRomaneioCode(cardData.romaneio)}</span>
             <span class="k-qty">${number.format(cardData.quantityTotal)} un</span>
           </div>
           <div class="k-title">${cardData.empresa}</div>
+          <div class="k-card-meta">
+            <span class="tag ${cardData.statusTone}">${cardData.statusLabel}</span>
+            <span>${cardData.itemCount} SKU(s)</span>
+          </div>
+          <div class="k-coverage-track">
+            <span class="k-coverage-fill ${cardData.deficit > 0 ? "high" : "ok"}" style="width:${cardData.coveragePct}%"></span>
+          </div>
+          <div class="k-coverage-copy">${cardData.coveragePct}% coberto agora · déficit ${number.format(cardData.deficit)}</div>
           <div class="k-card-bottom">
             <div class="k-date">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
@@ -1620,16 +2620,46 @@ function renderKanban(data) {
             </div>
             <div class="k-priority ${cardData.statusTone}"></div>
           </div>
+          <div class="k-card-actions">
+            <button type="button" class="btn btn-secondary" data-action="inspect">Consultar</button>
+            <button type="button" class="btn btn-secondary" data-action="plan">Programar</button>
+          </div>
         </div>
       `);
       
-      card.addEventListener("click", async () => {
-        window.location.hash = "#romaneios";
-        try {
-          await carregarRomaneio(cardData.romaneio);
-        } catch (error) {
-          console.error("Falha ao carregar romaneio do kanban", error);
+      card.addEventListener("click", () => {
+        state.kanbanSelecionado = cardData.romaneio;
+        renderKanban(kanbanState);
+      });
+
+      card.querySelector('[data-action="inspect"]').addEventListener("click", async (event) => {
+        event.stopPropagation();
+        state.kanbanSelecionado = cardData.romaneio;
+        renderKanban(kanbanState);
+      });
+
+      card.querySelector('[data-action="plan"]').addEventListener("click", (event) => {
+        event.stopPropagation();
+        const rawItem = (cardData.items || []).find((item) => Number(item.quantidade_pendente || 0) > 0) || (cardData.items || [])[0];
+        if (!rawItem) {
+          return;
         }
+        const action = /produzir/i.test(rawItem.modo_atendimento || rawItem.impacto || "") ? "produzir" : "montar";
+        prefillProgrammingForm(
+          {
+            sku: rawItem.sku,
+            produto: rawItem.produto || rawItem.descricao,
+            action,
+            quantity_planned: rawItem.quantidade_pendente || rawItem.quantidade,
+            romaneio: cardData.romaneio,
+            notes: `Atendimento puxado do card ${formatRomaneioCode(cardData.romaneio)}.`,
+          },
+          {
+            assembly_line_code: action === "produzir" ? "EXTR-01" : "LINHA-01",
+            workstation_code: action === "produzir" ? "MAQ-01" : "POSTO-A",
+            switchTab: true,
+          },
+        );
       });
       
       colBody.appendChild(card);
@@ -1654,6 +2684,7 @@ function renderKanban(data) {
                const romaneio = kanbanState.romaneios.find((item) => String(item.romaneio) === String(code));
                if (!romaneio) return;
                romaneio.previsao_saida_at = targetDate;
+               state.kanbanSelecionado = code;
                
                // Render natively will drop DOM state, so don't call renderKanban(kanbanState) immediately to avoid jitter
                // Just ping the server.
@@ -1711,11 +2742,25 @@ function removerRomaneioLocal(localId) {
   refreshRomaneiosWorkspace();
 }
 
+function confirmRomaneioReplacement(entry) {
+  const identity = entry.romaneio_identity || normalizeRomaneioIdentity(entry.romaneio || entry.pdf_name || "");
+  if (!identity) {
+    return true;
+  }
+  const existing = buildExistingRomaneioIdentityMap().get(identity);
+  if (!existing) {
+    return true;
+  }
+  return window.confirm(
+    `Deseja substituir o romaneio ${formatRomaneioCode(identity)} pelo novo arquivo/cadastro? Isso atualizará apenas os itens desse romaneio ou romaneio nota.`,
+  );
+}
+
 function appendRomaneiosLocais(entries, messageTargetId, successMessage) {
   if (!entries.length) {
     return;
   }
-  saveLocalRomaneios([...entries, ...state.romaneiosLocais]);
+  replaceLocalRomaneios(entries, entries.map((entry) => entry.romaneio_identity));
   refreshRomaneiosWorkspace();
   setElementStatus(messageTargetId, successMessage, "success");
   carregarRomaneio(entries[0].local_id).catch((error) => {
@@ -1777,17 +2822,42 @@ async function uploadRomaneioPdfFiles(fileEntries) {
 
 function handleRomaneioPdfFiles(fileList) {
   const files = Array.from(fileList || []).filter((file) => /\.pdf$/i.test(file.name));
-  const entries = files.map(createPdfRomaneioEntry);
+  const approvedEntries = [];
+  const approvedFiles = [];
 
-  if (!entries.length) {
-    setElementStatus("romaneio-dropzone-status", "Nenhum PDF válido foi selecionado.", "error");
+  files.forEach((file) => {
+    const entry = createPdfRomaneioEntry(file);
+    const batchIndex = approvedEntries.findIndex((item) => item.romaneio_identity === entry.romaneio_identity);
+    if (batchIndex >= 0) {
+      const confirmed = window.confirm(
+        `Foram selecionados dois PDFs para ${formatRomaneioCode(entry.romaneio_identity)}. Deseja manter o arquivo mais recente e substituir o anterior da seleção?`,
+      );
+      if (!confirmed) {
+        return;
+      }
+      approvedEntries.splice(batchIndex, 1);
+      approvedFiles.splice(batchIndex, 1);
+    }
+    if (!confirmRomaneioReplacement(entry)) {
+      return;
+    }
+    approvedEntries.push(entry);
+    approvedFiles.push(file);
+  });
+
+  if (!approvedEntries.length) {
+    setElementStatus(
+      "romaneio-dropzone-status",
+      files.length ? "Nenhum PDF foi enviado porque a substituição foi cancelada." : "Nenhum PDF válido foi selecionado.",
+      "error",
+    );
     return;
   }
 
-  saveLocalRomaneios([...entries, ...state.romaneiosLocais]);
+  replaceLocalRomaneios(approvedEntries, approvedEntries.map((entry) => entry.romaneio_identity));
   refreshRomaneiosWorkspace();
-  setElementStatus("romaneio-dropzone-status", `${entries.length} PDF(s) adicionados. Iniciando importação...`);
-  uploadRomaneioPdfFiles(entries.map((entry, index) => ({ entry, file: files[index] }))).catch((error) => {
+  setElementStatus("romaneio-dropzone-status", `${approvedEntries.length} PDF(s) adicionados. Iniciando importação...`);
+  uploadRomaneioPdfFiles(approvedEntries.map((entry, index) => ({ entry, file: approvedFiles[index] }))).catch((error) => {
     setElementStatus("romaneio-dropzone-status", error.message, "error");
   });
 }
@@ -1852,6 +2922,10 @@ function configurarRomaneioIntake() {
         throw new Error("Informe o código do romaneio.");
       }
       const entry = createManualRomaneioEntry(payload);
+      if (!confirmRomaneioReplacement(entry)) {
+        setElementStatus("romaneio-manual-status", "Substituição cancelada pelo operador.", "error");
+        return;
+      }
       appendRomaneiosLocais([entry], "romaneio-manual-status", "Romaneio manual salvo na fila local.");
       manualForm.reset();
       manualForm.elements.empresa.value = "INPLAST";
@@ -1864,6 +2938,107 @@ function configurarRomaneioIntake() {
     state.romaneiosFiltro = event.target.value || "";
     renderRomaneios();
   });
+}
+
+function rerenderOperationalViews() {
+  refreshRomaneiosWorkspace();
+  renderKanban(state.datasets.kanban);
+  renderProgramming(state.datasets.programming);
+  renderApontamento();
+  renderMrpTable("assembly-table", state.datasets.assembly);
+  renderFactorySimulation(state.datasets.assembly, "assembly-lanes", 2);
+  renderMrpTable("production-table", state.datasets.production);
+  renderFactorySimulation(state.datasets.production, "production-lanes", 6);
+  renderUsersModule();
+}
+
+function resetUserForm() {
+  const form = document.getElementById("user-form");
+  if (!form) {
+    return;
+  }
+  form.reset();
+  delete form.dataset.editingUserId;
+  if (form.elements.namedItem("role")) {
+    form.elements.namedItem("role").value = "operator";
+  }
+  if (form.elements.namedItem("active")) {
+    form.elements.namedItem("active").value = "true";
+  }
+}
+
+function salvarUsuario(event) {
+  event.preventDefault();
+  if (!state.currentUser || !["root", "manager"].includes(state.currentUser.role)) {
+    setElementStatus("user-status", "Apenas administradores podem gerenciar usuários.", "error");
+    return;
+  }
+
+  const form = event.currentTarget;
+  const payload = payloadFromForm(form);
+  if (!payload.username || !payload.full_name || !payload.password) {
+    setElementStatus("user-status", "Preencha usuário, nome e senha.", "error");
+    return;
+  }
+
+  const editingUserId = form.dataset.editingUserId || "";
+  const users = ensureUsersStorage();
+  const exists = users.find((item) => String(item.username).toLowerCase() === String(payload.username).toLowerCase());
+  if (exists && exists.id !== editingUserId) {
+    setElementStatus("user-status", "Já existe um usuário com esse login.", "error");
+    return;
+  }
+
+  const nextUser = {
+    id: editingUserId || `user-${Date.now()}`,
+    username: String(payload.username).trim().toLowerCase(),
+    full_name: String(payload.full_name).trim(),
+    role: payload.role || "operator",
+    active: String(payload.active || "true") === "true",
+    password: String(payload.password).trim(),
+    created_at: editingUserId ? (users.find((item) => item.id === editingUserId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
+    updated_at: new Date().toISOString(),
+  };
+
+  const nextUsers = editingUserId
+    ? users.map((item) => (item.id === editingUserId ? nextUser : item))
+    : [nextUser, ...users];
+
+  saveUsers(nextUsers);
+  if (state.currentUser?.id === nextUser.id) {
+    persistSession(nextUser);
+    renderAuthState();
+  }
+  renderUsersModule();
+  resetUserForm();
+  setElementStatus("user-status", `Usuário ${nextUser.username} salvo com sucesso.`, "success");
+}
+
+function autenticarUsuario(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  const payload = payloadFromForm(form);
+  const users = ensureUsersStorage();
+  const username = String(payload.username || "").trim().toLowerCase();
+  const user = users.find((item) => item.username === username);
+  if (!user || !user.active || user.password !== payload.password) {
+    setElementStatus("login-status", "Usuário ou senha inválidos.", "error");
+    return;
+  }
+
+  persistSession(user);
+  renderAuthState();
+  renderUsersModule();
+  setElementStatus("login-status", "", "");
+  carregarTudo().catch((error) => {
+    document.getElementById("mrp-status").textContent = "Erro de conexão: " + error.message;
+  });
+}
+
+function logoutUsuario() {
+  persistSession(null);
+  renderAuthState();
+  switchTab("#cockpit");
 }
 
 async function dispararMrp() {
@@ -1902,10 +3077,50 @@ async function salvarProgramacao(event) {
     status.classList.remove("error");
     status.textContent = `Programacao salva. Entrada ${response.entry_id || "n/d"}.`;
     form.reset();
+    state.programmingActionFilter = "";
     await carregarTudo();
   } catch (error) {
     status.classList.add("error");
     status.textContent = error.message;
+  }
+}
+
+function salvarApontamento(event) {
+  event.preventDefault();
+  const form = event.currentTarget;
+  try {
+    const payload = payloadFromForm(form);
+    if (!payload.maquina || !payload.operator || !payload.event_type) {
+      throw new Error("Máquina, operador e tipo do evento são obrigatórios.");
+    }
+
+    const machineCode = machineCodeFromLabel(payload.maquina);
+    const entry = {
+      id: `log-${Date.now()}`,
+      created_at: new Date().toISOString(),
+      machine_code: machineCode,
+      operator: payload.operator,
+      event_type: payload.event_type,
+      op_code: payload.op_code || "",
+      pieces: Number(payload.pieces) || 0,
+      scrap: Number(payload.scrap) || 0,
+      stop_start: payload.stop_start || "",
+      stop_end: payload.stop_end || "",
+      reason: payload.reason || "",
+      time_range: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+    };
+
+    saveApontamentoLogs([entry, ...state.apontamentoLogs]);
+    state.apontamentoSelecionado = payload.maquina;
+    renderApontamento();
+    setElementStatus("apontamento-status", "Apontamento registrado no diário operacional.", "success");
+    const currentMachine = payload.maquina;
+    form.reset();
+    if (form.elements.namedItem("maquina")) {
+      form.elements.namedItem("maquina").value = currentMachine;
+    }
+  } catch (error) {
+    setElementStatus("apontamento-status", error.message, "error");
   }
 }
 
@@ -1925,6 +3140,7 @@ function renderFactorySimulation(items, containerId, numLanes) {
   const startHour = 6;
   const endHour = 22;
   const totalMinutes = (endHour - startHour) * 60;
+  const action = containerId.includes("assembly") ? "montar" : "produzir";
 
   const lanesData = Array.from({ length: numLanes }, (_, i) => ({
       id: i,
@@ -1934,7 +3150,9 @@ function renderFactorySimulation(items, containerId, numLanes) {
       currentMinute: 0
   }));
 
-  const sortedItems = [...items].sort((a,b) => (b.net_required || 0) - (a.net_required || 0));
+  const sortedItems = [...items]
+      .filter((item) => matchesSearch([item.sku, item.produto, item.product_type], getGlobalSearchQuery()))
+      .sort((a,b) => (b.net_required || 0) - (a.net_required || 0));
   
   sortedItems.forEach(item => {
       const targetLane = lanesData.reduce((prev, curr) => (prev.currentMinute < curr.currentMinute) ? prev : curr);
@@ -1974,6 +3192,16 @@ function renderFactorySimulation(items, containerId, numLanes) {
                  <small>${number.format(block.item.net_required)} un</small>
               </div>
           `);
+          blockEl.addEventListener("click", () => {
+              prefillProgrammingForm(
+                { ...block.item, action },
+                {
+                  assembly_line_code: action === "montar" ? `LINHA-${String(lane.id + 1).padStart(2, "0")}` : `EXTR-${String(lane.id + 1).padStart(2, "0")}`,
+                  workstation_code: action === "montar" ? `POSTO-${String.fromCharCode(65 + lane.id)}` : `MAQ-0${lane.id + 1}`,
+                  switchTab: true,
+                },
+              );
+          });
           track.appendChild(blockEl);
       });
       container.appendChild(laneEl);
@@ -2014,20 +3242,28 @@ async function carregarTudo() {
   renderOverview(overview);
   renderAlerts(alerts);
   state.romaneiosApi = Array.isArray(romaneios.items) ? romaneios.items : [];
+  state.datasets.kanban = {
+    products: Array.isArray(kanban.products) ? kanban.products : [],
+    romaneios: Array.isArray(kanban.romaneios) ? kanban.romaneios : [],
+  };
+  state.datasets.programming = Array.isArray(programming.items) ? programming.items : [];
+  state.datasets.assembly = Array.isArray(assembly.items) ? assembly.items : [];
+  state.datasets.production = Array.isArray(production.items) ? production.items : [];
   refreshRomaneiosWorkspace();
   renderKanban(kanban);
   renderStructures(structures);
-  renderProgramming(programming.items);
+  renderProgramming(state.datasets.programming);
   renderApontamento();
-  renderMrpTable("assembly-table", assembly.items);
-  renderFactorySimulation(assembly.items, "assembly-lanes", 2);
-  renderMrpTable("production-table", production.items);
-  renderFactorySimulation(production.items, "production-lanes", 6);
+  renderMrpTable("assembly-table", state.datasets.assembly);
+  renderFactorySimulation(state.datasets.assembly, "assembly-lanes", 2);
+  renderMrpTable("production-table", state.datasets.production);
+  renderFactorySimulation(state.datasets.production, "production-lanes", 6);
   renderPurchases(purchases.items);
   renderRecycling(recycling.items);
   renderCosts(costs.items);
   renderSources(sources.items);
   renderPainel(painel.items);
+  renderUsersModule();
   renderCockpitReports({
     overview,
     romaneios,
@@ -2051,7 +3287,54 @@ document.getElementById("run-mrp")?.addEventListener("click", dispararMrp);
 document.getElementById("reload-all")?.addEventListener("click", carregarTudo);
 document.getElementById("structure-form")?.addEventListener("submit", salvarEstrutura);
 document.getElementById("programming-form")?.addEventListener("submit", salvarProgramacao);
+document.getElementById("apontamento-form")?.addEventListener("submit", salvarApontamento);
+document.getElementById("apontamento-form")?.elements.namedItem("maquina")?.addEventListener("change", (event) => {
+  state.apontamentoSelecionado = event.target.value || state.apontamentoSelecionado;
+  renderApontamento();
+});
+document.getElementById("programming-reset")?.addEventListener("click", () => {
+  document.getElementById("programming-form")?.reset();
+  setElementStatus("programming-status", "Formulário de programação limpo.", "success");
+});
+document.getElementById("apontamento-reset")?.addEventListener("click", () => {
+  document.getElementById("apontamento-form")?.reset();
+  if (state.apontamentoSelecionado && document.getElementById("apontamento-form")?.elements.namedItem("maquina")) {
+    document.getElementById("apontamento-form").elements.namedItem("maquina").value = state.apontamentoSelecionado;
+  }
+  setElementStatus("apontamento-status", "Formulário de apontamento limpo.", "success");
+});
+document.getElementById("global-search-input")?.addEventListener("input", (event) => {
+  state.globalSearch = event.target.value || "";
+  rerenderOperationalViews();
+});
+document.getElementById("kanban-status-filter")?.addEventListener("change", (event) => {
+  state.kanbanStatusFilter = event.target.value || "todos";
+  renderKanban(state.datasets.kanban);
+});
+document.getElementById("kanban-reset-filters")?.addEventListener("click", () => {
+  state.kanbanStatusFilter = "todos";
+  const field = document.getElementById("kanban-status-filter");
+  if (field) field.value = "todos";
+  renderKanban(state.datasets.kanban);
+});
+document.getElementById("programming-action-filter")?.addEventListener("change", (event) => {
+  state.programmingActionFilter = event.target.value || "";
+  renderProgramming(state.datasets.programming);
+});
+document.getElementById("user-form")?.addEventListener("submit", salvarUsuario);
+document.getElementById("user-form-reset")?.addEventListener("click", resetUserForm);
+document.getElementById("login-form")?.addEventListener("submit", autenticarUsuario);
+document.getElementById("logout-button")?.addEventListener("click", logoutUsuario);
 configurarRomaneioIntake();
+ensureUsersStorage();
+state.apontamentoLogs = loadApontamentoLogs();
+{
+  const session = loadSession();
+  const user = session ? state.users.find((item) => item.id === session.user_id) || null : null;
+  persistSession(user);
+}
+renderAuthState();
+renderUsersModule();
 
 function switchTab(hash) {
   const targetId = hash.replace('#', '') || 'cockpit';
@@ -2076,6 +3359,8 @@ function switchTab(hash) {
 window.addEventListener('hashchange', () => switchTab(window.location.hash));
 switchTab(window.location.hash);
 
-carregarTudo().catch((error) => {
-  document.getElementById("mrp-status").textContent = "Erro de conexão: " + error.message;
-});
+if (state.currentUser) {
+  carregarTudo().catch((error) => {
+    document.getElementById("mrp-status").textContent = "Erro de conexão: " + error.message;
+  });
+}

@@ -10,17 +10,58 @@
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="dark-theme">
-    <div class="app-container">
+    <div id="auth-screen" class="auth-screen">
+      <div class="auth-shell">
+        <div class="auth-brand-panel">
+          <img src="/assets/inplast-logo.png" alt="Inplast" class="auth-logo" />
+          <div class="auth-copy">
+            <span class="auth-kicker">PCP Control Desk</span>
+            <h1>Operação, MRP e logística em um só posto de comando.</h1>
+            <p>Entre com um usuário autorizado para programar romaneios, apontar produção e administrar acessos.</p>
+          </div>
+          <div class="auth-highlights">
+            <div class="auth-highlight-card">
+              <small>Kanban Logístico</small>
+              <strong>Consulta por romaneio, até o romaneio e necessidade geral</strong>
+            </div>
+            <div class="auth-highlight-card">
+              <small>Programação</small>
+              <strong>Esteiras, extrusoras e apontamento operando no mesmo fluxo</strong>
+            </div>
+          </div>
+        </div>
+
+        <div class="auth-panel glass-panel">
+          <small class="auth-panel-kicker">Acesso protegido</small>
+          <h2>Login do Sistema</h2>
+          <p>Use o usuário root para a primeira administração e criação dos demais acessos.</p>
+          <form id="login-form" class="auth-form">
+            <div class="input-group">
+              <label>Usuário</label>
+              <input type="text" name="username" class="modern-input" placeholder="root" required />
+            </div>
+            <div class="input-group">
+              <label>Senha</label>
+              <input type="password" name="password" class="modern-input" placeholder="••••••••" required />
+            </div>
+            <button type="submit" class="btn btn-primary auth-submit">Entrar no PCP</button>
+            <span id="login-status" class="status-msg"></span>
+          </form>
+          <div class="auth-root-hint">
+            <small>Primeiro acesso</small>
+            <strong>Usuário root padrão: <code>root</code></strong>
+            <em>Altere a senha logo após entrar no módulo de usuários.</em>
+          </div>
+        </div>
+      </div>
+    </div>
+
+    <div id="app-shell" class="app-container">
       <!-- Premium Glassmorphism Sidebar -->
       <aside class="sidebar">
         <div class="sidebar-header">
           <div class="logo-box">
-            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-              <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-              <path d="M12 22V12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-              <path d="M12 12L22 7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-              <path d="M12 12L2 7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
-            </svg>
+            <img src="/assets/inplast-logo.png" alt="Inplast" class="sidebar-logo" />
             <div class="logo-text">
               <strong>Inplast</strong>
               <span>Control Desk</span>
@@ -69,6 +110,10 @@
             <span class="icon">🔐</span>
             Governança
           </a>
+          <a href="#usuarios" class="nav-item">
+            <span class="icon">👤</span>
+            Usuários
+          </a>
         </nav>
 
         <div class="sidebar-footer">
@@ -93,7 +138,7 @@
           <div class="topbar-actions">
             <div class="search-bar">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
-              <input type="text" placeholder="Buscar romaneio, pedido ou SKU..." aria-label="Busca global">
+              <input id="global-search-input" type="text" placeholder="Buscar romaneio, pedido, SKU ou cliente..." aria-label="Busca global">
             </div>
             
             <button id="run-mrp" class="btn btn-primary">
@@ -104,8 +149,13 @@
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
 
-            <div class="user-profile">
-              <img src="https://ui-avatars.com/api/?name=In+Plast&background=3b82f6&color=fff" alt="User Profile" class="avatar">
+            <div class="user-profile" id="user-profile-pill">
+              <div class="user-profile-copy">
+                <small id="current-user-role">Visitante</small>
+                <strong id="current-user-name">Sem login</strong>
+              </div>
+              <div id="current-user-avatar" class="avatar avatar-fallback">IP</div>
+              <button id="logout-button" type="button" class="btn btn-secondary btn-xs">Sair</button>
             </div>
           </div>
         </header>
@@ -187,16 +237,36 @@
             <div class="module-header">
               <div class="header-titles">
                 <h2>Matriz Kanban de Romaneios</h2>
-                <p>Gerencie o fluxo logístico arrastando cards entre os estágios de preparo e expedição.</p>
+                <p>Gerencie a carteira logística com a mesma lógica da planilha: consulta por romaneio, até o romaneio e necessidade geral.</p>
               </div>
-              <div id="kanban-summary" class="summary-pills">
-                <!-- Injected via JS -->
+              <div class="filter-controls kanban-toolbar">
+                <select id="kanban-status-filter" class="input-mini">
+                  <option value="todos">Todos os status</option>
+                  <option value="sem_previsao">Sem previsão</option>
+                  <option value="pcp_manual">Programação manual</option>
+                  <option value="programado">Programados</option>
+                  <option value="estoque">Atendidos por estoque</option>
+                </select>
+                <button id="kanban-reset-filters" type="button" class="btn btn-secondary">Limpar filtros</button>
               </div>
             </div>
 
-            <!-- Kanban Board -->
-            <div id="kanban-board" class="kanban-board">
-              <!-- Columns are injected via JS for drag and drop -->
+            <div class="kanban-layout">
+              <section class="kanban-main">
+                <div id="kanban-summary" class="summary-pills"></div>
+                <div id="kanban-board" class="kanban-board"></div>
+              </section>
+
+              <aside class="glass-panel kanban-inspector">
+                <div class="panel-header sticky">
+                  <div>
+                    <h3>Workbench Logístico</h3>
+                    <p class="section-copy">Espelha as visões de consulta, saldo até o romaneio e necessidade geral.</p>
+                  </div>
+                  <span id="kanban-selected-label" class="status-badge info">Sem romaneio selecionado</span>
+                </div>
+                <div id="kanban-inspector" class="kanban-inspector-body"></div>
+              </aside>
             </div>
           </div>
 
@@ -366,30 +436,127 @@
           </div>
 
           <!-- PROGRAMACAO -->
-          <div id="programacao" class="view-module glass-panel">
-               <div class="panel-header">
-                 <h3>Planejamento Manual</h3>
-               </div>
-               <div class="form-container">
+          <div id="programacao" class="view-module">
+            <div class="module-header">
+              <div class="header-titles">
+                <h2>Programação Operacional</h2>
+                <p>Programe manualmente montagem e extrusão com base na fila de MRP e nas prioridades da carteira logística.</p>
+              </div>
+              <div class="filter-controls">
+                <select id="programming-action-filter" class="input-mini">
+                  <option value="">Todas as ações</option>
+                  <option value="montar">Montagem</option>
+                  <option value="produzir">Produção</option>
+                  <option value="comprar">Compra</option>
+                </select>
+              </div>
+            </div>
+
+            <div class="programming-shell">
+              <div class="glass-panel programming-form-panel">
+                <div class="panel-header">
+                  <div>
+                    <h3>Programar atividade</h3>
+                    <p class="section-copy">Clique em uma esteira, extrusora, item do MRP ou romaneio para pré-preencher esta programação.</p>
+                  </div>
+                </div>
+                <div class="form-container">
                   <form id="programming-form">
-                     <!-- Form layout styled via CSS -->
+                    <div class="input-grid">
+                      <div class="input-group">
+                        <label>SKU</label>
+                        <input type="text" name="sku" class="modern-input" placeholder="Ex: 4600013" required />
+                      </div>
+                      <div class="input-group">
+                        <label>Produto</label>
+                        <input type="text" name="produto" class="modern-input" placeholder="Descrição do item" required />
+                      </div>
+                      <div class="input-group">
+                        <label>Ação</label>
+                        <select name="action" class="modern-input" required>
+                          <option value="montar">Montar</option>
+                          <option value="produzir">Produzir</option>
+                          <option value="comprar">Comprar</option>
+                        </select>
+                      </div>
+                      <div class="input-group">
+                        <label>Tipo</label>
+                        <select name="product_type" class="modern-input">
+                          <option value="acabado">Acabado</option>
+                          <option value="intermediario">Intermediário</option>
+                          <option value="materia_prima">Matéria-prima</option>
+                          <option value="componente">Componente</option>
+                        </select>
+                      </div>
+                      <div class="input-group">
+                        <label>Início planejado</label>
+                        <input type="datetime-local" name="planned_start_at" class="modern-input" required />
+                      </div>
+                      <div class="input-group">
+                        <label>Disponível em</label>
+                        <input type="datetime-local" name="available_at" class="modern-input" required />
+                      </div>
+                      <div class="input-group">
+                        <label>Quantidade</label>
+                        <input type="number" step="1" min="0" name="quantity_planned" class="modern-input" placeholder="0" required />
+                      </div>
+                      <div class="input-group">
+                        <label>Linha / Esteira</label>
+                        <input type="text" name="assembly_line_code" class="modern-input" placeholder="Ex: LINHA-01 / EXTR-02" />
+                      </div>
+                      <div class="input-group">
+                        <label>Posto / Máquina</label>
+                        <input type="text" name="workstation_code" class="modern-input" placeholder="Ex: POSTO-A / MAQ-03" />
+                      </div>
+                      <div class="input-group">
+                        <label>Romaneio / Referência</label>
+                        <input type="text" name="romaneio_reference" class="modern-input" placeholder="Ex: RM 559" />
+                      </div>
+                      <div class="input-group full-width">
+                        <label>Observação</label>
+                        <textarea name="notes" class="modern-input" rows="3" placeholder="Observações de programação, restrições ou prioridade."></textarea>
+                      </div>
+                    </div>
+                    <div class="form-footer">
+                      <button type="submit" class="btn btn-primary">Salvar Programação</button>
+                      <button type="button" id="programming-reset" class="btn btn-secondary">Limpar</button>
+                      <span id="programming-status" class="status-msg"></span>
+                    </div>
                   </form>
-               </div>
-               <div class="table-container mt-4">
+                </div>
+
+                <div class="panel-header mt-4">
+                  <h3>Atalhos de programação</h3>
+                </div>
+                <div id="programming-shortcuts" class="programming-shortcuts"></div>
+              </div>
+
+              <div class="glass-panel programming-board-panel">
+                <div class="panel-header sticky">
+                  <div>
+                    <h3>Carteira programada</h3>
+                    <p class="section-copy">Fila consolidada das programações gravadas e seus próximos slots operacionais.</p>
+                  </div>
+                </div>
+                <div id="programming-board" class="programming-board"></div>
+                <div class="table-container mt-4">
                   <table class="modern-table">
-                     <thead>
-                        <tr>
-                           <th>SKU / Produto</th>
-                           <th>Ação</th>
-                           <th>Início</th>
-                           <th>Disponível</th>
-                           <th>Quantidade</th>
-                           <th>Status</th>
-                        </tr>
-                     </thead>
-                     <tbody id="programming-table"></tbody>
+                    <thead>
+                      <tr>
+                        <th>SKU / Produto</th>
+                        <th>Ação</th>
+                        <th>Início</th>
+                        <th>Disponível</th>
+                        <th>Quantidade</th>
+                        <th>Recurso</th>
+                        <th>Status</th>
+                      </tr>
+                    </thead>
+                    <tbody id="programming-table"></tbody>
                   </table>
-               </div>
+                </div>
+              </div>
+            </div>
           </div>
 
           <!-- APONTAMENTO -->
@@ -437,9 +604,67 @@
                 </div>
                 <div id="apontamento-flow-list" class="aponta-flow-list"></div>
                 <div class="panel-header mt-4">
+                  <h3>Painel Operacional</h3>
+                </div>
+                <div id="apontamento-operator-panel" class="aponta-operator-panel"></div>
+                <form id="apontamento-form" class="aponta-form">
+                  <div class="input-grid">
+                    <div class="input-group">
+                      <label>Máquina</label>
+                      <select name="maquina" class="modern-input" required></select>
+                    </div>
+                    <div class="input-group">
+                      <label>Evento</label>
+                      <select name="event_type" class="modern-input" required>
+                        <option value="iniciar">Iniciar atividade</option>
+                        <option value="apontar">Apontar produção</option>
+                        <option value="parada">Registrar parada</option>
+                        <option value="finalizar">Finalizar atividade</option>
+                      </select>
+                    </div>
+                    <div class="input-group">
+                      <label>Operador</label>
+                      <input type="text" name="operator" class="modern-input" placeholder="Ex: José Andrade" required />
+                    </div>
+                    <div class="input-group">
+                      <label>OP / Atividade</label>
+                      <input type="text" name="op_code" class="modern-input" placeholder="Ex: OP-2625" />
+                    </div>
+                    <div class="input-group">
+                      <label>Peças</label>
+                      <input type="number" step="1" min="0" name="pieces" class="modern-input" placeholder="0" />
+                    </div>
+                    <div class="input-group">
+                      <label>Refugos</label>
+                      <input type="number" step="1" min="0" name="scrap" class="modern-input" placeholder="0" />
+                    </div>
+                    <div class="input-group">
+                      <label>Parada início</label>
+                      <input type="time" name="stop_start" class="modern-input" />
+                    </div>
+                    <div class="input-group">
+                      <label>Parada fim</label>
+                      <input type="time" name="stop_end" class="modern-input" />
+                    </div>
+                    <div class="input-group full-width">
+                      <label>Motivo / Observação</label>
+                      <textarea name="reason" class="modern-input" rows="3" placeholder="Motivo da parada, perda ou observação operacional."></textarea>
+                    </div>
+                  </div>
+                  <div class="form-footer">
+                    <button type="submit" class="btn btn-primary">Registrar no Apontamento</button>
+                    <button type="button" id="apontamento-reset" class="btn btn-secondary">Limpar</button>
+                    <span id="apontamento-status" class="status-msg"></span>
+                  </div>
+                </form>
+                <div class="panel-header mt-4">
                   <h3>Motivos Críticos</h3>
                 </div>
                 <div id="apontamento-loss-list" class="aponta-loss-list"></div>
+                <div class="panel-header mt-4">
+                  <h3>Últimos registros</h3>
+                </div>
+                <div id="apontamento-log-list" class="aponta-log-list"></div>
               </div>
             </div>
           </div>
@@ -464,6 +689,7 @@
             <div class="glass-panel mt-4">
               <div class="panel-header">
                 <h3>Fila Operacional: Montagem</h3>
+                <p class="section-copy">Clique em um bloco da esteira ou em um item da fila para pré-programar a montagem.</p>
               </div>
               <table class="modern-table">
                 <thead>
@@ -473,6 +699,7 @@
                     <th>Estoque</th>
                     <th>Custo</th>
                     <th>Critico</th>
+                    <th>Ação</th>
                   </tr>
                 </thead>
                 <tbody id="assembly-table"></tbody>
@@ -500,6 +727,7 @@
             <div class="glass-panel mt-4">
               <div class="panel-header">
                 <h3>Fila Operacional: Extrusão</h3>
+                <p class="section-copy">Clique em um bloco da extrusora ou em um item da fila para criar a programação da produção.</p>
               </div>
               <table class="modern-table">
                 <thead>
@@ -509,6 +737,7 @@
                     <th>Estoque</th>
                     <th>Custo</th>
                     <th>Critico</th>
+                    <th>Ação</th>
                   </tr>
                 </thead>
                 <tbody id="production-table"></tbody>
@@ -541,6 +770,66 @@
               <table class="modern-table">
                 <tbody id="painel-table"></tbody>
               </table>
+            </div>
+          </div>
+
+          <div id="usuarios" class="view-module grid-layout-2-wide">
+            <div class="glass-panel">
+              <div class="panel-header">
+                <div>
+                  <h3>Controle de Usuários</h3>
+                  <p class="section-copy">Administre acessos do PCP e mantenha o usuário root sob controle.</p>
+                </div>
+                <span id="users-session-badge" class="status-badge info">Sem sessão</span>
+              </div>
+              <div id="users-summary" class="summary-pills"></div>
+              <div id="users-list" class="users-list mt-4"></div>
+            </div>
+
+            <div class="glass-panel">
+              <div class="panel-header">
+                <div>
+                  <h3>Novo Usuário / Ajuste de Senha</h3>
+                  <p class="section-copy">Cadastre acessos operacionais, líderes e administradores.</p>
+                </div>
+              </div>
+              <form id="user-form" class="users-form">
+                <div class="input-grid">
+                  <div class="input-group">
+                    <label>Usuário</label>
+                    <input type="text" name="username" class="modern-input" placeholder="ex: pcp.joao" required />
+                  </div>
+                  <div class="input-group">
+                    <label>Nome</label>
+                    <input type="text" name="full_name" class="modern-input" placeholder="Nome completo" required />
+                  </div>
+                  <div class="input-group">
+                    <label>Perfil</label>
+                    <select name="role" class="modern-input">
+                      <option value="operator">Operador</option>
+                      <option value="planner">PCP</option>
+                      <option value="manager">Gestor</option>
+                      <option value="root">Root Admin</option>
+                    </select>
+                  </div>
+                  <div class="input-group">
+                    <label>Status</label>
+                    <select name="active" class="modern-input">
+                      <option value="true">Ativo</option>
+                      <option value="false">Inativo</option>
+                    </select>
+                  </div>
+                  <div class="input-group full-width">
+                    <label>Senha</label>
+                    <input type="password" name="password" class="modern-input" placeholder="Defina a senha do usuário" required />
+                  </div>
+                </div>
+                <div class="form-footer">
+                  <button type="submit" class="btn btn-primary">Salvar usuário</button>
+                  <button type="button" id="user-form-reset" class="btn btn-secondary">Limpar</button>
+                  <span id="user-status" class="status-msg"></span>
+                </div>
+              </form>
             </div>
           </div>
 
