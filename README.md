@@ -76,6 +76,7 @@ Observacoes:
 - na mesma inicializacao ele aplica tambem `database/pcp_postgres_roles_permissions.sql`
 - as credenciais `pcp_app` e `pcp_integration` sao criadas com as senhas do `.env`
 - se o volume do Postgres ja existir, o bootstrap nao roda de novo automaticamente
+- este e o modo recomendado para a `vm-apps` quando o objetivo for manter romaneios, kanban logistico e ajustes manuais no proprio banco do servico
 
 ## Modos de operacao
 
@@ -108,8 +109,8 @@ Exemplo:
 
 ```bash
 PCP_DATA_MODE=postgres \
-PCP_DATABASE_URL='postgresql://pcp_app:senha@db:5432/inplast' \
-PCP_ACTIONS_DATABASE_URL='postgresql://pcp_integration:senha@db:5432/inplast' \
+PCP_DATABASE_URL='postgresql://pcp_app:senha@127.0.0.1:55432/inplast_pcp' \
+PCP_ACTIONS_DATABASE_URL='postgresql://pcp_integration:senha@127.0.0.1:55432/inplast_pcp' \
 python3 server.py
 ```
 
@@ -117,8 +118,9 @@ Observacao:
 
 - o modo `postgres` tenta usar `psycopg` e, se nao existir, tenta `psycopg2`
 - as consultas ja estao mapeadas para as views e funcoes do arquivo `database/pcp_operacional_postgres.sql`
-- para a topologia atual, o esperado e o SaaS rodar na VM `apps` apontando para o banco na VM `data`
+- a partir desta versao, o caminho recomendado e o modulo rodar com um Postgres proprio na `vm-apps`
 - a recomendacao e usar `pcp_app` para leitura e `pcp_integration` para acoes como `run_mrp`
+- se `PCP_DATABASE_URL` nao for informado, o backend tambem consegue montar a conexao automaticamente a partir de `PCP_POSTGRES_HOST`, `PCP_POSTGRES_DB`, `PCP_APP_DB_PASSWORD` e `PCP_INTEGRATION_DB_PASSWORD`
 
 ## Implantacao
 
@@ -133,7 +135,9 @@ Para um ambiente isolado so para este servico:
 
 ### Opcao B: topologia separada apps/data
 
-Para esta topologia:
+Esse modo continua suportado, mas agora e legado. Use apenas se houver uma exigencia operacional clara para manter o banco fora da `vm-apps`.
+
+Para essa topologia:
 
 - `apps`: SaaS + n8n
 - `data`: Postgres
@@ -146,13 +150,24 @@ use esta sequencia:
 4. subir o servico pelo `docker-compose.coolify.yaml`
 5. importar os workflows em `n8n/`
 
+Observacao operacional:
+
+- a partir desta versao, o modo `postgres` deixa de depender de `backend/kanban_db.json` para romaneios e kanban
+- previsoes manuais de saida do romaneio passam a ser registradas no proprio Postgres
+- filas locais do navegador continuam existindo apenas como rascunho temporario de upload/manual antes da ingestao
+
 ## Imagem pronta para o Coolify
 
 Se voce preferir colar apenas um compose no Coolify, use:
 
 - `docker-compose.coolify.image.yaml`
 
-Esse arquivo usa a imagem publicada pelo GitHub Container Registry:
+Esse arquivo agora sobe:
+
+- `pcp-postgres`
+- `pcp-saas`
+
+e usa a imagem publicada pelo GitHub Container Registry:
 
 - `ghcr.io/pradocmd/saars-inplast:main`
 

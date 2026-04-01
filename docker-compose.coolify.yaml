@@ -1,16 +1,49 @@
 services:
+  pcp-postgres:
+    image: postgres:16-alpine
+    container_name: pcp-postgres
+    restart: unless-stopped
+    environment:
+      POSTGRES_DB: ${PCP_POSTGRES_DB:-inplast_pcp}
+      POSTGRES_USER: ${PCP_POSTGRES_SUPERUSER:-postgres}
+      POSTGRES_PASSWORD: ${PCP_POSTGRES_SUPERPASSWORD}
+      PCP_APP_DB_PASSWORD: ${PCP_APP_DB_PASSWORD}
+      PCP_INTEGRATION_DB_PASSWORD: ${PCP_INTEGRATION_DB_PASSWORD}
+    ports:
+      - "${PCP_POSTGRES_PORT:-55432}:5432"
+    volumes:
+      - pcp_postgres_data:/var/lib/postgresql/data
+      - ./database:/opt/pcp/database:ro
+      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
+    healthcheck:
+      test:
+        [
+          "CMD-SHELL",
+          "pg_isready -U ${PCP_POSTGRES_SUPERUSER:-postgres} -d ${PCP_POSTGRES_DB:-inplast_pcp}",
+        ]
+      interval: 10s
+      timeout: 5s
+      retries: 10
+      start_period: 10s
+
   pcp-saas:
     build:
       context: .
       dockerfile: Dockerfile
     container_name: pcp-saas
     restart: unless-stopped
+    depends_on:
+      pcp-postgres:
+        condition: service_healthy
     environment:
       PCP_HOST: 0.0.0.0
       PCP_PORT: ${PCP_PORT:-8765}
       PCP_DATA_MODE: ${PCP_DATA_MODE:-postgres}
-      PCP_DATABASE_URL: ${PCP_DATABASE_URL}
-      PCP_ACTIONS_DATABASE_URL: ${PCP_ACTIONS_DATABASE_URL:-}
+      PCP_POSTGRES_HOST: ${PCP_POSTGRES_HOST:-pcp-postgres}
+      PCP_POSTGRES_INTERNAL_PORT: ${PCP_POSTGRES_INTERNAL_PORT:-5432}
+      PCP_POSTGRES_DB: ${PCP_POSTGRES_DB:-inplast_pcp}
+      PCP_DATABASE_URL: ${PCP_DATABASE_URL:-postgresql://pcp_app:${PCP_APP_DB_PASSWORD}@pcp-postgres:5432/${PCP_POSTGRES_DB:-inplast_pcp}}
+      PCP_ACTIONS_DATABASE_URL: ${PCP_ACTIONS_DATABASE_URL:-postgresql://pcp_integration:${PCP_INTEGRATION_DB_PASSWORD}@pcp-postgres:5432/${PCP_POSTGRES_DB:-inplast_pcp}}
     expose:
       - "8765"
     healthcheck:
@@ -25,3 +58,6 @@ services:
       timeout: 10s
       retries: 5
       start_period: 20s
+
+volumes:
+  pcp_postgres_data:

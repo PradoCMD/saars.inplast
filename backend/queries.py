@@ -95,6 +95,19 @@ with last_event as (
         coalesce(reference_at, finished_at, received_at) desc,
         received_at desc
 ),
+last_manual_schedule as (
+    select distinct on ((meta_json->>'romaneio_code'))
+        meta_json->>'romaneio_code' as romaneio_code,
+        nullif(meta_json->>'manual_previsao_saida_at', '')::timestamptz as manual_previsao_saida_at,
+        coalesce(nullif(meta_json->>'manual_previsao_reason', ''), 'pcp_manual') as manual_previsao_reason
+    from ops.webhook_event
+    where meta_json ? 'romaneio_code'
+      and coalesce(meta_json->>'event_type', '') = 'manual_schedule'
+    order by
+        (meta_json->>'romaneio_code'),
+        coalesce(reference_at, finished_at, received_at) desc,
+        received_at desc
+),
 eta as (
     select *
     from mart.vw_romaneio_eta_current
@@ -106,12 +119,54 @@ select
     coalesce(e.data_evento, eta.data_evento) as data_evento,
     eta.itens,
     eta.quantidade_total,
-    eta.previsao_saida_at,
-    eta.previsao_saida_status,
-    eta.criterio_previsao
+    case
+        when ms.romaneio_code is not null then ms.manual_previsao_saida_at
+        else eta.previsao_saida_at
+    end as previsao_saida_at,
+    case
+        when ms.romaneio_code is not null and ms.manual_previsao_saida_at is null then 'sem_previsao'
+        when ms.manual_previsao_saida_at is not null then 'pcp_manual'
+        else eta.previsao_saida_status
+    end as previsao_saida_status,
+    case
+        when ms.romaneio_code is not null then ms.manual_previsao_reason
+        else eta.criterio_previsao
+    end as criterio_previsao
 from eta
 left join last_event e on e.romaneio_code = eta.romaneio
+left join last_manual_schedule ms on ms.romaneio_code = eta.romaneio
 order by coalesce(e.data_evento, eta.data_evento) desc, eta.romaneio desc
+"""
+
+ROMANEIOS_KANBAN_SQL = """
+with base as (
+    {romaneios_list_sql}
+),
+line_items as (
+    select
+        romaneio_code as romaneio,
+        jsonb_agg(
+            jsonb_build_object(
+                'sku', sku,
+                'produto', produto,
+                'quantidade', quantidade,
+                'impacto', impacto,
+                'modo_atendimento', modo_atendimento,
+                'previsao_disponibilidade_at', previsao_disponibilidade_at,
+                'previsao_disponibilidade_status', previsao_disponibilidade_status
+            )
+            order by produto, sku
+        ) as items
+    from mart.vw_romaneio_eta_line_current
+    group by romaneio_code
+)
+select
+    base.*,
+    coalesce(line_items.items, '[]'::jsonb) as items,
+    0::numeric as valor_total
+from base
+left join line_items on line_items.romaneio = base.romaneio
+order by base.data_evento desc, base.romaneio desc
 """
 
 ROMANEIO_HEADER_SQL = """
@@ -432,6 +487,51 @@ select ops.save_bom_override(%s, %s, %s, %s::jsonb) as override_id
 
 SAVE_PROGRAMMING_ENTRY_SQL = """
 select ops.save_supply_programming_entry(%s, %s::jsonb) as entry_id
+"""
+
+SAVE_ROMANEIO_SCHEDULE_SQL = """
+with chosen_source as (
+    select source_id, source_code
+    from ops.source_registry
+    where source_area = 'demanda_romaneio'
+      and contract_status = 'known'
+    order by
+        case when source_code = 'romaneio_pcp_atual' then 0 else 1 end,
+        case when is_active then 0 else 1 end,
+        source_id
+    limit 1
+),
+inserted as (
+    insert into ops.webhook_event (
+        event_key,
+        source_id,
+        reference_at,
+        status,
+        meta_json,
+        received_at,
+        finished_at
+    )
+    select
+        %s,
+        chosen_source.source_id,
+        %s::timestamptz,
+        'processed',
+        jsonb_build_object(
+            'romaneio_code', %s,
+            'event_type', 'manual_schedule',
+            'company_code', nullif(%s, ''),
+            'manual_previsao_saida_at', %s::timestamptz,
+            'manual_previsao_reason', coalesce(nullif(%s, ''), 'pcp_manual')
+        ),
+        now(),
+        now()
+    from chosen_source
+    returning event_key
+)
+select
+    event_key,
+    (select source_code from chosen_source) as source_code
+from inserted
 """
 
 INGEST_INVENTORY_PAYLOAD_SQL = """

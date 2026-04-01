@@ -2,7 +2,9 @@
 
 Data: 2026-03-30
 
-## Topologia confirmada
+> Atualizacao: a topologia abaixo continua suportada, mas deixou de ser a recomendacao principal. O padrao atual para este modulo e manter um Postgres proprio na `vm-apps`, igual ao app de cubagem, usando o banco `inplast_pcp` na porta `55432`.
+
+## Topologia separada apps/data
 
 - VM `data`
   - `Postgres`

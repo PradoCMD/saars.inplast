@@ -96,6 +96,10 @@ class DataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def save_romaneio_schedule(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def sync_sources(self, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -148,20 +152,19 @@ class MockProvider(DataProvider):
         return json.loads(path.read_text(encoding="utf-8"))
 
     def romaneios_kanban(self) -> dict[str, Any]:
+        romaneios_payload = self.romaneios()
         romaneios = []
-        kanban_db_path = self.data_dir.parent / "backend/kanban_db.json"
-        if kanban_db_path.exists():
-            try:
-                data = json.loads(kanban_db_path.read_text(encoding="utf-8"))
-                romaneios = data.get("romaneios", [])
-            except Exception:
-                pass
-
+        for item in romaneios_payload.get("items", []):
+            romaneio_code = str(item.get("romaneio") or "").strip()
+            detail = self.romaneio_detail(romaneio_code) if romaneio_code else None
+            romaneios.append(
+                {
+                    **item,
+                    "items": (detail or {}).get("items", []),
+                }
+            )
         return {
-            "products": [
-                {"sku": "4600007", "produto": "MANGUEIRA G", "estoque_atual": 1500, "tipo": "acabado"},
-                {"sku": "4600013", "produto": "MANGUEIRA P", "estoque_atual": 800, "tipo": "acabado"}
-            ],
+            "products": self._read_json("painel.json").get("items", []),
             "romaneios": romaneios
         }
 
@@ -229,6 +232,39 @@ class MockProvider(DataProvider):
             "entry_id": int(datetime.now(timezone.utc).timestamp()),
             "status": "mock_saved",
             "payload": payload,
+        }
+
+    def save_romaneio_schedule(self, payload: dict[str, Any]) -> dict[str, Any]:
+        romaneio_code = str(payload.get("romaneio") or "").strip()
+        if not romaneio_code:
+            raise RuntimeError("Romaneio obrigatorio para salvar previsao.")
+
+        previsao_saida_at = payload.get("previsao_saida_at")
+        romaneios_path = self.data_dir / "romaneios.json"
+        detail_path = self.data_dir / f"romaneio_{romaneio_code}.json"
+
+        if romaneios_path.exists():
+            list_payload = json.loads(romaneios_path.read_text(encoding="utf-8"))
+            for item in list_payload.get("items", []):
+                if str(item.get("romaneio")) == romaneio_code:
+                    item["previsao_saida_at"] = previsao_saida_at
+                    item["previsao_saida_status"] = "pcp_manual" if previsao_saida_at else "sem_previsao"
+                    item["criterio_previsao"] = "pcp_manual"
+            romaneios_path.write_text(json.dumps(list_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        if detail_path.exists():
+            detail_payload = json.loads(detail_path.read_text(encoding="utf-8"))
+            header = detail_payload.get("header", {})
+            header["previsao_saida_at"] = previsao_saida_at
+            header["previsao_saida_status"] = "pcp_manual" if previsao_saida_at else "sem_previsao"
+            header["criterio_previsao"] = "pcp_manual"
+            detail_payload["header"] = header
+            detail_path.write_text(json.dumps(detail_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        return {
+            "status": "saved",
+            "romaneio": romaneio_code,
+            "previsao_saida_at": previsao_saida_at,
         }
 
     def sync_sources(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -485,16 +521,9 @@ class PostgresProvider(DataProvider):
 
     def romaneios_kanban(self) -> dict[str, Any]:
         painel_items = self._fetchall(queries.PANEL_ENRICHED_SQL)
-        
-        kanban_db_path = Path("backend/kanban_db.json")
-        romaneios = []
-        if kanban_db_path.exists():
-            try:
-                data = json.loads(kanban_db_path.read_text(encoding="utf-8"))
-                romaneios = data.get("romaneios", [])
-            except Exception:
-                pass
-        
+        romaneios = self._fetchall(
+            queries.ROMANEIOS_KANBAN_SQL.format(romaneios_list_sql=queries.ROMANEIOS_LIST_SQL)
+        )
         return {
             "products": painel_items,
             "romaneios": romaneios
@@ -599,6 +628,36 @@ class PostgresProvider(DataProvider):
         return {
             "entry_id": row["entry_id"] if row else None,
             "status": "saved",
+        }
+
+    def save_romaneio_schedule(self, payload: dict[str, Any]) -> dict[str, Any]:
+        romaneio_code = str(payload.get("romaneio") or "").strip()
+        if not romaneio_code:
+            raise RuntimeError("Romaneio obrigatorio para salvar previsao.")
+
+        event_reference = payload.get("previsao_saida_at") or datetime.now(timezone.utc).isoformat()
+        event_key = "manual_schedule:" + romaneio_code + ":" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
+        row = self._fetchone(
+            queries.SAVE_ROMANEIO_SCHEDULE_SQL,
+            (
+                event_key,
+                event_reference,
+                romaneio_code,
+                str(payload.get("empresa") or ""),
+                payload.get("previsao_saida_at"),
+                str(payload.get("reason") or "pcp_manual"),
+            ),
+            write=True,
+        )
+        if not row:
+            raise RuntimeError("Nao foi possivel registrar a previsao manual do romaneio.")
+
+        return {
+            "status": "saved",
+            "romaneio": romaneio_code,
+            "event_key": row.get("event_key"),
+            "source_code": row.get("source_code"),
+            "previsao_saida_at": payload.get("previsao_saida_at"),
         }
 
     def sync_sources(self, payload: dict[str, Any]) -> dict[str, Any]:

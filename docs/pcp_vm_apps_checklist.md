@@ -2,6 +2,8 @@
 
 Data: 2026-03-30
 
+> Atualizacao: a recomendacao atual e subir um Postgres proprio do modulo na `vm-apps`, usando `pcp-postgres` e porta externa `55432`. As referencias a `vm-data` abaixo devem ser tratadas como topologia legada.
+
 ## 1. Rede e resolucao
 
 - confirmar que a VM `apps` resolve o hostname da VM `data`
@@ -30,8 +32,12 @@ Para o backend do modulo:
 PCP_HOST=0.0.0.0
 PCP_PORT=8765
 PCP_DATA_MODE=postgres
-PCP_DATABASE_URL=postgresql://pcp_app:senha@192.168.25.251:5432/inplast
-PCP_ACTIONS_DATABASE_URL=postgresql://pcp_integration:senha@192.168.25.251:5432/inplast
+PCP_POSTGRES_HOST=pcp-postgres
+PCP_POSTGRES_INTERNAL_PORT=5432
+PCP_POSTGRES_PORT=55432
+PCP_POSTGRES_DB=inplast_pcp
+PCP_DATABASE_URL=postgresql://pcp_app:senha@pcp-postgres:5432/inplast_pcp
+PCP_ACTIONS_DATABASE_URL=postgresql://pcp_integration:senha@pcp-postgres:5432/inplast_pcp
 ```
 
 Para o `n8n`:
@@ -63,9 +69,9 @@ python3 -m pip install "psycopg[binary]"
 Se `psql` estiver disponivel:
 
 ```bash
-psql "postgresql://pcp_app:senha@192.168.25.251:5432/inplast" -c "select current_user, current_database();"
-psql "postgresql://pcp_app:senha@192.168.25.251:5432/inplast" -c "select * from mart.vw_romaneio_eta_current limit 5;"
-psql "postgresql://pcp_integration:senha@192.168.25.251:5432/inplast" -c "select mart.run_mrp();"
+psql "postgresql://pcp_app:senha@127.0.0.1:55432/inplast_pcp" -c "select current_user, current_database();"
+psql "postgresql://pcp_app:senha@127.0.0.1:55432/inplast_pcp" -c "select * from mart.vw_romaneio_eta_current limit 5;"
+psql "postgresql://pcp_integration:senha@127.0.0.1:55432/inplast_pcp" -c "select mart.run_mrp();"
 ```
 
 ## 6. Subida do modulo PCP
@@ -75,8 +81,8 @@ No prototipo de referencia:
 ```bash
 cd "/caminho/do/repositorio/saars.inplast"
 PCP_DATA_MODE=postgres \
-PCP_DATABASE_URL='postgresql://pcp_app:senha@192.168.25.251:5432/inplast' \
-PCP_ACTIONS_DATABASE_URL='postgresql://pcp_integration:senha@192.168.25.251:5432/inplast' \
+PCP_DATABASE_URL='postgresql://pcp_app:senha@127.0.0.1:55432/inplast_pcp' \
+PCP_ACTIONS_DATABASE_URL='postgresql://pcp_integration:senha@127.0.0.1:55432/inplast_pcp' \
 python3 server.py
 ```
 

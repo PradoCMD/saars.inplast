@@ -332,13 +332,18 @@
     scroll-behavior: smooth;
   }
   
-  .view-module {
+  .view-port > .view-module {
     display: none;
     animation: fadeIn 0.4s ease forwards;
   }
   
-  .view-module.active {
+  .view-port > .view-module.active {
     display: block;
+  }
+
+  .view-port > .view-module.grid-layout-2.active,
+  .view-port > .view-module.grid-layout-2-wide.active {
+    display: grid;
   }
   
   @keyframes fadeIn {
@@ -379,6 +384,155 @@
     display: grid;
     grid-template-columns: 1fr 2fr;
     gap: 24px;
+  }
+
+  .aponta-shell {
+    display: grid;
+    grid-template-columns: 1.2fr 1.8fr;
+    gap: 24px;
+    margin-bottom: 24px;
+    background:
+      radial-gradient(circle at top left, rgba(116, 215, 95, 0.16), transparent 28%),
+      linear-gradient(135deg, rgba(25, 39, 28, 0.96) 0%, rgba(18, 23, 31, 0.94) 100%);
+  }
+
+  .aponta-shell-copy {
+    display: flex;
+    flex-direction: column;
+    justify-content: center;
+    gap: 10px;
+  }
+
+  .aponta-shell-copy h3 {
+    font-size: 2rem;
+    line-height: 1.05;
+  }
+
+  .aponta-shell-copy p {
+    color: var(--text-secondary);
+    max-width: 520px;
+    line-height: 1.6;
+  }
+
+  .aponta-kicker {
+    display: inline-flex;
+    width: fit-content;
+    padding: 6px 12px;
+    border-radius: 999px;
+    background: rgba(116, 215, 95, 0.12);
+    color: #8fe57d;
+    font-size: 0.72rem;
+    font-weight: 700;
+    letter-spacing: 0.08em;
+    text-transform: uppercase;
+  }
+
+  .aponta-machine-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+    gap: 16px;
+  }
+
+  .aponta-machine-card {
+    padding: 18px;
+    border-radius: var(--radius-md);
+    background: rgba(7, 12, 16, 0.54);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .aponta-machine-card header {
+    display: flex;
+    align-items: flex-start;
+    justify-content: space-between;
+    gap: 8px;
+    margin-bottom: 14px;
+  }
+
+  .aponta-machine-card small {
+    display: block;
+    color: var(--text-secondary);
+    margin-bottom: 4px;
+  }
+
+  .aponta-machine-card strong {
+    display: block;
+    font-size: 1.05rem;
+  }
+
+  .aponta-machine-card em {
+    display: block;
+    margin-top: 10px;
+    font-style: normal;
+    color: var(--text-secondary);
+    line-height: 1.5;
+    font-size: 0.8rem;
+  }
+
+  .aponta-machine-stats {
+    display: grid;
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+    gap: 10px;
+  }
+
+  .aponta-machine-stats div {
+    padding: 10px 12px;
+    border-radius: 12px;
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .aponta-machine-stats span {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    margin-bottom: 4px;
+  }
+
+  .aponta-machine-stats b {
+    font-size: 0.95rem;
+  }
+
+  .aponta-workspace {
+    align-items: start;
+  }
+
+  .aponta-flow-list,
+  .aponta-loss-list {
+    display: flex;
+    flex-direction: column;
+    gap: 12px;
+  }
+
+  .aponta-flow-card,
+  .aponta-loss-card {
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.03);
+    border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .aponta-flow-card small,
+  .aponta-loss-card small {
+    display: block;
+    color: var(--accent-primary);
+    margin-bottom: 6px;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    font-size: 0.72rem;
+  }
+
+  .aponta-flow-card strong,
+  .aponta-loss-card strong {
+    display: block;
+    margin-bottom: 6px;
+  }
+
+  .aponta-flow-card span,
+  .aponta-loss-card span {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.82rem;
+    line-height: 1.5;
   }
   
   /* Tags & Badges */
@@ -430,6 +584,42 @@
     color: var(--text-secondary);
     margin-bottom: 24px;
     font-size: 1.1rem;
+  }
+
+  .hero-signals {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
+    margin-top: 18px;
+    max-width: 760px;
+  }
+
+  .hero-signal-card {
+    padding: 14px 16px;
+    border-radius: var(--radius-md);
+    background: rgba(255, 255, 255, 0.04);
+    border: 1px solid rgba(255, 255, 255, 0.08);
+  }
+
+  .hero-signal-card small {
+    display: block;
+    color: var(--text-secondary);
+    font-size: 0.72rem;
+    text-transform: uppercase;
+    letter-spacing: 0.06em;
+    margin-bottom: 8px;
+  }
+
+  .hero-signal-card strong {
+    display: block;
+    font-size: 1.2rem;
+    margin-bottom: 6px;
+  }
+
+  .hero-signal-card span {
+    color: var(--text-secondary);
+    font-size: 0.78rem;
+    line-height: 1.5;
   }
   
   .metrics-grid {
@@ -1111,6 +1301,7 @@
   }
 
   @media (max-width: 1080px) {
+      .aponta-shell,
       .romaneio-intake-grid,
       .grid-layout-2,
       .grid-layout-2-wide,
@@ -1129,5 +1320,9 @@
 
       .input-mini {
           width: 100%;
+      }
+
+      .hero-signals {
+          grid-template-columns: 1fr;
       }
   }

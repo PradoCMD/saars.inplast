@@ -49,6 +49,10 @@
             <span class="icon">📅</span>
             Programação
           </a>
+          <a href="#apontamento" class="nav-item">
+            <span class="icon">📱</span>
+            Apontamento
+          </a>
           <a href="#montagem" class="nav-item">
             <span class="icon">⚙️</span>
             Montagem (Esteiras)
@@ -120,6 +124,7 @@
                   <strong id="snapshot-at">-</strong>
                   <span id="mrp-status" class="status-badge ready">Pronto</span>
                 </div>
+                <div id="hero-signals" class="hero-signals"></div>
               </div>
               <div class="hero-right">
                 <div class="coverage-widget">
@@ -385,6 +390,58 @@
                      <tbody id="programming-table"></tbody>
                   </table>
                </div>
+          </div>
+
+          <!-- APONTAMENTO -->
+          <div id="apontamento" class="view-module">
+            <div class="module-header">
+              <div class="header-titles">
+                <h2>Apontamento de Produção</h2>
+                <p>Leitura operacional das máquinas, apontamento hora a hora, paradas e perdas com base nas rotinas atuais da fábrica.</p>
+              </div>
+            </div>
+
+            <section class="glass-panel aponta-shell">
+              <div class="aponta-shell-copy">
+                <small class="aponta-kicker">Operação assistida</small>
+                <h3>Execução, refugos, paradas e consumo em um único módulo</h3>
+                <p>Esta área traduz as planilhas de acompanhamento e apontamento para uma rotina operacional contínua dentro do app.</p>
+              </div>
+              <div id="apontamento-machine-grid" class="aponta-machine-grid"></div>
+            </section>
+
+            <div class="grid-layout-2 aponta-workspace">
+              <div class="glass-panel scroll-y">
+                <div class="panel-header sticky">
+                  <h3>Acompanhamento Hora a Hora</h3>
+                  <span class="status-badge ready">Setor de Injeção</span>
+                </div>
+                <table class="modern-table">
+                  <thead>
+                    <tr>
+                      <th>Faixa</th>
+                      <th>Máquina</th>
+                      <th>Peças</th>
+                      <th>Refugos</th>
+                      <th>Parada</th>
+                      <th>Motivo / Perdas</th>
+                    </tr>
+                  </thead>
+                  <tbody id="apontamento-hour-table"></tbody>
+                </table>
+              </div>
+
+              <div class="glass-panel">
+                <div class="panel-header">
+                  <h3>Fluxos e Automação</h3>
+                </div>
+                <div id="apontamento-flow-list" class="aponta-flow-list"></div>
+                <div class="panel-header mt-4">
+                  <h3>Motivos Críticos</h3>
+                </div>
+                <div id="apontamento-loss-list" class="aponta-loss-list"></div>
+              </div>
+            </div>
           </div>
 
           <!-- MONTAGEM SIMULATION -->

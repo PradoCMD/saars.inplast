@@ -12,7 +12,8 @@ const state = {
   romaneiosFiltro: "",
 };
 
-const LOCAL_ROMANEIOS_STORAGE_KEY = "pcp_local_romaneios_v1";
+const LOCAL_ROMANEIOS_STORAGE_KEY = "pcp_local_romaneios_v2";
+const LEGACY_LOCAL_ROMANEIOS_STORAGE_KEYS = ["pcp_local_romaneios_v1"];
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -102,6 +103,122 @@ function emptyState(message) {
   return el(`<div class="detail-empty">${message}</div>`);
 }
 
+const apontamentoMachines = [
+  {
+    maquina: "Máquina 1",
+    produto: "Sobretampa Poli Neo 05",
+    pecasRestantes: 1854,
+    produzidoHora: 116,
+    somaTurno: 864,
+    lote: 5500,
+    previstoTermino: "2026-03-28T04:43:00-03:00",
+    status: "Produzindo",
+    tone: "ok",
+  },
+  {
+    maquina: "Máquina 2",
+    produto: "CP Mono Equatorial",
+    pecasRestantes: 2382,
+    produzidoHora: 0,
+    somaTurno: 263,
+    lote: 3400,
+    previstoTermino: "2026-03-28T03:41:00-03:00",
+    status: "Parada",
+    tone: "warning",
+  },
+  {
+    maquina: "Máquina 3",
+    produto: "Linha de apoio",
+    pecasRestantes: 2212,
+    produzidoHora: 0,
+    somaTurno: 567,
+    lote: 4000,
+    previstoTermino: "",
+    status: "Parada",
+    tone: "high",
+  },
+];
+
+const apontamentoRows = [
+  {
+    faixa: "05:20 às 06:00",
+    maquina: "MÁQ 1",
+    pecas: 116,
+    refugos: 2,
+    paradaInicio: "-",
+    paradaFim: "-",
+    motivo: "Produção contínua",
+  },
+  {
+    faixa: "06:00 às 07:00",
+    maquina: "MÁQ 2",
+    pecas: 0,
+    refugos: 0,
+    paradaInicio: "06:10",
+    paradaFim: "06:42",
+    motivo: "Aguardando material / falha humana",
+  },
+  {
+    faixa: "07:00 às 08:00",
+    maquina: "MÁQ 4",
+    pecas: 124,
+    refugos: 4,
+    paradaInicio: "-",
+    paradaFim: "-",
+    motivo: "Rechupe e peça manchada",
+  },
+  {
+    faixa: "08:00 às 09:00",
+    maquina: "MÁQ 1",
+    pecas: 141,
+    refugos: 1,
+    paradaInicio: "-",
+    paradaFim: "-",
+    motivo: "Meta atendida",
+  },
+];
+
+const apontamentoFlows = [
+  {
+    etapa: "Inicialização da OP",
+    titulo: "Liberar OP e atividade com rastreio do operador",
+    detalhe: "Confirma a ordem, grava hora inicial, operador responsável e máquina em uso sem depender da planilha.",
+  },
+  {
+    etapa: "Paradas e perdas",
+    titulo: "Registrar motivo, faixa horária e impacto no turno",
+    detalhe: "Substitui os lançamentos manuais de parada, falha humana e perda por um fluxo operacional único.",
+  },
+  {
+    etapa: "Apontamento de produção",
+    titulo: "Apontar peças, refugo, PA e consumo de MP",
+    detalhe: "Consolida peças produzidas, refugos e consumo por hora ou por atividade para alimentar o PCP em tempo real.",
+  },
+  {
+    etapa: "Fechamento",
+    titulo: "Finalizar a atividade e recalcular previsão de término",
+    detalhe: "Fecha o lote, recalcula restante, status da máquina e próxima necessidade operacional.",
+  },
+];
+
+const apontamentoLosses = [
+  {
+    motivo: "Aguardando material",
+    impacto: "Parada",
+    detalhe: "Motivo mais recorrente da planilha de acompanhamento. Deve disparar alerta para suprimentos e programação.",
+  },
+  {
+    motivo: "Peça incompleta / deformada",
+    impacto: "Refugo",
+    detalhe: "Perda típica por turno e candidata a dashboard de qualidade por máquina.",
+  },
+  {
+    motivo: "Rechupe / peça manchada",
+    impacto: "Qualidade",
+    detalhe: "Pode virar indicador automático de desvio por molde, resina e operador.",
+  },
+];
+
 function safeJsonParse(value, fallback) {
   try {
     return JSON.parse(value);
@@ -110,13 +227,62 @@ function safeJsonParse(value, fallback) {
   }
 }
 
+function isRecentDate(value, maxAgeDays) {
+  const parsed = parseIsoDate(value);
+  if (!parsed) {
+    return false;
+  }
+  return (Date.now() - parsed.getTime()) <= maxAgeDays * DAY_MS;
+}
+
+function sanitizeLocalRomaneios(items) {
+  if (!Array.isArray(items)) {
+    return [];
+  }
+
+  return items
+    .filter(Boolean)
+    .filter((item) => {
+      if (item.source_type === "manual") {
+        return true;
+      }
+      if (item.source_type === "pdf") {
+        return isRecentDate(item.created_at, 3);
+      }
+      return false;
+    })
+    .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0))
+    .slice(0, 40);
+}
+
 function loadLocalRomaneios() {
-  return safeJsonParse(window.localStorage.getItem(LOCAL_ROMANEIOS_STORAGE_KEY) || "[]", []).filter(Boolean);
+  const current = safeJsonParse(window.localStorage.getItem(LOCAL_ROMANEIOS_STORAGE_KEY) || "null", null);
+  if (Array.isArray(current)) {
+    return sanitizeLocalRomaneios(current);
+  }
+
+  const migrated = [];
+  LEGACY_LOCAL_ROMANEIOS_STORAGE_KEYS.forEach((storageKey) => {
+    const legacyItems = safeJsonParse(window.localStorage.getItem(storageKey) || "[]", []);
+    if (Array.isArray(legacyItems)) {
+      legacyItems.forEach((item) => {
+        if (item?.source_type === "manual") {
+          migrated.push(item);
+        }
+      });
+    }
+    window.localStorage.removeItem(storageKey);
+  });
+
+  const sanitized = sanitizeLocalRomaneios(migrated);
+  window.localStorage.setItem(LOCAL_ROMANEIOS_STORAGE_KEY, JSON.stringify(sanitized));
+  return sanitized;
 }
 
 function saveLocalRomaneios(items) {
-  state.romaneiosLocais = items;
-  window.localStorage.setItem(LOCAL_ROMANEIOS_STORAGE_KEY, JSON.stringify(items));
+  const sanitized = sanitizeLocalRomaneios(items);
+  state.romaneiosLocais = sanitized;
+  window.localStorage.setItem(LOCAL_ROMANEIOS_STORAGE_KEY, JSON.stringify(sanitized));
 }
 
 function formatFileSize(bytes) {
@@ -278,6 +444,9 @@ function renderOverview(data) {
   ];
 
   const wrapper = document.getElementById("overview-cards");
+  if (!wrapper) {
+    return;
+  }
   wrapper.innerHTML = "";
   cards.forEach(([label, value, hint, tone]) => {
     wrapper.appendChild(
@@ -291,60 +460,72 @@ function renderOverview(data) {
     );
   });
 
-  document.getElementById("snapshot-at").textContent = formatDateTimeWithFallback(
-    data.snapshot_at,
-    "Sem snapshot validado",
-  );
+  const snapshotTarget = document.getElementById("snapshot-at");
+  if (snapshotTarget) {
+    snapshotTarget.textContent = formatDateTimeWithFallback(
+      data.snapshot_at,
+      "Sem snapshot validado",
+    );
+  }
 
   const heroSignals = document.getElementById("hero-signals");
-  heroSignals.innerHTML = "";
+  if (heroSignals) {
+    heroSignals.innerHTML = "";
+  }
   const demanda = Number(totals.necessidade_romaneios) || 0;
   const estoque = Number(totals.estoque_atual) || 0;
   const coberturaImediata = demanda > 0 ? Math.round((Math.min(estoque, demanda) / demanda) * 100) : 100;
-  [
-    ["Cobertura", `${coberturaImediata}%`, "Atendimento direto com base no saldo atual"],
-    ["Pressão compra", number.format(totals.necessidade_compra || 0), "Volume que ainda exige suprimento"],
-    ["Romaneios sem ETA", number.format(totals.romaneios_sem_previsao || 0), "Carteira sem saída confiável"],
-    ["Custo projetado", money.format(totals.custo_estimado_total || 0), "Leitura financeira da rodada"],
-  ].forEach(([label, value, hint]) => {
-    heroSignals.appendChild(
-      el(`
-        <div class="hero-signal-card">
-          <small>${label}</small>
-          <strong>${value}</strong>
-          <span>${hint}</span>
-        </div>
-      `),
-    );
-  });
+  if (heroSignals) {
+    [
+      ["Cobertura", `${coberturaImediata}%`, "Atendimento direto com base no saldo atual"],
+      ["Pressão compra", number.format(totals.necessidade_compra || 0), "Volume que ainda exige suprimento"],
+      ["Romaneios sem ETA", number.format(totals.romaneios_sem_previsao || 0), "Carteira sem saída confiável"],
+      ["Custo projetado", money.format(totals.custo_estimado_total || 0), "Leitura financeira da rodada"],
+    ].forEach(([label, value, hint]) => {
+      heroSignals.appendChild(
+        el(`
+          <div class="hero-signal-card">
+            <small>${label}</small>
+            <strong>${value}</strong>
+            <span>${hint}</span>
+          </div>
+        `),
+      );
+    });
+  }
 
   const coverageMeter = document.getElementById("coverage-meter");
   const coberturaAtual = Math.min(estoque, demanda);
   const gap = Math.max(demanda - estoque, 0);
   const coberturaPct = demanda > 0 ? clamp((coberturaAtual / demanda) * 100, 0, 100) : 100;
   const gapPct = demanda > 0 ? clamp((gap / demanda) * 100, 0, 100) : 0;
-  coverageMeter.innerHTML = `
-    <div class="coverage-meter-head">
-      <strong>${Math.round(coberturaPct)}%</strong>
-      <span>${number.format(coberturaAtual)} de ${number.format(demanda)} unidades cobertas no saldo atual</span>
-    </div>
-    <div class="coverage-bar">
-      <span class="coverage-fill ok" style="width:${coberturaPct}%"></span>
-      ${gap > 0 ? `<span class="coverage-fill gap" style="width:${gapPct}%"></span>` : ""}
-    </div>
-    <div class="coverage-legend">
-      <div>
-        <small>Coberto agora</small>
-        <strong>${number.format(coberturaAtual)}</strong>
+  if (coverageMeter) {
+    coverageMeter.innerHTML = `
+      <div class="coverage-meter-head">
+        <strong>${Math.round(coberturaPct)}%</strong>
+        <span>${number.format(coberturaAtual)} de ${number.format(demanda)} unidades cobertas no saldo atual</span>
       </div>
-      <div>
-        <small>Gap imediato</small>
-        <strong>${number.format(gap)}</strong>
+      <div class="coverage-bar">
+        <span class="coverage-fill ok" style="width:${coberturaPct}%"></span>
+        ${gap > 0 ? `<span class="coverage-fill gap" style="width:${gapPct}%"></span>` : ""}
       </div>
-    </div>
-  `;
+      <div class="coverage-legend">
+        <div>
+          <small>Coberto agora</small>
+          <strong>${number.format(coberturaAtual)}</strong>
+        </div>
+        <div>
+          <small>Gap imediato</small>
+          <strong>${number.format(gap)}</strong>
+        </div>
+      </div>
+    `;
+  }
 
   const critical = document.getElementById("critical-list");
+  if (!critical) {
+    return;
+  }
   critical.innerHTML = "";
   if (!data.top_criticos.length) {
     critical.appendChild(emptyState("Nenhum item critico identificado com as cargas atuais."));
@@ -634,6 +815,9 @@ function renderCockpitReports(payload) {
 
 function renderAlerts(data) {
   const wrapper = document.getElementById("alerts-list");
+  if (!wrapper) {
+    return;
+  }
   wrapper.innerHTML = "";
   if (!data.items.length) {
     wrapper.appendChild(emptyState("Nenhum alerta critico com as fontes ativas neste momento."));
@@ -934,6 +1118,95 @@ function renderProgramming(items) {
           <td>${item.assembly_line_code || "-"}</td>
           <td><span class="tag ${statusClass(item.planning_origin)}">${item.planning_origin}</span></td>
         </tr>
+      `),
+    );
+  });
+}
+
+function renderApontamento() {
+  const machineGrid = document.getElementById("apontamento-machine-grid");
+  const hourTable = document.getElementById("apontamento-hour-table");
+  const flowList = document.getElementById("apontamento-flow-list");
+  const lossList = document.getElementById("apontamento-loss-list");
+
+  if (!machineGrid || !hourTable || !flowList || !lossList) {
+    return;
+  }
+
+  machineGrid.innerHTML = "";
+  apontamentoMachines.forEach((item) => {
+    machineGrid.appendChild(
+      el(`
+        <article class="aponta-machine-card">
+          <header>
+            <div>
+              <small>${item.maquina}</small>
+              <strong>${item.produto}</strong>
+            </div>
+            <span class="tag ${item.tone}">${item.status}</span>
+          </header>
+          <div class="aponta-machine-stats">
+            <div>
+              <span>Restante</span>
+              <b>${number.format(item.pecasRestantes)} peças</b>
+            </div>
+            <div>
+              <span>Produzido/hora</span>
+              <b>${number.format(item.produzidoHora)}</b>
+            </div>
+            <div>
+              <span>Soma no turno</span>
+              <b>${number.format(item.somaTurno)}</b>
+            </div>
+            <div>
+              <span>Lote</span>
+              <b>${number.format(item.lote)}</b>
+            </div>
+          </div>
+          <em>Previsão inicial de término: ${formatDateTimeWithFallback(item.previstoTermino, "Sem previsão confiável")}</em>
+        </article>
+      `),
+    );
+  });
+
+  hourTable.innerHTML = "";
+  apontamentoRows.forEach((item) => {
+    hourTable.appendChild(
+      el(`
+        <tr>
+          <td>${item.faixa}</td>
+          <td><strong>${item.maquina}</strong></td>
+          <td>${number.format(item.pecas)}</td>
+          <td>${number.format(item.refugos)}</td>
+          <td>${item.paradaInicio === "-" ? "Sem parada" : `${item.paradaInicio} → ${item.paradaFim}`}</td>
+          <td>${item.motivo}</td>
+        </tr>
+      `),
+    );
+  });
+
+  flowList.innerHTML = "";
+  apontamentoFlows.forEach((item) => {
+    flowList.appendChild(
+      el(`
+        <div class="aponta-flow-card">
+          <small>${item.etapa}</small>
+          <strong>${item.titulo}</strong>
+          <span>${item.detalhe}</span>
+        </div>
+      `),
+    );
+  });
+
+  lossList.innerHTML = "";
+  apontamentoLosses.forEach((item) => {
+    lossList.appendChild(
+      el(`
+        <div class="aponta-loss-card">
+          <small>${item.impacto}</small>
+          <strong>${item.motivo}</strong>
+          <span>${item.detalhe}</span>
+        </div>
       `),
     );
   });
@@ -1529,6 +1802,10 @@ function configurarRomaneioIntake() {
   const manualForm = document.getElementById("romaneio-manual-form");
   const filterInput = document.getElementById("romaneios-filter-input");
 
+  if (!dropzone || !input || !button || !manualForm || !filterInput) {
+    return;
+  }
+
   const openPicker = () => input.click();
 
   button.addEventListener("click", (event) => {
@@ -1741,6 +2018,7 @@ async function carregarTudo() {
   renderKanban(kanban);
   renderStructures(structures);
   renderProgramming(programming.items);
+  renderApontamento();
   renderMrpTable("assembly-table", assembly.items);
   renderFactorySimulation(assembly.items, "assembly-lanes", 2);
   renderMrpTable("production-table", production.items);
@@ -1769,10 +2047,10 @@ async function carregarTudo() {
   }
 }
 
-document.getElementById("run-mrp").addEventListener("click", dispararMrp);
-document.getElementById("reload-all").addEventListener("click", carregarTudo);
-document.getElementById("structure-form").addEventListener("submit", salvarEstrutura);
-document.getElementById("programming-form").addEventListener("submit", salvarProgramacao);
+document.getElementById("run-mrp")?.addEventListener("click", dispararMrp);
+document.getElementById("reload-all")?.addEventListener("click", carregarTudo);
+document.getElementById("structure-form")?.addEventListener("submit", salvarEstrutura);
+document.getElementById("programming-form")?.addEventListener("submit", salvarProgramacao);
 configurarRomaneioIntake();
 
 function switchTab(hash) {

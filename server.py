@@ -41,37 +41,6 @@ def json_default(value):
         return float(value)
     raise TypeError(f"Tipo nao serializavel: {type(value)!r}")
 
-
-def upsert_kanban_romaneios(records: list[dict]) -> int:
-    db_path = ROOT / "backend" / "kanban_db.json"
-    db_data = {"romaneios": []}
-    if db_path.exists():
-        try:
-            db_data = json.loads(db_path.read_text(encoding="utf-8"))
-        except Exception:
-            db_data = {"romaneios": []}
-
-    rom_map = {str(item.get("romaneio")): item for item in db_data.get("romaneios", []) if item.get("romaneio")}
-
-    for incoming in records:
-        romaneio_code = str(incoming.get("ordem_carga") or "").strip()
-        if not romaneio_code:
-            continue
-        existing = rom_map.get(romaneio_code, {})
-        rom_map[romaneio_code] = {
-            "romaneio": romaneio_code,
-            "empresa": incoming.get("nome_empresa") or existing.get("empresa", ""),
-            "data_evento": existing.get("data_evento") or datetime.now().isoformat(),
-            "previsao_saida_at": existing.get("previsao_saida_at"),
-            "items": incoming.get("itens", []),
-            "valor_total": incoming.get("total_geral", 0),
-        }
-
-    db_data["romaneios"] = list(rom_map.values())
-    db_path.write_text(json.dumps(db_data, ensure_ascii=False, indent=2), encoding="utf-8")
-    return len(db_data["romaneios"])
-
-
 def sync_parsed_romaneios(records: list[dict]) -> dict:
     results: list[dict] = []
     errors: list[dict] = []
@@ -109,7 +78,7 @@ def sync_parsed_romaneios(records: list[dict]) -> dict:
                 }
             )
 
-    kanban_count = upsert_kanban_romaneios([parsed for parsed in successful_records if parsed.get("ordem_carga")])
+    kanban_count = len((PROVIDER.romaneios_kanban() or {}).get("romaneios") or [])
     status = "success"
     if errors and results:
         status = "partial"
@@ -168,14 +137,7 @@ class PcpApiHandler(BaseHTTPRequestHandler):
 
             if parsed.path == "/api/pcp/romaneios-kanban/update-date":
                 payload = self.read_json_body()
-                self.send_json(HTTPStatus.OK, {"ok": True})
-                db_path = Path(__file__).parent / "backend/kanban_db.json"
-                if db_path.exists():
-                    db_data = json.loads(db_path.read_text("utf-8"))
-                    for r in db_data.get("romaneios", []):
-                        if r["romaneio"] == payload.get("romaneio"):
-                            r["previsao_saida_at"] = payload.get("previsao_saida_at")
-                    db_path.write_text(json.dumps(db_data, indent=2))
+                self.send_json(HTTPStatus.OK, PROVIDER.save_romaneio_schedule(payload))
                 return
 
             if parsed.path == "/api/pcp/romaneios-kanban/sync":
