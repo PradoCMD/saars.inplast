@@ -44,6 +44,10 @@ class DataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def romaneios_kanban(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def assembly(self) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -138,6 +142,29 @@ class MockProvider(DataProvider):
         if not path.exists():
             return None
         return json.loads(path.read_text(encoding="utf-8"))
+
+    def romaneios_kanban(self) -> dict[str, Any]:
+        return {
+            "products": [
+                {"sku": "4600007", "produto": "MANGUEIRA G", "estoque_atual": 1500, "tipo": "acabado"},
+                {"sku": "4600013", "produto": "MANGUEIRA P", "estoque_atual": 800, "tipo": "acabado"}
+            ],
+            "romaneios": [
+                {
+                    "romaneio": "553", "empresa": "INPLAST", "data_evento": "2026-04-01T12:00:00-03:00", "previsao_saida_at": "2026-04-03T12:00:00-03:00",
+                    "items": [
+                        {"sku": "4600007", "produto": "MANGUEIRA G", "quantidade": 300},
+                        {"sku": "4600013", "produto": "MANGUEIRA P", "quantidade": 400}
+                    ]
+                },
+                {
+                    "romaneio": "554", "empresa": "INPLAST", "data_evento": "2026-04-01T14:00:00-03:00", "previsao_saida_at": "2026-04-05T12:00:00-03:00",
+                    "items": [
+                        {"sku": "4600007", "produto": "MANGUEIRA G", "quantidade": 1300}
+                    ]
+                }
+            ]
+        }
 
     def assembly(self) -> dict[str, Any]:
         return self._read_json("assembly.json")
@@ -388,6 +415,27 @@ class PostgresProvider(DataProvider):
             "header": header,
             "items": self._fetchall(queries.ROMANEIO_ITEMS_SQL, (romaneio_code,)),
             "events": self._fetchall(queries.ROMANEIO_EVENTS_SQL, (romaneio_code,)),
+        }
+
+    def romaneios_kanban(self) -> dict[str, Any]:
+        painel_items = self._fetchall(queries.PANEL_ENRICHED_SQL)
+        romaneio_list = self._fetchall(queries.ROMANEIOS_LIST_SQL)
+        
+        romaneios = []
+        for r in romaneio_list:
+            items = self._fetchall(queries.ROMANEIO_ITEMS_SQL, (r["romaneio"],))
+            if len(items) > 0:
+                romaneios.append({
+                    "romaneio": r["romaneio"],
+                    "empresa": r["empresa"],
+                    "data_evento": r["data_evento"],
+                    "previsao_saida_at": r["previsao_saida_at"],
+                    "items": items
+                })
+        
+        return {
+            "products": painel_items,
+            "romaneios": romaneios
         }
 
     def assembly(self) -> dict[str, Any]:

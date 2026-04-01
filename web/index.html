@@ -17,6 +17,7 @@
 
         <nav class="nav">
           <a href="#cockpit">Cockpit</a>
+          <a href="#romaneios-kanban">Painel Logística / Kanban</a>
           <a href="#romaneios">Romaneios</a>
           <a href="#estruturas">Estruturas</a>
           <a href="#programacao">Programacao</a>
@@ -35,56 +36,69 @@
       </aside>
 
       <main class="content">
-        <section id="cockpit" class="hero">
-          <div class="hero-head">
-            <div>
-              <span class="pill">Visao executiva da rodada</span>
-              <h2>Planejamento com dados de demanda, estoque, producao e reciclagem.</h2>
-              <p>
-                Esta tela ja consome a API operacional do modulo PCP e reflete a base que estamos
-                homologando para o SaaS oficial.
-              </p>
+        <div id="cockpit" class="view-module active">
+          <section class="hero">
+            <div class="hero-head">
+              <div>
+                <span class="pill">Visão executiva</span>
+                <h2>Planejamento Estratégico</h2>
+                <p>
+                  Painel de controle com dados de demanda, estoque, produção e reciclagem.
+                </p>
+              </div>
+              <div class="hero-actions">
+                <button id="run-mrp" class="button primary">Disparar MRP</button>
+                <button id="reload-all" class="button">Atualizar painel</button>
+              </div>
             </div>
-            <div class="hero-actions">
-              <button id="run-mrp" class="button primary">Disparar MRP</button>
-              <button id="reload-all" class="button">Atualizar painel</button>
+
+            <div class="stats" id="overview-cards"></div>
+
+            <div class="hero-foot">
+              <div>
+                <small>Snapshot atual</small>
+                <strong id="snapshot-at">-</strong>
+              </div>
+              <div id="mrp-status" class="run-status">Pronto para operação.</div>
+            </div>
+          </section>
+
+          <section class="grid" style="margin-top: 18px;">
+            <article class="card">
+              <div class="section-head">
+                <div>
+                  <small>Top críticos</small>
+                  <h3>Itens com maior impacto</h3>
+                </div>
+              </div>
+              <div id="critical-list" class="stack"></div>
+            </article>
+
+            <article class="card">
+              <div class="section-head">
+                <div>
+                  <small>Alertas</small>
+                  <h3>Riscos da operação</h3>
+                </div>
+              </div>
+              <div id="alerts-list" class="stack"></div>
+            </article>
+          </section>
+        </div>
+
+        <section id="romaneios-kanban" class="view-module card">
+          <div class="section-head">
+            <div>
+              <small>Logística x PCP</small>
+              <h3>Matriz Kanban de Romaneios</h3>
             </div>
           </div>
-
-          <div class="stats" id="overview-cards"></div>
-
-          <div class="hero-foot">
-            <div>
-              <small>Snapshot atual</small>
-              <strong id="snapshot-at">-</strong>
-            </div>
-            <div id="mrp-status" class="run-status">Nenhum disparo manual nesta sessao.</div>
+          <div id="kanban-wrapper" class="kanban-wrapper">
+              <div class="detail-empty">Carregando matriz de logística...</div>
           </div>
         </section>
 
-        <section class="grid">
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <small>Top criticos</small>
-                <h3>Itens com maior impacto</h3>
-              </div>
-            </div>
-            <div id="critical-list" class="stack"></div>
-          </article>
-
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <small>Alertas</small>
-                <h3>Riscos da operacao</h3>
-              </div>
-            </div>
-            <div id="alerts-list" class="stack"></div>
-          </article>
-        </section>
-
-        <section id="romaneios" class="grid">
+        <section id="romaneios" class="view-module grid">
           <article class="card">
             <div class="section-head">
               <div>
@@ -108,7 +122,7 @@
           </article>
         </section>
 
-        <section id="estruturas" class="grid">
+        <section id="estruturas" class="view-module grid">
           <article class="card">
             <div class="section-head">
               <div>
@@ -202,7 +216,7 @@
           </article>
         </section>
 
-        <section id="programacao" class="grid">
+        <section id="programacao" class="view-module grid">
           <article class="card">
             <div class="section-head">
               <div>
@@ -286,7 +300,7 @@
           </article>
         </section>
 
-        <section id="montagem" class="card">
+        <section id="montagem" class="view-module card">
           <div class="section-head">
             <div>
               <small>Fila operacional</small>
@@ -310,7 +324,7 @@
           </div>
         </section>
 
-        <section id="producao" class="card">
+        <section id="producao" class="view-module card">
           <div class="section-head">
             <div>
               <small>Fila operacional</small>
@@ -334,7 +348,7 @@
           </div>
         </section>
 
-        <section id="compras" class="grid">
+        <section id="compras" class="view-module grid">
           <article class="card">
             <div class="section-head">
               <div>
@@ -370,7 +384,7 @@
           </article>
         </section>
 
-        <section id="fontes" class="grid">
+        <section id="fontes" class="view-module grid">
           <article class="card">
             <div class="section-head">
               <div>

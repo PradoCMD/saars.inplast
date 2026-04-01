@@ -136,11 +136,18 @@ class PcpApiHandler(BaseHTTPRequestHandler):
 
             if path.startswith("/api/pcp/romaneios/"):
                 romaneio_code = path.rsplit("/", 1)[-1]
-                payload = PROVIDER.romaneio_detail(romaneio_code)
-                if payload is None:
-                    self.send_json(HTTPStatus.NOT_FOUND, {"error": "Romaneio not found"})
+                if romaneio_code == "kanban":
+                    pass
+                else:
+                    payload = PROVIDER.romaneio_detail(romaneio_code)
+                    if payload is None:
+                        self.send_json(HTTPStatus.NOT_FOUND, {"error": "Romaneio not found"})
+                        return
+                    self.send_json(HTTPStatus.OK, payload)
                     return
-                self.send_json(HTTPStatus.OK, payload)
+
+            if path == "/api/pcp/romaneios-kanban":
+                self.send_json(HTTPStatus.OK, PROVIDER.romaneios_kanban())
                 return
 
             if path == "/api/pcp/assembly":

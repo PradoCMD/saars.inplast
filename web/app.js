@@ -485,6 +485,124 @@ function payloadFromForm(form) {
   return payload;
 }
 
+let kanbanState = { products: [], romaneios: [] };
+
+function renderKanban(data) {
+  kanbanState = data;
+  redesenharKanban();
+}
+
+function redesenharKanban() {
+  const wrapper = document.getElementById("kanban-wrapper");
+  wrapper.innerHTML = "";
+
+  const board = el(`<div class="kanban-board"></div>`);
+  wrapper.appendChild(board);
+  
+  // Copia o estoque de cada produto dinamicamente
+  const stock = {};
+  if (kanbanState.products) {
+    kanbanState.products.forEach(p => {
+      stock[p.sku] = Number(p.estoque_atual) || 0;
+    });
+  }
+
+  const columnsMap = {};
+  if (kanbanState.romaneios) {
+    kanbanState.romaneios.forEach(r => {
+      // Usa a data de previsao_saida_at ou data_evento como fallback
+      let rawDate = r.previsao_saida_at || r.data_evento;
+      let d = rawDate ? rawDate.split('T')[0] : 'Sem Data';
+      if (!columnsMap[d]) columnsMap[d] = [];
+      columnsMap[d].push(r);
+    });
+  }
+
+  const dates = Object.keys(columnsMap).sort();
+  if (!dates.length) {
+    wrapper.appendChild(emptyState("Nenhum romaneio ativo para a matriz logística."));
+    return;
+  }
+
+  dates.forEach(dateLabel => {
+    let headerText = 'Sem Previsão';
+    if (dateLabel !== 'Sem Data') {
+      const parts = dateLabel.split('-');
+      headerText = `${parts[2]}/${parts[1]}/${parts[0]}`;
+    }
+
+    const col = el(`
+      <div class="kanban-col" data-date="${dateLabel}">
+        <div class="kanban-header">
+          <strong>${headerText}</strong>
+          <span class="pill">${columnsMap[dateLabel].length} ROMS</span>
+        </div>
+      </div>
+    `);
+
+    col.addEventListener("dragover", e => {
+      e.preventDefault();
+      col.classList.add("drag-over");
+    });
+    col.addEventListener("dragleave", () => col.classList.remove("drag-over"));
+    col.addEventListener("drop", e => {
+      e.preventDefault();
+      col.classList.remove("drag-over");
+      const code = e.dataTransfer.getData("text/plain");
+      const targetDate = col.dataset.date === 'Sem Data' ? null : col.dataset.date + 'T12:00:00-03:00';
+      
+      const romaneio = kanbanState.romaneios.find(r => r.romaneio === code);
+      if (romaneio) {
+        romaneio.previsao_saida_at = targetDate;
+        redesenharKanban(); // recalculate entire timeline!
+      }
+    });
+
+    columnsMap[dateLabel].forEach(r => {
+      const card = el(`
+        <div class="kanban-card" draggable="true" title="Arraste para mudar a data">
+          <small>${r.empresa}</small>
+          <strong>RM ${r.romaneio}</strong>
+        </div>
+      `);
+      
+      card.addEventListener("dragstart", e => {
+        e.dataTransfer.setData("text/plain", r.romaneio);
+      });
+
+      // Build mini table
+      const table = el(`<table class="kanban-table"><thead><tr><th>SKU</th><th>QTD</th><th>SALDO INT</th></tr></thead><tbody></tbody></table>`);
+      const tbody = table.querySelector('tbody');
+      
+      let hasItems = false;
+      if (r.items) {
+        r.items.forEach(item => {
+          const sku = item.sku;
+          const qty = Number(item.quantidade) || 0;
+          
+          stock[sku] = (stock[sku] || 0) - qty;
+          const endStock = stock[sku];
+          const cssClass = endStock < 0 ? "negative" : "positive";
+          
+          tbody.appendChild(el(`
+            <tr>
+              <td title="${item.produto}">${sku}</td>
+              <td>${number.format(qty)}</td>
+              <td class="${cssClass}">${number.format(endStock)}</td>
+            </tr>
+          `));
+          hasItems = true;
+        });
+      }
+      
+      if(hasItems) card.appendChild(table);
+      col.appendChild(card);
+    });
+
+    board.appendChild(col);
+  });
+}
+
 async function carregarRomaneio(code) {
   state.romaneioSelecionado = code;
   const detail = await api(`/api/pcp/romaneios/${code}`);
@@ -539,6 +657,7 @@ async function carregarTudo() {
     overview,
     alerts,
     romaneios,
+    kanban,
     structures,
     programming,
     assembly,
@@ -552,6 +671,7 @@ async function carregarTudo() {
     api("/api/pcp/overview"),
     api("/api/pcp/alerts"),
     api("/api/pcp/romaneios"),
+    api("/api/pcp/romaneios-kanban"),
     api("/api/pcp/structures"),
     api("/api/pcp/programming"),
     api("/api/pcp/assembly"),
@@ -566,6 +686,7 @@ async function carregarTudo() {
   renderOverview(overview);
   renderAlerts(alerts);
   renderRomaneios(romaneios);
+  renderKanban(kanban);
   renderStructures(structures);
   renderProgramming(programming.items);
   renderMrpTable("assembly-table", assembly.items);
@@ -591,6 +712,24 @@ document.getElementById("reload-all").addEventListener("click", carregarTudo);
 document.getElementById("structure-form").addEventListener("submit", salvarEstrutura);
 document.getElementById("programming-form").addEventListener("submit", salvarProgramacao);
 
+function switchTab(hash) {
+  const targetId = hash.replace('#', '') || 'cockpit';
+  
+  document.querySelectorAll('.view-module').forEach(el => el.classList.remove('active'));
+  document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+  
+  const targetModule = document.getElementById(targetId);
+  if (targetModule) targetModule.classList.add('active');
+  
+  const navLink = document.querySelector(`.nav a[href="#${targetId}"]`);
+  if (navLink) navLink.classList.add('active');
+  
+  window.scrollTo(0, 0);
+}
+
+window.addEventListener('hashchange', () => switchTab(window.location.hash));
+switchTab(window.location.hash);
+
 carregarTudo().catch((error) => {
-  document.getElementById("mrp-status").textContent = error.message;
+  document.getElementById("mrp-status").textContent = "Erro de conexão: " + error.message;
 });

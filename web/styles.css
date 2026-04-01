@@ -118,6 +118,14 @@ body {
   border-color: rgba(255, 255, 255, 0.08);
 }
 
+.nav a.active {
+  background: rgba(15, 118, 110, 0.35);
+  border-color: rgba(15, 118, 110, 0.4);
+  color: #fff;
+  font-weight: 600;
+  box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+}
+
 .sidebar-card {
   padding: 16px;
   border-radius: 18px;
@@ -142,6 +150,24 @@ body {
 .content {
   display: grid;
   gap: 18px;
+}
+
+.view-module {
+  display: none !important;
+  animation: fadeIn 0.4s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+  opacity: 0;
+  transform: translateY(10px);
+}
+
+.view-module.active {
+  display: grid !important;
+}
+.view-module.card.active, .view-module.hero.active {
+  display: block !important;
+}
+
+@keyframes fadeIn {
+  to { opacity: 1; transform: translateY(0); }
 }
 
 .hero,
@@ -571,4 +597,109 @@ tr:last-child td {
   .form-actions {
     display: grid;
   }
+}
+
+/* Kanban Styles */
+.kanban-wrapper {
+  overflow-x: auto;
+  overflow-y: hidden;
+  padding-bottom: 12px;
+  cursor: grab;
+}
+
+.kanban-wrapper:active {
+  cursor: grabbing;
+}
+
+.kanban-board {
+  display: flex;
+  gap: 16px;
+  min-width: max-content;
+  align-items: flex-start;
+}
+
+.kanban-col {
+  width: 300px;
+  background: rgba(23, 48, 52, 0.04);
+  border: 1px dashed var(--line);
+  border-radius: var(--radius-lg);
+  padding: 12px;
+  display: flex;
+  flex-direction: column;
+  gap: 12px;
+  transition: all 0.2s ease;
+}
+
+.kanban-col.drag-over {
+  background: rgba(15, 118, 110, 0.1);
+  border-color: var(--brand);
+}
+
+.kanban-header {
+  padding-bottom: 8px;
+  border-bottom: 1px solid var(--line);
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.kanban-card {
+  background: var(--surface-strong);
+  border: 1px solid var(--line);
+  padding: 12px;
+  border-radius: var(--radius-md);
+  box-shadow: 0 4px 12px rgba(15, 34, 37, 0.04);
+  cursor: grab;
+}
+
+.kanban-card:active {
+  cursor: grabbing;
+}
+
+.kanban-card small {
+  display: block;
+  color: var(--muted);
+  font-size: 11px;
+}
+
+.kanban-card strong {
+  display: block;
+  font-size: 16px;
+  margin-top: 4px;
+}
+
+.kanban-card em {
+  display: block;
+  font-size: 12px;
+  font-style: normal;
+  color: var(--muted);
+  margin-top: 8px;
+}
+
+.kanban-table {
+  width: 100%;
+  margin-top: 8px;
+  font-size: 12px;
+  border-collapse: collapse;
+}
+
+.kanban-table th, .kanban-table td {
+  padding: 4px;
+  border: none;
+  font-size: 11px;
+}
+
+.kanban-table th {
+  background: transparent;
+  color: var(--muted);
+}
+
+.kanban-table td.negative {
+  color: var(--danger);
+  font-weight: 700;
+}
+
+.kanban-table td.positive {
+  color: var(--ok);
+  font-weight: 700;
 }
