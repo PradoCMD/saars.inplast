@@ -944,6 +944,7 @@ function buildKanbanModel(data) {
       return {
         romaneio: romaneio.romaneio,
         empresa: romaneio.empresa || "N/D",
+        valueTotal: Number(romaneio.valor_total) || 0,
         statusLabel: formatStatusLabel(romaneio.previsao_saida_status),
         statusTone,
         quantityTotal,
@@ -1042,7 +1043,8 @@ function renderKanban(data) {
   const model = buildKanbanModel(data);
   renderKanbanSummary(model);
 
-  const wrapper = document.getElementById("kanban-wrapper");
+  const wrapper = document.getElementById("kanban-board"); // Updated ID
+  if (!wrapper) return;
   wrapper.innerHTML = "";
 
   if (!model.columns.length) {
@@ -1050,80 +1052,40 @@ function renderKanban(data) {
     return;
   }
 
-  const board = el(`<div class="kanban-board"></div>`);
-  wrapper.appendChild(board);
-
   model.columns.forEach((column) => {
     const col = el(`
-      <div class="kanban-col ${column.tone}" data-date="${column.key}">
-        <div class="kanban-header">
-          <div>
-            <strong>${column.label}</strong>
-            <small>${column.subtitle}</small>
-          </div>
-          <div class="kanban-header-side">
-            <span class="pill">${column.count} ROMS</span>
-            <span class="kanban-header-total">${number.format(column.totalUnits)} un</span>
-          </div>
+      <div class="kanban-lane">
+        <div class="kanban-lane-header">
+           <div style="display: flex; flex-direction: column;">
+             <h3>${column.label}</h3>
+             <span style="font-size: 0.70rem; color: var(--text-muted);">${column.subtitle}</span>
+           </div>
+           <span class="kanban-lane-count">${column.count}</span>
         </div>
+        <div class="kanban-lane-body" data-date="${column.key}"></div>
       </div>
     `);
 
-    col.addEventListener("dragover", (event) => {
-      event.preventDefault();
-      col.classList.add("drag-over");
-    });
-    col.addEventListener("dragleave", () => col.classList.remove("drag-over"));
-    col.addEventListener("drop", (event) => {
-      event.preventDefault();
-      col.classList.remove("drag-over");
-      const code = event.dataTransfer.getData("text/plain");
-      const targetDate = col.dataset.date === "__sem_previsao__" ? null : `${col.dataset.date}T12:00:00-03:00`;
-
-      const romaneio = kanbanState.romaneios.find((item) => String(item.romaneio) === String(code));
-      if (!romaneio) {
-        return;
-      }
-      romaneio.previsao_saida_at = targetDate;
-      renderKanban(kanbanState);
-
-      postJson("/api/pcp/romaneios-kanban/update-date", {
-        romaneio: code,
-        previsao_saida_at: targetDate,
-      }).catch((error) => console.error("Falha ao sincronizar o drag & drop", error));
-    });
+    const colBody = col.querySelector('.kanban-lane-body');
 
     column.cards.forEach((cardData) => {
       const card = el(`
-        <div class="kanban-card ${cardData.tone}" draggable="true" title="Arraste para mudar a data">
-          <div class="kanban-card-head">
-            <div>
-              <small>${cardData.empresa}</small>
-              <strong>RM ${cardData.romaneio}</strong>
-            </div>
-            <span class="tag ${cardData.statusTone}">${cardData.statusLabel}</span>
+        <div class="kanban-card" data-romaneio="${cardData.romaneio}" title="Arraste para mudar a data">
+          <div class="k-card-top">
+            <span class="k-sku">RM ${cardData.romaneio}</span>
+            <span class="k-qty">${number.format(cardData.quantityTotal)} un</span>
           </div>
-          <div class="kanban-card-meta">
-            <span>${number.format(cardData.quantityTotal)} un</span>
-            <span>${cardData.itemCount} itens</span>
-            <span>${formatDateWithFallback(cardData.previsao_saida_at || cardData.data_evento, "Sem data")}</span>
-          </div>
-          <div class="kanban-health">
-            <div class="kanban-health-head">
-              <strong>${cardData.coveragePct}%</strong>
-              <span>${cardData.deficit > 0 ? `${number.format(cardData.deficit)} un sem cobertura` : "Cobertura imediata preservada"}</span>
+          <div class="k-title">${cardData.empresa}</div>
+          <div class="k-card-bottom">
+            <div class="k-date">
+              <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
+              ${formatDateWithFallback(cardData.previsao_saida_at || cardData.data_evento, "Sem data")}
             </div>
-            <div class="kanban-health-bar">
-              <span class="${cardData.tone}" style="width:${cardData.coveragePct}%"></span>
-            </div>
-            <small>${cardData.criteria}</small>
+            <div class="k-priority ${cardData.statusTone}"></div>
           </div>
         </div>
       `);
-
-      card.addEventListener("dragstart", (event) => {
-        event.dataTransfer.setData("text/plain", cardData.romaneio);
-      });
+      
       card.addEventListener("click", async () => {
         window.location.hash = "#romaneios";
         try {
@@ -1132,39 +1094,40 @@ function renderKanban(data) {
           console.error("Falha ao carregar romaneio do kanban", error);
         }
       });
-
-      if (cardData.itemsPreview.length) {
-        const table = el(`<table class="kanban-table"><thead><tr><th>SKU</th><th>QTD</th><th>Saldo pós-fila</th></tr></thead><tbody></tbody></table>`);
-        const tbody = table.querySelector("tbody");
-        cardData.itemsPreview.forEach((item) => {
-          tbody.appendChild(
-            el(`
-              <tr>
-                <td title="${item.produto}">${item.sku}</td>
-                <td>${number.format(item.quantity)}</td>
-                <td class="${item.endStock < 0 ? "negative" : "positive"}">${number.format(item.endStock)}</td>
-              </tr>
-            `),
-          );
-        });
-        if (cardData.hiddenItems > 0) {
-          tbody.appendChild(
-            el(`
-              <tr>
-                <td colspan="3" class="kanban-more-items">+${cardData.hiddenItems} item(ns) adicionais no romaneio</td>
-              </tr>
-            `),
-          );
-        }
-        card.appendChild(table);
-      } else {
-        card.appendChild(el(`<div class="kanban-item-empty">Sem itens detalhados para simular impacto de saldo.</div>`));
-      }
-
-      col.appendChild(card);
+      
+      colBody.appendChild(card);
     });
 
-    board.appendChild(col);
+    wrapper.appendChild(col);
+
+    // Initialize drag and drop via SortableJS (imported in index.html)
+    if (window.Sortable) {
+       Sortable.create(colBody, {
+           group: 'kanban',
+           animation: 150,
+           ghostClass: 'sortable-ghost',
+           dragClass: 'sortable-drag',
+           onEnd: function (evt) {
+               const itemEl = evt.item;
+               const targetCol = evt.to;
+               const code = itemEl.getAttribute('data-romaneio');
+               const targetDateRaw = targetCol.getAttribute('data-date');
+               const targetDate = targetDateRaw === "__sem_previsao__" ? null : `${targetDateRaw}T12:00:00-03:00`;
+               
+               const romaneio = kanbanState.romaneios.find((item) => String(item.romaneio) === String(code));
+               if (!romaneio) return;
+               romaneio.previsao_saida_at = targetDate;
+               
+               // Render natively will drop DOM state, so don't call renderKanban(kanbanState) immediately to avoid jitter
+               // Just ping the server.
+               postJson("/api/pcp/romaneios-kanban/update-date", {
+                 romaneio: code,
+                 previsao_saida_at: targetDate,
+               }).then(() => renderKanban(kanbanState))
+                 .catch((error) => console.error("Falha ao sincronizar", error));
+           }
+       });
+    }
   });
 }
 
@@ -1217,6 +1180,77 @@ async function salvarProgramacao(event) {
   }
 }
 
+function renderFactorySimulation(items, containerId, numLanes) {
+  const container = document.getElementById(containerId);
+  if (!container) return;
+  container.innerHTML = "";
+  
+  const parent = container.parentElement;
+  let ruler = parent.querySelector('.timeline-ruler');
+  if (ruler && !ruler.innerHTML.trim()) {
+      for (let hour = 6; hour <= 22; hour++) {
+          ruler.appendChild(el(`<div class="time-slot">${hour.toString().padStart(2, '0')}:00</div>`));
+      }
+  }
+
+  const startHour = 6;
+  const endHour = 22;
+  const totalMinutes = (endHour - startHour) * 60;
+
+  const lanesData = Array.from({ length: numLanes }, (_, i) => ({
+      id: i,
+      label: containerId.includes('assembly') ? `Esteira M-${i+1}` : `Extrusora E-${i+1}`,
+      machineStatus: 'Ativa',
+      items: [],
+      currentMinute: 0
+  }));
+
+  const sortedItems = [...items].sort((a,b) => (b.net_required || 0) - (a.net_required || 0));
+  
+  sortedItems.forEach(item => {
+      const targetLane = lanesData.reduce((prev, curr) => (prev.currentMinute < curr.currentMinute) ? prev : curr);
+      const qty = item.net_required || 0;
+      if (qty <= 0) return;
+      
+      const durationMinutes = Math.min(Math.round(qty * 0.2), totalMinutes - targetLane.currentMinute);
+      if (durationMinutes > 0 && targetLane.currentMinute < totalMinutes) {
+          targetLane.items.push({
+              startMin: targetLane.currentMinute,
+              duration: durationMinutes,
+              item
+          });
+          targetLane.currentMinute += durationMinutes + 15;
+      }
+  });
+
+  lanesData.forEach(lane => {
+      const laneEl = el(`
+          <div class="machine-lane">
+             <div class="machine-label">
+                 <strong>${lane.label}</strong>
+                 <span>${lane.machineStatus}</span>
+             </div>
+             <div class="machine-track"></div>
+          </div>
+      `);
+      const track = laneEl.querySelector('.machine-track');
+      
+      lane.items.forEach(block => {
+          const leftPct = (block.startMin / totalMinutes) * 100;
+          const widthPct = (block.duration / totalMinutes) * 100;
+          
+          const blockEl = el(`
+              <div class="sim-block" style="left: ${leftPct}%; width: ${widthPct}%;" title="${block.item.produto} (Qtd: ${number.format(block.item.net_required)})">
+                 <strong>${block.item.sku}</strong>
+                 <small>${number.format(block.item.net_required)} un</small>
+              </div>
+          `);
+          track.appendChild(blockEl);
+      });
+      container.appendChild(laneEl);
+  });
+}
+
 async function carregarTudo() {
   const [
     overview,
@@ -1255,7 +1289,9 @@ async function carregarTudo() {
   renderStructures(structures);
   renderProgramming(programming.items);
   renderMrpTable("assembly-table", assembly.items);
+  renderFactorySimulation(assembly.items, "assembly-lanes", 2);
   renderMrpTable("production-table", production.items);
+  renderFactorySimulation(production.items, "production-lanes", 6);
   renderPurchases(purchases.items);
   renderRecycling(recycling.items);
   renderCosts(costs.items);
@@ -1288,13 +1324,18 @@ function switchTab(hash) {
   const targetId = hash.replace('#', '') || 'cockpit';
   
   document.querySelectorAll('.view-module').forEach(el => el.classList.remove('active'));
-  document.querySelectorAll('.nav a').forEach(a => a.classList.remove('active'));
+  document.querySelectorAll('.main-nav .nav-item').forEach(a => a.classList.remove('active'));
   
   const targetModule = document.getElementById(targetId);
   if (targetModule) targetModule.classList.add('active');
   
-  const navLink = document.querySelector(`.nav a[href="#${targetId}"]`);
-  if (navLink) navLink.classList.add('active');
+  const navLink = document.querySelector(`.main-nav .nav-item[href="#${targetId}"]`);
+  if (navLink) {
+    navLink.classList.add('active');
+    document.getElementById('view-title').textContent = navLink.textContent.trim();
+  } else {
+    document.getElementById('view-title').textContent = 'Cockpit Executivo';
+  }
   
   window.scrollTo(0, 0);
 }

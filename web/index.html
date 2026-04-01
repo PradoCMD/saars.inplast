@@ -3,500 +3,429 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>Modulo PCP | SaaS</title>
+    <title>PCP Dashboard | Inplast</title>
+    <link rel="preconnect" href="https://fonts.googleapis.com">
+    <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
+    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css" />
   </head>
-  <body>
-    <div class="shell">
+  <body class="dark-theme">
+    <div class="app-container">
+      <!-- Premium Glassmorphism Sidebar -->
       <aside class="sidebar">
-        <div class="brand">
-          <span class="eyebrow">Modulo operacional</span>
-          <h1>PCP</h1>
-          <p>Painel oficial do planejamento, montagem, producao, compras e reciclagem.</p>
+        <div class="sidebar-header">
+          <div class="logo-box">
+            <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
+              <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M12 22V12" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M12 12L22 7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+              <path d="M12 12L2 7" stroke="currentColor" stroke-width="2" stroke-linejoin="round"/>
+            </svg>
+            <div class="logo-text">
+              <strong>Inplast</strong>
+              <span>Control Desk</span>
+            </div>
+          </div>
         </div>
 
-        <nav class="nav">
-          <a href="#cockpit">Cockpit</a>
-          <a href="#romaneios-kanban">Painel Logística / Kanban</a>
-          <a href="#romaneios">Romaneios</a>
-          <a href="#estruturas">Estruturas</a>
-          <a href="#programacao">Programacao</a>
-          <a href="#montagem">Montagem</a>
-          <a href="#producao">Producao</a>
-          <a href="#compras">Compras</a>
-          <a href="#recicla">Recicla</a>
-          <a href="#fontes">Fontes</a>
+        <nav class="main-nav">
+          <a href="#cockpit" class="nav-item active">
+            <span class="icon">📊</span>
+            Cockpit
+          </a>
+          <a href="#romaneios-kanban" class="nav-item">
+            <span class="icon">📋</span>
+            Kanban Logístico
+          </a>
+          <a href="#romaneios" class="nav-item">
+            <span class="icon">📦</span>
+            Romaneios
+          </a>
+          <a href="#estruturas" class="nav-item">
+            <span class="icon">🏗️</span>
+            Estruturas
+          </a>
+          <a href="#programacao" class="nav-item">
+            <span class="icon">📅</span>
+            Programação
+          </a>
+          <a href="#montagem" class="nav-item">
+            <span class="icon">⚙️</span>
+            Montagem (Esteiras)
+          </a>
+          <a href="#producao" class="nav-item">
+            <span class="icon">🏭</span>
+            Produção (Extrusoras)
+          </a>
+          <a href="#compras" class="nav-item">
+            <span class="icon">🛒</span>
+            Compras
+          </a>
+          <a href="#fontes" class="nav-item">
+            <span class="icon">🔐</span>
+            Governança
+          </a>
         </nav>
 
-        <div class="sidebar-card">
-          <small>Status da API</small>
-          <strong>Servico ativo</strong>
-          <span>Modulo PCP em homologacao operacional, conectado aos endpoints ativos do ambiente.</span>
+        <div class="sidebar-footer">
+          <div class="status-card">
+            <div class="status-indicator live"></div>
+            <div class="status-info">
+              <strong>Sistema Ativo</strong>
+              <span>Conectado em tempo real</span>
+            </div>
+          </div>
         </div>
       </aside>
 
-      <main class="content">
-        <div id="cockpit" class="view-module active">
-          <section class="hero hero-cockpit">
-            <div class="hero-grid">
-              <div class="hero-copy">
-                <div class="hero-head">
-                  <div>
-                    <span class="pill">Visão executiva</span>
-                    <h2>Orquestração do PCP e da logística</h2>
-                    <p>
-                      Um cockpit único para enxergar carteira, gargalos de atendimento, carga
-                      operacional e ritmo de saída com leitura pronta para decisão.
-                    </p>
-                  </div>
-                </div>
+      <!-- Main Content Area -->
+      <main class="main-content">
+        <!-- Modern Topbar -->
+        <header class="topbar">
+          <div class="breadcrumbs">
+            <h1 id="view-title">Cockpit Executivo</h1>
+          </div>
+          
+          <div class="topbar-actions">
+            <div class="search-bar">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="11" cy="11" r="8"></circle><line x1="21" y1="21" x2="16.65" y2="16.65"></line></svg>
+              <input type="text" placeholder="Buscar romaneio, pedido ou SKU..." aria-label="Busca global">
+            </div>
+            
+            <button id="run-mrp" class="btn btn-primary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l-5.4 5.39" stroke-linecap="round" stroke-linejoin="round"/></svg>
+              Disparar MRP
+            </button>
+            <button id="reload-all" class="btn btn-secondary">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
+            </button>
 
-                <div class="hero-actions">
-                  <button id="run-mrp" class="button primary">Disparar MRP</button>
-                  <button id="reload-all" class="button">Atualizar painel</button>
-                </div>
+            <div class="user-profile">
+              <img src="https://ui-avatars.com/api/?name=In+Plast&background=3b82f6&color=fff" alt="User Profile" class="avatar">
+            </div>
+          </div>
+        </header>
 
-                <div class="hero-foot">
-                  <div>
-                    <small>Snapshot atual</small>
-                    <strong id="snapshot-at">-</strong>
-                  </div>
-                  <div id="mrp-status" class="run-status">Pronto para operação.</div>
+        <!-- View Port -->
+        <div class="view-port">
+          
+          <!-- COCKPIT VIEW -->
+          <div id="cockpit" class="view-module active">
+            <div class="cockpit-hero">
+              <div class="hero-left">
+                <h2>Visão Geral da Operação</h2>
+                <p>Monitoramento em tempo real do fluxo produtivo e logístico.</p>
+                <div class="last-sync">
+                  <span>Última atualização:</span>
+                  <strong id="snapshot-at">-</strong>
+                  <span id="mrp-status" class="status-badge ready">Pronto</span>
                 </div>
               </div>
+              <div class="hero-right">
+                <div class="coverage-widget">
+                  <div class="widget-header">
+                    <h3>Cobertura Imediata</h3>
+                  </div>
+                  <div id="coverage-meter" class="coverage-meter-container"></div>
+                </div>
+              </div>
+            </div>
 
-              <aside class="hero-spotlight">
-                <div class="spotlight-card">
-                  <div class="section-head compact">
-                    <div>
-                      <small>Radar da rodada</small>
-                      <h3>Cobertura imediata</h3>
+            <!-- Metrics Grid -->
+            <div class="metrics-grid" id="overview-cards">
+              <!-- Rendered by app.js -->
+            </div>
+
+            <!-- Charts Section -->
+            <div class="charts-grid">
+              <div class="chart-card glass-panel wide-col">
+                <h3>Distribuição Logística</h3>
+                <p>Status de saída e funil comercial</p>
+                <div id="status-distribution-chart" class="chart-container"></div>
+              </div>
+              
+              <div class="chart-card glass-panel flex-col">
+                <h3>Carteira por Ação</h3>
+                <p>Demandas por setor</p>
+                <div id="action-demand-chart" class="chart-container compact"></div>
+              </div>
+            </div>
+
+            <!-- Bottom Sections -->
+            <div class="bottom-grid">
+              <div class="glass-panel">
+                <div class="panel-header">
+                  <h3>Calendário Logístico</h3>
+                </div>
+                <div id="timeline-chart" class="timeline-chart-container"></div>
+              </div>
+              
+              <div class="glass-panel">
+                <div class="panel-header">
+                  <h3>Itens Críticos</h3>
+                </div>
+                <div id="critical-list" class="list-container"></div>
+              </div>
+
+              <div class="glass-panel">
+                <div class="panel-header">
+                  <h3>Alertas e Insights</h3>
+                </div>
+                <div id="report-insights" class="list-container"></div>
+                <div id="alerts-list" class="list-container"></div>
+              </div>
+            </div>
+          </div>
+
+          <!-- KANBAN LOGISTICO -->
+          <div id="romaneios-kanban" class="view-module">
+            <div class="module-header">
+              <div class="header-titles">
+                <h2>Matriz Kanban de Romaneios</h2>
+                <p>Gerencie o fluxo logístico arrastando cards entre os estágios de preparo e expedição.</p>
+              </div>
+              <div id="kanban-summary" class="summary-pills">
+                <!-- Injected via JS -->
+              </div>
+            </div>
+
+            <!-- Kanban Board -->
+            <div id="kanban-board" class="kanban-board">
+              <!-- Columns are injected via JS for drag and drop -->
+            </div>
+          </div>
+
+          <!-- ROMANEIOS LISTA -->
+          <div id="romaneios" class="view-module grid-layout-2">
+            <div class="glass-panel scroll-y">
+              <div class="panel-header sticky">
+                <h3>Romaneios Recebidos</h3>
+                <div class="filter-controls">
+                  <input type="text" placeholder="Filtrar romaneio..." class="input-mini">
+                </div>
+              </div>
+              <div id="romaneios-list" class="list-container interactive-list"></div>
+            </div>
+
+            <div class="glass-panel sticky">
+              <div class="panel-header">
+                <h3>Detalhes do Romaneio</h3>
+              </div>
+              <div id="romaneio-detail" class="detail-container">
+                <div class="empty-detail">
+                  <span class="icon-lg">📦</span>
+                  <p>Selecione um romaneio para ver o histórico e itens.</p>
+                </div>
+              </div>
+            </div>
+          </div>
+
+          <!-- ESTRUTURAS -->
+          <div id="estruturas" class="view-module grid-layout-2-wide">
+            <div class="glass-panel">
+              <div class="panel-header">
+                <h3>Configuração de Estrutura (BOM)</h3>
+              </div>
+              <div class="form-container">
+                <!-- Keep existing form structure but styled -->
+                <form id="structure-form">
+                  <div class="input-grid">
+                    <div class="input-group">
+                      <label>Escopo</label>
+                      <select name="source_scope" class="modern-input" required>
+                        <option value="bom_final">Produto Acabado</option>
+                        <option value="bom_intermediario">Produto Intermediário</option>
+                      </select>
+                    </div>
+                    <div class="input-group">
+                      <label>Etapa</label>
+                      <select name="process_stage" class="modern-input">
+                        <option value="montagem">Montagem</option>
+                        <option value="producao">Produção</option>
+                      </select>
+                    </div>
+                    <div class="input-group">
+                      <label>SKU Pai</label>
+                      <input type="text" name="parent_sku" class="modern-input" placeholder="Ex: 4600001" required />
+                    </div>
+                    <div class="input-group">
+                      <label>SKU Componente</label>
+                      <input type="text" name="component_sku" class="modern-input" placeholder="Ex: 4100006" required />
+                    </div>
+                    <div class="input-group">
+                        <label>Quantidade</label>
+                        <input type="number" step="0.000001" name="quantity_per" class="modern-input" placeholder="1" />
+                    </div>
+                    <div class="input-group">
+                        <label>Scrap %</label>
+                        <input type="number" step="0.0001" name="scrap_pct" class="modern-input" placeholder="0" />
+                    </div>
+                    <div class="input-group full-width">
+                        <label>Observação</label>
+                        <textarea name="usage_notes" class="modern-input" rows="2" placeholder="Notas operacionais..."></textarea>
                     </div>
                   </div>
-                  <div id="coverage-meter" class="coverage-meter"></div>
-                  <div id="hero-signals" class="hero-signals"></div>
-                </div>
-              </aside>
-            </div>
-
-            <div class="stats" id="overview-cards"></div>
-          </section>
-
-          <section class="report-grid">
-            <article class="card report-card report-card-wide">
-              <div class="section-head">
-                <div>
-                  <small>Relatório visual</small>
-                  <h3>Distribuição dos romaneios</h3>
-                </div>
-              </div>
-              <p class="section-copy">
-                Leitura do funil logístico por status de saída, para diferenciar o que já pode
-                expedir, o que depende de programação e o que ainda está indefinido.
-              </p>
-              <div id="status-distribution-chart" class="report-chart"></div>
-            </article>
-
-            <article class="card report-card">
-              <div class="section-head">
-                <div>
-                  <small>Fila do PCP</small>
-                  <h3>Carteira por ação</h3>
-                </div>
-              </div>
-              <p class="section-copy">
-                Volume pressionado por montagem, produção, compra ou monitoramento.
-              </p>
-              <div id="action-demand-chart" class="report-chart compact"></div>
-            </article>
-
-            <article class="card report-card">
-              <div class="section-head">
-                <div>
-                  <small>Janela de saída</small>
-                  <h3>Calendário logístico</h3>
-                </div>
-              </div>
-              <p class="section-copy">
-                Concentração dos romaneios pela data prometida ou pela ausência de previsão.
-              </p>
-              <div id="timeline-chart" class="timeline-chart"></div>
-            </article>
-          </section>
-
-          <section class="cockpit-secondary">
-            <article class="card">
-              <div class="section-head">
-                <div>
-                  <small>Top críticos</small>
-                  <h3>Itens com maior impacto</h3>
-                </div>
-              </div>
-              <div id="critical-list" class="stack"></div>
-            </article>
-
-            <article class="card">
-              <div class="section-head">
-                <div>
-                  <small>Alertas</small>
-                  <h3>Riscos da operação</h3>
-                </div>
-              </div>
-              <div id="alerts-list" class="stack"></div>
-            </article>
-
-            <article class="card">
-              <div class="section-head">
-                <div>
-                  <small>Leituras da rodada</small>
-                  <h3>Insights executivos</h3>
-                </div>
-              </div>
-              <div id="report-insights" class="stack insights-list"></div>
-            </article>
-          </section>
-        </div>
-
-        <section id="romaneios-kanban" class="view-module card">
-          <div class="section-head">
-            <div>
-              <small>Logística x PCP</small>
-              <h3>Matriz Kanban de Romaneios</h3>
-            </div>
-          </div>
-          <p class="section-copy">
-            Arraste as cargas entre datas, acompanhe o impacto no saldo interno por SKU e use o
-            resumo superior para priorizar o que exige tratativa imediata.
-          </p>
-          <div id="kanban-summary" class="kanban-summary"></div>
-          <div id="kanban-wrapper" class="kanban-wrapper">
-              <div class="detail-empty">Carregando matriz de logística...</div>
-          </div>
-        </section>
-
-        <section id="romaneios" class="view-module grid">
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <small>Demanda do ERP</small>
-                <h3>Romaneios recebidos</h3>
+                  <div class="form-footer">
+                    <button type="submit" class="btn btn-primary">Salvar Estrutura</button>
+                    <span id="structure-status" class="status-msg"></span>
+                  </div>
+                </form>
               </div>
             </div>
-            <div id="romaneios-list" class="stack"></div>
-          </article>
-
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <small>Drill-down</small>
-                <h3>Detalhe do romaneio</h3>
+            
+            <div class="glass-panel scroll-y">
+              <div class="panel-header sticky">
+                <h3>Componentes por Estrutura</h3>
+                <div id="structure-summary" class="inline-stats"></div>
               </div>
-            </div>
-            <div id="romaneio-detail" class="detail-empty">
-              Selecione um romaneio para ver itens e historico.
-            </div>
-          </article>
-        </section>
-
-        <section id="estruturas" class="view-module grid">
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <small>Engenharia operacional</small>
-                <h3>Estruturas homologadas</h3>
-              </div>
-            </div>
-            <div class="inline-metrics" id="structure-summary"></div>
-            <form id="structure-form" class="editor-form">
-              <div class="form-grid two">
-                <label>
-                  <span>Escopo</span>
-                  <select name="source_scope" required>
-                    <option value="bom_final">Produto acabado</option>
-                    <option value="bom_intermediario">Produto intermediario</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Etapa</span>
-                  <select name="process_stage">
-                    <option value="montagem">Montagem</option>
-                    <option value="producao">Producao</option>
-                  </select>
-                </label>
-                <label>
-                  <span>SKU pai</span>
-                  <input type="text" name="parent_sku" placeholder="4600001" required />
-                </label>
-                <label>
-                  <span>SKU componente</span>
-                  <input type="text" name="component_sku" placeholder="4100006" required />
-                </label>
-                <label>
-                  <span>Quantidade</span>
-                  <input type="number" step="0.000001" name="quantity_per" placeholder="1" />
-                </label>
-                <label>
-                  <span>Scrap %</span>
-                  <input type="number" step="0.0001" name="scrap_pct" placeholder="0" />
-                </label>
-                <label>
-                  <span>Sequencia</span>
-                  <input type="number" step="1" name="sequence_no" placeholder="10" />
-                </label>
-                <label>
-                  <span>Papel</span>
-                  <input type="text" name="component_role" placeholder="componente" />
-                </label>
-                <label>
-                  <span>Linha</span>
-                  <input type="text" name="assembly_line_code" placeholder="LINHA-01" />
-                </label>
-                <label>
-                  <span>Posto</span>
-                  <input type="text" name="workstation_code" placeholder="POSTO-A" />
-                </label>
-              </div>
-              <label>
-                <span>Observacao</span>
-                <textarea name="usage_notes" rows="3" placeholder="Ajuste manual do PCP, dependencia de molde, componente alternativo..."></textarea>
-              </label>
-              <div class="form-actions">
-                <button type="submit" class="button primary">Salvar estrutura</button>
-                <div id="structure-status" class="run-status">Sem ajuste manual nesta sessao.</div>
-              </div>
-            </form>
-          </article>
-
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <small>Visao atual</small>
-                <h3>Componentes por estrutura</h3>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table>
+              <table class="modern-table">
                 <thead>
                   <tr>
                     <th>Pai</th>
                     <th>Componente</th>
                     <th>Escopo</th>
-                    <th>Qtde</th>
-                    <th>Linha</th>
+                    <th>Qtd</th>
                     <th>Status</th>
                   </tr>
                 </thead>
                 <tbody id="structure-table"></tbody>
               </table>
             </div>
-          </article>
-        </section>
+          </div>
 
-        <section id="programacao" class="view-module grid">
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <small>Planejamento manual</small>
-                <h3>Programacao de producao e montagem</h3>
+          <!-- PROGRAMACAO -->
+          <div id="programacao" class="view-module glass-panel">
+               <div class="panel-header">
+                 <h3>Planejamento Manual</h3>
+               </div>
+               <div class="form-container">
+                  <form id="programming-form">
+                     <!-- Form layout styled via CSS -->
+                  </form>
+               </div>
+               <div class="table-container mt-4">
+                  <table class="modern-table">
+                     <thead>
+                        <tr>
+                           <th>SKU / Produto</th>
+                           <th>Ação</th>
+                           <th>Início</th>
+                           <th>Disponível</th>
+                           <th>Quantidade</th>
+                           <th>Status</th>
+                        </tr>
+                     </thead>
+                     <tbody id="programming-table"></tbody>
+                  </table>
+               </div>
+          </div>
+
+          <!-- MONTAGEM SIMULATION -->
+          <div id="montagem" class="view-module full-height">
+            <div class="module-header">
+              <div class="header-titles">
+                <h2>Esteiras de Montagem (Simulação Horária)</h2>
+                <p>Grid interativo distribuindo cargas nas 2 esteiras do pavilhão de montagem.</p>
               </div>
             </div>
-            <form id="programming-form" class="editor-form">
-              <div class="form-grid two">
-                <label>
-                  <span>SKU</span>
-                  <input type="text" name="sku" placeholder="4600001" required />
-                </label>
-                <label>
-                  <span>Acao</span>
-                  <select name="action" required>
-                    <option value="montar">Montar</option>
-                    <option value="produzir">Produzir</option>
-                    <option value="comprar">Comprar</option>
-                  </select>
-                </label>
-                <label>
-                  <span>Inicio previsto</span>
-                  <input type="datetime-local" name="planned_start_at" />
-                </label>
-                <label>
-                  <span>Disponivel em</span>
-                  <input type="datetime-local" name="available_at" required />
-                </label>
-                <label>
-                  <span>Quantidade</span>
-                  <input type="number" step="0.000001" name="quantity_planned" placeholder="1000" required />
-                </label>
-                <label>
-                  <span>Sequencia</span>
-                  <input type="number" step="1" name="sequence_rank" placeholder="1" />
-                </label>
-                <label>
-                  <span>Linha</span>
-                  <input type="text" name="assembly_line_code" placeholder="LINHA-01" />
-                </label>
-                <label>
-                  <span>Posto</span>
-                  <input type="text" name="workstation_code" placeholder="POSTO-A" />
-                </label>
+            <div class="factory-simulator">
+              <div class="timeline-ruler">
+                <!-- 06:00 to 22:00 injected via JS -->
               </div>
-              <label>
-                <span>Observacao</span>
-                <textarea name="notes" rows="3" placeholder="Prioridade alterada pelo PCP, encaixe de molde, complemento de lote..."></textarea>
-              </label>
-              <div class="form-actions">
-                <button type="submit" class="button primary">Salvar programacao</button>
-                <div id="programming-status" class="run-status">Sem programacao manual nesta sessao.</div>
-              </div>
-            </form>
-          </article>
-
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <small>Calendario operacional</small>
-                <h3>Previsoes ativas</h3>
+              <div class="machine-lanes" id="assembly-lanes">
+                <!-- 2 lanes injected via JS -->
               </div>
             </div>
-            <div class="table-wrap">
-              <table>
+            
+            <div class="glass-panel mt-4">
+              <div class="panel-header">
+                <h3>Fila Operacional: Montagem</h3>
+              </div>
+              <table class="modern-table">
                 <thead>
                   <tr>
-                    <th>SKU</th>
-                    <th>Acao</th>
-                    <th>Inicio</th>
-                    <th>Disponivel</th>
-                    <th>Qtde</th>
-                    <th>Linha</th>
-                    <th>Origem</th>
-                  </tr>
-                </thead>
-                <tbody id="programming-table"></tbody>
-              </table>
-            </div>
-          </article>
-        </section>
-
-        <section id="montagem" class="view-module card">
-          <div class="section-head">
-            <div>
-              <small>Fila operacional</small>
-              <h3>Montagem do acabado</h3>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>SKU</th>
-                  <th>Produto</th>
-                  <th>Necessidade</th>
-                  <th>Estoque</th>
-                  <th>Custo total</th>
-                  <th>Criticidade</th>
-                </tr>
-              </thead>
-              <tbody id="assembly-table"></tbody>
-            </table>
-          </div>
-        </section>
-
-        <section id="producao" class="view-module card">
-          <div class="section-head">
-            <div>
-              <small>Fila operacional</small>
-              <h3>Producao do intermediario</h3>
-            </div>
-          </div>
-          <div class="table-wrap">
-            <table>
-              <thead>
-                <tr>
-                  <th>SKU</th>
-                  <th>Produto</th>
-                  <th>Necessidade</th>
-                  <th>Estoque</th>
-                  <th>Custo total</th>
-                  <th>Criticidade</th>
-                </tr>
-              </thead>
-              <tbody id="production-table"></tbody>
-            </table>
-          </div>
-        </section>
-
-        <section id="compras" class="view-module grid">
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <small>Fila operacional</small>
-                <h3>Compras planejadas</h3>
-              </div>
-            </div>
-            <div class="table-wrap">
-              <table>
-                <thead>
-                  <tr>
-                    <th>SKU</th>
-                    <th>Produto</th>
-                    <th>Tipo</th>
+                    <th>SKU / Produto</th>
                     <th>Necessidade</th>
-                    <th>Custo total</th>
+                    <th>Estoque</th>
+                    <th>Custo</th>
+                    <th>Critico</th>
                   </tr>
                 </thead>
-                <tbody id="purchase-table"></tbody>
+                <tbody id="assembly-table"></tbody>
               </table>
             </div>
-          </article>
+          </div>
 
-          <article id="recicla" class="card">
-            <div class="section-head">
-              <div>
-                <small>Sustentacao da rodada</small>
-                <h3>Recicla e custos</h3>
+          <!-- PRODUCAO SIMULATION -->
+          <div id="producao" class="view-module full-height">
+            <div class="module-header">
+              <div class="header-titles">
+                <h2>Extrusoras de Produção (Simulação Horária)</h2>
+                <p>Monitoramento e alocação de cargas operacionais nas 6 extrusoras principais.</p>
               </div>
             </div>
-            <div id="recycling-list" class="stack"></div>
-            <div id="cost-list" class="cost-grid"></div>
-          </article>
-        </section>
-
-        <section id="fontes" class="view-module grid">
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <small>Governanca</small>
-                <h3>Saude das fontes</h3>
+            <div class="factory-simulator">
+              <div class="timeline-ruler">
+                <!-- 06:00 to 22:00 injected via JS -->
+              </div>
+              <div class="machine-lanes" id="production-lanes">
+                <!-- 6 lanes injected via JS -->
               </div>
             </div>
-            <div id="sources-list" class="stack"></div>
-          </article>
 
-          <article class="card">
-            <div class="section-head">
-              <div>
-                <small>Painel atual</small>
-                <h3>Visao consolidada</h3>
+            <div class="glass-panel mt-4">
+              <div class="panel-header">
+                <h3>Fila Operacional: Extrusão</h3>
               </div>
-            </div>
-            <div class="table-wrap">
-              <table>
+              <table class="modern-table">
                 <thead>
                   <tr>
-                    <th>SKU</th>
-                    <th>Produto</th>
-                    <th>Tipo</th>
-                    <th>Saldo</th>
-                    <th>Acao</th>
+                    <th>SKU / Produto</th>
+                    <th>Necessidade</th>
+                    <th>Estoque</th>
+                    <th>Custo</th>
+                    <th>Critico</th>
                   </tr>
                 </thead>
+                <tbody id="production-table"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <!-- COMPRAS E FONTES (Simplified grids) -->
+          <div id="compras" class="view-module grid-layout-2">
+            <div class="glass-panel">
+              <div class="panel-header"><h3>Compras Planejadas</h3></div>
+              <table class="modern-table">
+                 <tbody id="purchase-table"></tbody>
+              </table>
+            </div>
+            <div class="glass-panel">
+              <div class="panel-header"><h3>Reciclagem & Custos</h3></div>
+              <div id="recycling-list" class="list-container"></div>
+              <div id="cost-list" class="cost-grid mt-4"></div>
+            </div>
+          </div>
+
+          <div id="fontes" class="view-module grid-layout-2">
+            <div class="glass-panel">
+              <div class="panel-header"><h3>Governança de Fontes</h3></div>
+              <div id="sources-list" class="list-container"></div>
+            </div>
+            <div class="glass-panel">
+              <div class="panel-header"><h3>Consolidado</h3></div>
+              <table class="modern-table">
                 <tbody id="painel-table"></tbody>
               </table>
             </div>
-          </article>
-        </section>
+          </div>
+
+        </div>
       </main>
     </div>
 
+    <!-- Scripts -->
+    <script src="https://cdn.jsdelivr.net/npm/sortablejs@latest/Sortable.min.js"></script> <!-- Drag and drop utility for kanban -->
     <script src="/app.js"></script>
   </body>
 </html>
