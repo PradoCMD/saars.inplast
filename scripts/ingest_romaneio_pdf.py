@@ -39,7 +39,7 @@ except ImportError:
 
 # ── Config ──────────────────────────────────────────────────────────────
 DEFAULT_FOLDER = "/Volumes/logistica/Automação Romaneio Logistica x PCP"
-DEFAULT_DB_URL = "postgresql://pcp_integration:pcp_inplast_2026@192.168.25.251:5432/inplast"
+DEFAULT_DB_URL = "http://192.168.25.250:8765/api/pcp/romaneios-kanban/sync"
 SOURCE_CODE = "romaneio_pdf"
 WORKFLOW_NAME = "PCP | 15B | PDF Romaneio Ingest"
 
@@ -321,52 +321,52 @@ def main():
             print(f"❌ {os.path.basename(pdf_path):25s} ERRO Parser: {e}")
             results.append({"file": os.path.basename(pdf_path), "status": "❌", "error": str(e)})
 
-    # Passo 2: Construir envios para o Postgres unificados
+    # Passo 2: Construir array e Enviar via HTTP
+    payload_to_sync = []
     for ordem, parsed in parsed_dict.items():
+        payload_to_sync.append(parsed)
+        
+        result = {
+            "file": parsed["file"],
+            "ordem": parsed["ordem_carga"],
+            "empresa": parsed["empresa"],
+            "pedidos": len(parsed["pedidos"]),
+            "itens": len(parsed["itens"]),
+            "total": parsed["total_geral"],
+            "status": "⌛",
+        }
+        results.append(result)
+
+        if args.json:
+            print(json.dumps({"parsed": parsed}, indent=2, ensure_ascii=False))
+        elif not args.json and not args.sql:
+            short_fname = (parsed["file"][:22] + '...') if len(parsed["file"]) > 25 else parsed["file"]
+            print(
+                f"Lido: {short_fname:25s} "
+                f"Ordem={parsed['ordem_carga']:>4s} "
+                f"Ped={len(parsed['pedidos']):>2d} "
+                f"Itens={len(parsed['itens']):>2d} "
+                f"R${parsed['total_geral']:>12,.2f}"
+            )
+
+    if args.execute and payload_to_sync:
+        print("\n🌐 Sincronizando com o Servidor Kanban (HTTP)...")
         try:
-            payload, meta = build_event(parsed)
-            sql = build_sql(payload, meta)
-
-            status = "✅"
-            db_result = None
-
-            if args.execute:
-                db_result = execute_sql(args.db, sql)
-                if not db_result["ok"]:
-                    status = "❌"
-
-            result = {
-                "file": parsed["file"],
-                "ordem": parsed["ordem_carga"],
-                "empresa": parsed["empresa"],
-                "pedidos": len(parsed["pedidos"]),
-                "itens": len(parsed["itens"]),
-                "total": parsed["total_geral"],
-                "status": status,
-                "db_result": db_result,
-            }
-            results.append(result)
-
-            if args.json:
-                print(json.dumps({"parsed": parsed, "payload": payload, "meta": meta}, indent=2, ensure_ascii=False))
-            elif args.sql:
-                print(f"\n-- {parsed['file']}")
-                print(sql)
-            else:
-                # Format to show the files aggregated briefly limits to 25 chars
-                short_fname = (parsed["file"][:22] + '...') if len(parsed["file"]) > 25 else parsed["file"]
-                print(
-                    f"{status} {short_fname:25s} "
-                    f"Ordem={parsed['ordem_carga']:>4s} "
-                    f"Ped={len(parsed['pedidos']):>2d} "
-                    f"Itens={len(parsed['itens']):>2d} "
-                    f"R${parsed['total_geral']:>12,.2f}"
-                    + (f"  DB: {db_result}" if db_result else "")
-                )
-
+            import urllib.request
+            url = args.db if args.db.startswith("http") else "http://localhost:8765/api/pcp/romaneios-kanban/sync"
+            req = urllib.request.Request(
+                url, 
+                method="POST", 
+                data=json.dumps(payload_to_sync, ensure_ascii=False).encode('utf-8'), 
+                headers={'Content-Type': 'application/json'}
+            )
+            with urllib.request.urlopen(req) as response:
+                res_body = response.read().decode('utf-8')
+                print(f"✅ Sincronização concluída com Sucesso! Resposta: {res_body}")
+                for r in results: r["status"] = "✅"
         except Exception as e:
-            print(f"❌ Ordem {ordem}: ERRO Banco: {e}")
-            results.append({"file": parsed["file"], "status": "❌", "error": str(e)})
+            print(f"❌ ERRO COMUNICAÇÃO HTTP: {e}")
+            for r in results: r["status"] = "❌"
 
     # Summary
     ok = sum(1 for r in results if r["status"] == "✅")

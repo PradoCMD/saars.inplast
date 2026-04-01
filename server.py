@@ -79,6 +79,48 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 payload = self.read_json_body()
                 self.send_json(HTTPStatus.OK, PROVIDER.save_programming_entry(payload))
                 return
+
+            if parsed.path == "/api/pcp/romaneios-kanban/update-date":
+                payload = self.read_json_body()
+                self.send_json(HTTPStatus.OK, {"ok": True})
+                db_path = Path(__file__).parent / "backend/kanban_db.json"
+                if db_path.exists():
+                    db_data = json.loads(db_path.read_text("utf-8"))
+                    for r in db_data.get("romaneios", []):
+                        if r["romaneio"] == payload.get("romaneio"):
+                            r["previsao_saida_at"] = payload.get("previsao_saida_at")
+                    db_path.write_text(json.dumps(db_data, indent=2))
+                return
+
+            if parsed.path == "/api/pcp/romaneios-kanban/sync":
+                payload = self.read_json_body()
+                db_path = Path(__file__).parent / "backend/kanban_db.json"
+                db_data = {"romaneios": []}
+                if db_path.exists():
+                    try:
+                        db_data = json.loads(db_path.read_text("utf-8"))
+                    except Exception:
+                        pass
+                
+                rom_map = {str(r["romaneio"]): r for r in db_data.get("romaneios", [])}
+                for incoming in payload:
+                    rom_id = str(incoming.get("ordem_carga", ""))
+                    if not rom_id: continue
+                    from datetime import datetime
+                    data_evento = incoming.get("data_evento") or datetime.now().isoformat()
+                    new_r = {
+                        "romaneio": rom_id,
+                        "empresa": incoming.get("nome_empresa", ""),
+                        "data_evento": rom_map.get(rom_id, {}).get("data_evento", data_evento),
+                        "previsao_saida_at": rom_map.get(rom_id, {}).get("previsao_saida_at"),
+                        "items": incoming.get("itens", [])
+                    }
+                    rom_map[rom_id] = new_r
+                
+                db_data["romaneios"] = list(rom_map.values())
+                db_path.write_text(json.dumps(db_data, indent=2, ensure_ascii=False))
+                self.send_json(HTTPStatus.OK, {"ok": True, "count": len(db_data["romaneios"])})
+                return
         except Exception as exc:  # noqa: BLE001
             self.send_json(
                 HTTPStatus.INTERNAL_SERVER_ERROR,

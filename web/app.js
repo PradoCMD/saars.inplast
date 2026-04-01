@@ -555,6 +555,11 @@ function redesenharKanban() {
       if (romaneio) {
         romaneio.previsao_saida_at = targetDate;
         redesenharKanban(); // recalculate entire timeline!
+        
+        postJson("/api/pcp/romaneios-kanban/update-date", {
+           romaneio: code,
+           previsao_saida_at: targetDate
+        }).catch(err => console.error("Falha ao sincronizar o drag & drop", err));
       }
     });
 
