@@ -7,7 +7,12 @@ const number = new Intl.NumberFormat("pt-BR");
 
 const state = {
   romaneioSelecionado: null,
+  romaneiosApi: [],
+  romaneiosLocais: [],
+  romaneiosFiltro: "",
 };
+
+const LOCAL_ROMANEIOS_STORAGE_KEY = "pcp_local_romaneios_v1";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 
@@ -95,6 +100,129 @@ function statusClass(value) {
 
 function emptyState(message) {
   return el(`<div class="detail-empty">${message}</div>`);
+}
+
+function safeJsonParse(value, fallback) {
+  try {
+    return JSON.parse(value);
+  } catch (error) {
+    return fallback;
+  }
+}
+
+function loadLocalRomaneios() {
+  return safeJsonParse(window.localStorage.getItem(LOCAL_ROMANEIOS_STORAGE_KEY) || "[]", []).filter(Boolean);
+}
+
+function saveLocalRomaneios(items) {
+  state.romaneiosLocais = items;
+  window.localStorage.setItem(LOCAL_ROMANEIOS_STORAGE_KEY, JSON.stringify(items));
+}
+
+function formatFileSize(bytes) {
+  const value = Number(bytes) || 0;
+  if (value < 1024) return `${value} B`;
+  if (value < 1024 * 1024) return `${(value / 1024).toFixed(1)} KB`;
+  return `${(value / (1024 * 1024)).toFixed(1)} MB`;
+}
+
+function normalizeLocalRomaneio(item) {
+  return {
+    ...item,
+    selection_code: item.local_id,
+    source_type: item.source_type || "manual",
+    previsao_saida_status: item.previsao_saida_status || (item.source_type === "pdf" ? "arquivo_local" : "manual"),
+    status_evento: item.status_evento || (item.source_type === "pdf" ? "pdf_local" : "manual_local"),
+    quantidade_total: Number(item.quantidade_total) || 0,
+    itens: Number(item.itens) || 0,
+  };
+}
+
+function buildRomaneiosCollection() {
+  const localItems = state.romaneiosLocais
+    .map(normalizeLocalRomaneio)
+    .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0));
+
+  const apiItems = state.romaneiosApi.map((item) => ({
+    ...item,
+    selection_code: String(item.romaneio),
+    source_type: "api",
+  }));
+
+  const merged = [...localItems, ...apiItems];
+  const query = state.romaneiosFiltro.trim().toLowerCase();
+
+  if (!query) {
+    return merged;
+  }
+
+  return merged.filter((item) => {
+    const haystack = [
+      item.romaneio,
+      item.empresa,
+      item.pedido,
+      item.pdf_name,
+      item.observacao,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
+    return haystack.includes(query);
+  });
+}
+
+function findLocalRomaneioBySelectionCode(code) {
+  return state.romaneiosLocais.find((item) => item.local_id === code) || null;
+}
+
+function setElementStatus(id, message, tone) {
+  const target = document.getElementById(id);
+  if (!target) return;
+  target.textContent = message || "";
+  target.classList.remove("success", "error");
+  if (tone) target.classList.add(tone);
+}
+
+function inferRomaneioCodeFromFilename(filename) {
+  const base = String(filename || "").replace(/\.pdf$/i, "").trim();
+  return base || `ROM-${Date.now()}`;
+}
+
+function createPdfRomaneioEntry(file) {
+  const nowIso = new Date().toISOString();
+  return {
+    local_id: `local-pdf-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    source_type: "pdf",
+    romaneio: inferRomaneioCodeFromFilename(file.name),
+    empresa: "INPLAST",
+    pedido: "",
+    quantidade_total: 0,
+    previsao_saida_at: "",
+    previsao_saida_status: "arquivo_local",
+    status_evento: "pdf_local",
+    observacao: "PDF aguardando conferência e ingestão.",
+    pdf_name: file.name,
+    pdf_size: file.size,
+    itens: 0,
+    created_at: nowIso,
+  };
+}
+
+function createManualRomaneioEntry(payload) {
+  return {
+    local_id: `local-manual-${Date.now()}-${Math.random().toString(16).slice(2, 8)}`,
+    source_type: "manual",
+    romaneio: payload.romaneio,
+    empresa: payload.empresa || "INPLAST",
+    pedido: payload.pedido || "",
+    quantidade_total: Number(payload.quantidade_total) || 0,
+    previsao_saida_at: payload.previsao_saida_at || "",
+    previsao_saida_status: "manual",
+    status_evento: "manual_local",
+    observacao: payload.observacao || "",
+    itens: 0,
+    created_at: new Date().toISOString(),
+  };
 }
 
 async function api(path) {
@@ -515,26 +643,102 @@ function renderAlerts(data) {
   }
 }
 
-function renderRomaneios(data) {
+function renderRomaneioIntakeSummary() {
+  const wrapper = document.getElementById("romaneio-intake-summary");
+  if (!wrapper) return;
+
+  const stagedPdfs = state.romaneiosLocais.filter((item) => item.source_type === "pdf").length;
+  const stagedManual = state.romaneiosLocais.filter((item) => item.source_type === "manual").length;
+
+  wrapper.innerHTML = "";
+  [
+    ["Locais", number.format(state.romaneiosLocais.length)],
+    ["PDFs", number.format(stagedPdfs)],
+    ["Manuais", number.format(stagedManual)],
+  ].forEach(([label, value]) => {
+    wrapper.appendChild(
+      el(`
+        <div class="mini-card">
+          <small>${label}</small>
+          <strong>${value}</strong>
+        </div>
+      `),
+    );
+  });
+}
+
+function renderStagedRomaneios() {
+  const wrapper = document.getElementById("romaneios-staged-list");
+  if (!wrapper) return;
+
+  wrapper.innerHTML = "";
+
+  if (!state.romaneiosLocais.length) {
+    wrapper.appendChild(el(`<div class="staged-empty">Nenhum romaneio local adicionado ainda. Use o formulário ou selecione PDFs do seu computador.</div>`));
+    return;
+  }
+
+  state.romaneiosLocais
+    .slice()
+    .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0))
+    .forEach((item) => {
+      const selectionCode = item.local_id;
+      const card = el(`
+        <div class="staged-card">
+          <div class="staged-card-head">
+            <div>
+              <small>${item.source_type === "pdf" ? "PDF local" : "Cadastro manual"}</small>
+              <strong>${item.romaneio}</strong>
+            </div>
+            <span class="tag ${item.source_type === "pdf" ? "warning" : "info"}">${item.source_type}</span>
+          </div>
+          <div class="staged-meta">
+            ${item.pdf_name ? `${item.pdf_name} · ${formatFileSize(item.pdf_size)}` : `${item.empresa || "INPLAST"}${item.pedido ? ` · Pedido ${item.pedido}` : ""}`}
+          </div>
+          <div class="staged-meta">
+            ${item.previsao_saida_at ? `Saída ${formatDateTime(item.previsao_saida_at)}` : "Sem previsão definida"} · ${formatDateTimeWithFallback(item.created_at, "Agora")}
+          </div>
+          <div class="dropzone-actions">
+            <button type="button" class="btn btn-secondary" data-action="open">Abrir detalhe</button>
+            <button type="button" class="btn btn-secondary" data-action="remove">Remover</button>
+          </div>
+        </div>
+      `);
+
+      card.querySelector('[data-action="open"]').addEventListener("click", () => carregarRomaneio(selectionCode));
+      card.querySelector('[data-action="remove"]').addEventListener("click", () => removerRomaneioLocal(selectionCode));
+      wrapper.appendChild(card);
+    });
+}
+
+function renderRomaneios() {
   const wrapper = document.getElementById("romaneios-list");
   wrapper.innerHTML = "";
-  if (!data.items.length) {
+
+  const items = buildRomaneiosCollection();
+
+  if (!items.length) {
     wrapper.appendChild(emptyState("Nenhum romaneio recebido ou homologado ate o momento."));
   } else {
-    data.items.forEach((item) => {
+    items.forEach((item) => {
+      const isLocal = item.source_type !== "api";
+      const isSelected = state.romaneioSelecionado === item.selection_code;
+      const secondaryLine = isLocal
+        ? `${item.pdf_name || "Romaneio digitado"}${item.pedido ? ` | Pedido ${item.pedido}` : ""}`
+        : `${number.format(item.quantidade_total)} unidades | Saida ${formatDateTime(item.previsao_saida_at)}`;
       const row = el(`
-        <button class="romaneio-row">
+        <button class="romaneio-row ${isLocal ? "local" : ""} ${isSelected ? "selected" : ""}">
           <div>
             <small>${item.empresa}</small>
             <strong>${item.romaneio}</strong>
-            <span class="muted">${number.format(item.quantidade_total)} unidades | Saida ${formatDateTime(item.previsao_saida_at)}</span>
+            <span class="muted">${secondaryLine}</span>
           </div>
           <div>
-            <span class="tag ${statusClass(item.previsao_saida_status)}">${item.previsao_saida_status}</span>
+            <span class="tag ${statusClass(item.previsao_saida_status)}">${formatStatusLabel(item.previsao_saida_status)}</span>
           </div>
         </button>
       `);
-      row.addEventListener("click", () => carregarRomaneio(item.romaneio));
+      row.addEventListener("click", () => carregarRomaneio(item.selection_code));
       wrapper.appendChild(row);
     });
   }
@@ -544,16 +748,16 @@ function renderRomaneioDetail(data) {
   const wrapper = document.getElementById("romaneio-detail");
   wrapper.innerHTML = "";
 
-  const header = data.header;
+  const header = data.header || {};
   wrapper.appendChild(
     el(`
       <div class="detail-section">
-        <span class="detail-pill">${header.status_evento}</span>
+        <span class="detail-pill">${header.status_evento || "processado"}</span>
         <div class="detail-grid">
           <div class="detail-card">
             <small>Romaneio</small>
-            <strong>${header.romaneio}</strong>
-            <em>${header.empresa}</em>
+            <strong>${header.romaneio || "N/D"}</strong>
+            <em>${header.empresa || "Sem empresa informada"}</em>
           </div>
           <div class="detail-card">
             <small>Recebido em</small>
@@ -576,7 +780,7 @@ function renderRomaneioDetail(data) {
   );
 
   const items = el(`<div class="detail-list"></div>`);
-  data.items.forEach((item) => {
+  (data.items || []).forEach((item) => {
     items.appendChild(
       el(`
         <div class="detail-card">
@@ -590,10 +794,10 @@ function renderRomaneioDetail(data) {
       `),
     );
   });
-  wrapper.appendChild(items);
+  wrapper.appendChild(items.childElementCount ? items : emptyState("Sem itens detalhados para este romaneio."));
 
   const events = el(`<div class="detail-list"></div>`);
-  data.events.forEach((item) => {
+  (data.events || []).forEach((item) => {
     events.appendChild(
       el(`
         <div class="detail-card">
@@ -604,7 +808,54 @@ function renderRomaneioDetail(data) {
       `),
     );
   });
-  wrapper.appendChild(events);
+  wrapper.appendChild(events.childElementCount ? events : emptyState("Sem eventos adicionais registrados para este romaneio."));
+}
+
+function renderLocalRomaneioDetail(entry) {
+  const wrapper = document.getElementById("romaneio-detail");
+  wrapper.innerHTML = "";
+
+  wrapper.appendChild(
+    el(`
+      <div class="detail-section">
+        <span class="detail-pill">${entry.source_type === "pdf" ? "pdf_local" : "manual_local"}</span>
+        <div class="detail-grid">
+          <div class="detail-card">
+            <small>Romaneio</small>
+            <strong>${entry.romaneio}</strong>
+            <em>${entry.empresa || "INPLAST"}</em>
+          </div>
+          <div class="detail-card">
+            <small>Origem</small>
+            <strong>${entry.source_type === "pdf" ? "Arquivo local" : "Cadastro manual"}</strong>
+            <em>${formatDateTimeWithFallback(entry.created_at, "Agora")}</em>
+          </div>
+          <div class="detail-card">
+            <small>Pedido / Quantidade</small>
+            <strong>${entry.pedido || "Sem pedido informado"}</strong>
+            <em>${number.format(entry.quantidade_total || 0)} unidades</em>
+          </div>
+          <div class="detail-card">
+            <small>Arquivo / Status</small>
+            <strong>${entry.pdf_name || "Sem PDF vinculado"}</strong>
+            <em>${entry.pdf_name ? formatFileSize(entry.pdf_size) : formatStatusLabel(entry.previsao_saida_status)}</em>
+          </div>
+        </div>
+      </div>
+    `),
+  );
+
+  wrapper.appendChild(
+    entry.observacao
+      ? el(`
+          <div class="detail-card">
+            <small>Observação</small>
+            <strong>${entry.observacao}</strong>
+            <em>Romaneio salvo localmente no navegador até a integração final do upload.</em>
+          </div>
+        `)
+      : emptyState("Esse romaneio local ainda não possui observações ou itens vinculados.")
+  );
 }
 
 function renderStructures(data) {
@@ -1133,8 +1384,144 @@ function renderKanban(data) {
 
 async function carregarRomaneio(code) {
   state.romaneioSelecionado = code;
-  const detail = await api(`/api/pcp/romaneios/${code}`);
-  renderRomaneioDetail(detail);
+  renderRomaneios();
+
+  const localEntry = findLocalRomaneioBySelectionCode(code);
+  if (localEntry) {
+    renderLocalRomaneioDetail(localEntry);
+    return;
+  }
+
+  try {
+    const detail = await api(`/api/pcp/romaneios/${code}`);
+    renderRomaneioDetail(detail);
+  } catch (error) {
+    const wrapper = document.getElementById("romaneio-detail");
+    wrapper.innerHTML = "";
+    wrapper.appendChild(emptyState(`Falha ao carregar o romaneio ${code}. ${error.message}`));
+  }
+}
+
+function refreshRomaneiosWorkspace() {
+  const merged = buildRomaneiosCollection();
+  if (state.romaneioSelecionado && !merged.some((item) => item.selection_code === state.romaneioSelecionado)) {
+    state.romaneioSelecionado = null;
+  }
+  renderRomaneioIntakeSummary();
+  renderStagedRomaneios();
+  renderRomaneios();
+}
+
+function removerRomaneioLocal(localId) {
+  const nextItems = state.romaneiosLocais.filter((item) => item.local_id !== localId);
+  saveLocalRomaneios(nextItems);
+  if (state.romaneioSelecionado === localId) {
+    state.romaneioSelecionado = null;
+    const detail = document.getElementById("romaneio-detail");
+    detail.innerHTML = "";
+    detail.appendChild(emptyState("Romaneio local removido da fila. Selecione outro romaneio para ver os detalhes."));
+  }
+  setElementStatus("romaneio-dropzone-status", "Romaneio local removido da fila.", "success");
+  refreshRomaneiosWorkspace();
+}
+
+function appendRomaneiosLocais(entries, messageTargetId, successMessage) {
+  if (!entries.length) {
+    return;
+  }
+  saveLocalRomaneios([...entries, ...state.romaneiosLocais]);
+  refreshRomaneiosWorkspace();
+  setElementStatus(messageTargetId, successMessage, "success");
+  carregarRomaneio(entries[0].local_id).catch((error) => {
+    console.error("Falha ao abrir romaneio local", error);
+  });
+}
+
+function handleRomaneioPdfFiles(fileList) {
+  const entries = Array.from(fileList || [])
+    .filter((file) => /\.pdf$/i.test(file.name))
+    .map(createPdfRomaneioEntry);
+
+  if (!entries.length) {
+    setElementStatus("romaneio-dropzone-status", "Nenhum PDF válido foi selecionado.", "error");
+    return;
+  }
+
+  appendRomaneiosLocais(
+    entries,
+    "romaneio-dropzone-status",
+    `${entries.length} PDF(s) adicionados à fila local.`,
+  );
+}
+
+function configurarRomaneioIntake() {
+  state.romaneiosLocais = loadLocalRomaneios();
+  refreshRomaneiosWorkspace();
+
+  const dropzone = document.getElementById("romaneios-dropzone");
+  const input = document.getElementById("romaneios-pdf-input");
+  const button = document.getElementById("romaneios-pdf-button");
+  const manualForm = document.getElementById("romaneio-manual-form");
+  const filterInput = document.getElementById("romaneios-filter-input");
+
+  const openPicker = () => input.click();
+
+  button.addEventListener("click", (event) => {
+    event.stopPropagation();
+    openPicker();
+  });
+
+  dropzone.addEventListener("click", openPicker);
+  dropzone.addEventListener("keydown", (event) => {
+    if (event.key === "Enter" || event.key === " ") {
+      event.preventDefault();
+      openPicker();
+    }
+  });
+
+  ["dragenter", "dragover"].forEach((eventName) => {
+    dropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      dropzone.classList.add("is-dragover");
+    });
+  });
+
+  ["dragleave", "dragend", "drop"].forEach((eventName) => {
+    dropzone.addEventListener(eventName, (event) => {
+      event.preventDefault();
+      dropzone.classList.remove("is-dragover");
+    });
+  });
+
+  dropzone.addEventListener("drop", (event) => {
+    handleRomaneioPdfFiles(event.dataTransfer?.files || []);
+  });
+
+  input.addEventListener("change", (event) => {
+    handleRomaneioPdfFiles(event.target.files || []);
+    input.value = "";
+  });
+
+  manualForm.addEventListener("submit", (event) => {
+    event.preventDefault();
+    try {
+      const payload = payloadFromForm(manualForm);
+      if (!payload.romaneio) {
+        throw new Error("Informe o código do romaneio.");
+      }
+      const entry = createManualRomaneioEntry(payload);
+      appendRomaneiosLocais([entry], "romaneio-manual-status", "Romaneio manual salvo na fila local.");
+      manualForm.reset();
+      manualForm.elements.empresa.value = "INPLAST";
+    } catch (error) {
+      setElementStatus("romaneio-manual-status", error.message, "error");
+    }
+  });
+
+  filterInput.addEventListener("input", (event) => {
+    state.romaneiosFiltro = event.target.value || "";
+    renderRomaneios();
+  });
 }
 
 async function dispararMrp() {
@@ -1284,7 +1671,8 @@ async function carregarTudo() {
 
   renderOverview(overview);
   renderAlerts(alerts);
-  renderRomaneios(romaneios);
+  state.romaneiosApi = Array.isArray(romaneios.items) ? romaneios.items : [];
+  refreshRomaneiosWorkspace();
   renderKanban(kanban);
   renderStructures(structures);
   renderProgramming(programming.items);
@@ -1305,9 +1693,10 @@ async function carregarTudo() {
     alerts: alerts.items,
   });
 
-  if (!state.romaneioSelecionado && romaneios.items.length) {
-    await carregarRomaneio(romaneios.items[0].romaneio);
-  } else if (!romaneios.items.length) {
+  const mergedRomaneios = buildRomaneiosCollection();
+  if (!state.romaneioSelecionado && mergedRomaneios.length) {
+    await carregarRomaneio(mergedRomaneios[0].selection_code);
+  } else if (!mergedRomaneios.length) {
     document.getElementById("romaneio-detail").innerHTML = "";
     document.getElementById("romaneio-detail").appendChild(
       emptyState("Nenhum romaneio disponivel para detalhamento neste momento."),
@@ -1319,6 +1708,7 @@ document.getElementById("run-mrp").addEventListener("click", dispararMrp);
 document.getElementById("reload-all").addEventListener("click", carregarTudo);
 document.getElementById("structure-form").addEventListener("submit", salvarEstrutura);
 document.getElementById("programming-form").addEventListener("submit", salvarProgramacao);
+configurarRomaneioIntake();
 
 function switchTab(hash) {
   const targetId = hash.replace('#', '') || 'cockpit';

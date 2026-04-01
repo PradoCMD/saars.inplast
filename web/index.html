@@ -196,25 +196,92 @@
           </div>
 
           <!-- ROMANEIOS LISTA -->
-          <div id="romaneios" class="view-module grid-layout-2">
-            <div class="glass-panel scroll-y">
-              <div class="panel-header sticky">
-                <h3>Romaneios Recebidos</h3>
-                <div class="filter-controls">
-                  <input type="text" placeholder="Filtrar romaneio..." class="input-mini">
+          <div id="romaneios" class="view-module">
+            <section class="glass-panel romaneio-intake-shell">
+              <div class="panel-header romaneio-intake-header">
+                <div>
+                  <h3>Entrada de Romaneios</h3>
+                  <p class="section-copy">Adicione romaneios manualmente ou envie os PDFs do seu computador para montar a fila operacional.</p>
                 </div>
+                <div id="romaneio-intake-summary" class="inline-stats"></div>
               </div>
-              <div id="romaneios-list" class="list-container interactive-list"></div>
-            </div>
 
-            <div class="glass-panel sticky">
-              <div class="panel-header">
-                <h3>Detalhes do Romaneio</h3>
+              <div class="romaneio-intake-grid">
+                <div
+                  id="romaneios-dropzone"
+                  class="romaneio-dropzone"
+                  tabindex="0"
+                  role="button"
+                  aria-label="Selecionar PDFs de romaneio"
+                >
+                  <input id="romaneios-pdf-input" type="file" accept="application/pdf" multiple hidden />
+                  <div class="dropzone-icon">PDF</div>
+                  <strong>Arraste e solte PDFs aqui</strong>
+                  <span>ou selecione arquivos locais para preparar a ingestão</span>
+                  <div class="dropzone-actions">
+                    <button type="button" id="romaneios-pdf-button" class="btn btn-primary">Selecionar PDFs</button>
+                    <span class="dropzone-hint">Aceita múltiplos arquivos em lote</span>
+                  </div>
+                  <span id="romaneio-dropzone-status" class="status-msg"></span>
+                </div>
+
+                <form id="romaneio-manual-form" class="romaneio-manual-form">
+                  <div class="input-grid">
+                    <div class="input-group">
+                      <label>Código do Romaneio</label>
+                      <input type="text" name="romaneio" class="modern-input" placeholder="Ex: RM-240331-001" required />
+                    </div>
+                    <div class="input-group">
+                      <label>Empresa</label>
+                      <input type="text" name="empresa" class="modern-input" placeholder="Ex: INPLAST" value="INPLAST" required />
+                    </div>
+                    <div class="input-group">
+                      <label>Pedido</label>
+                      <input type="text" name="pedido" class="modern-input" placeholder="Ex: 1415" />
+                    </div>
+                    <div class="input-group">
+                      <label>Quantidade Total</label>
+                      <input type="number" step="1" min="0" name="quantidade_total" class="modern-input" placeholder="0" />
+                    </div>
+                    <div class="input-group full-width">
+                      <label>Previsão de Saída</label>
+                      <input type="datetime-local" name="previsao_saida_at" class="modern-input" />
+                    </div>
+                    <div class="input-group full-width">
+                      <label>Observação</label>
+                      <textarea name="observacao" class="modern-input" rows="3" placeholder="Notas rápidas para operação, conferência ou coleta."></textarea>
+                    </div>
+                  </div>
+                  <div class="form-footer">
+                    <button type="submit" class="btn btn-primary">Adicionar Manualmente</button>
+                    <span id="romaneio-manual-status" class="status-msg"></span>
+                  </div>
+                </form>
               </div>
-              <div id="romaneio-detail" class="detail-container">
-                <div class="empty-detail">
-                  <span class="icon-lg">📦</span>
-                  <p>Selecione um romaneio para ver o histórico e itens.</p>
+
+              <div id="romaneios-staged-list" class="romaneios-staged-list"></div>
+            </section>
+
+            <div class="grid-layout-2 romaneios-workspace">
+              <div class="glass-panel scroll-y">
+                <div class="panel-header sticky">
+                  <h3>Romaneios Recebidos</h3>
+                  <div class="filter-controls">
+                    <input id="romaneios-filter-input" type="text" placeholder="Filtrar romaneio, pedido ou arquivo..." class="input-mini">
+                  </div>
+                </div>
+                <div id="romaneios-list" class="list-container interactive-list"></div>
+              </div>
+
+              <div class="glass-panel sticky">
+                <div class="panel-header">
+                  <h3>Detalhes do Romaneio</h3>
+                </div>
+                <div id="romaneio-detail" class="detail-container">
+                  <div class="empty-detail">
+                    <span class="icon-lg">📦</span>
+                    <p>Selecione um romaneio para ver o histórico, os PDFs anexados e os itens.</p>
+                  </div>
                 </div>
               </div>
             </div>
