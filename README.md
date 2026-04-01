@@ -40,6 +40,43 @@ Depois abra:
 
 - `http://127.0.0.1:8765`
 
+## Stack integrada com Postgres dedicado
+
+Se voce quiser subir este modulo com um banco proprio, isolado do restante da maquina, use:
+
+- `docker-compose.integrated.yaml`
+- `.env.integrated.example`
+
+Essa topologia sobe:
+
+- `pcp-saas`
+- `pcp-postgres`
+
+E publica o Postgres na porta `55432` por padrao, evitando conflito com outro servico que ja use `5432`.
+
+Passo a passo:
+
+```bash
+cd "/caminho/do/repositorio/saars.inplast"
+cp .env.integrated.example .env
+docker compose -f docker-compose.integrated.yaml up -d --build
+```
+
+Depois abra:
+
+- `http://127.0.0.1:8765`
+
+E, se quiser acessar o banco dessa stack pela maquina host:
+
+- `postgresql://postgres:SUA_SENHA@127.0.0.1:55432/inplast_pcp`
+
+Observacoes:
+
+- na primeira subida, o container `pcp-postgres` aplica automaticamente `database/pcp_operacional_postgres.sql`
+- na mesma inicializacao ele aplica tambem `database/pcp_postgres_roles_permissions.sql`
+- as credenciais `pcp_app` e `pcp_integration` sao criadas com as senhas do `.env`
+- se o volume do Postgres ja existir, o bootstrap nao roda de novo automaticamente
+
 ## Modos de operacao
 
 ### 1. `mock`
@@ -84,6 +121,17 @@ Observacao:
 - a recomendacao e usar `pcp_app` para leitura e `pcp_integration` para acoes como `run_mrp`
 
 ## Implantacao
+
+### Opcao A: stack dedicada do modulo
+
+Para um ambiente isolado so para este servico:
+
+1. copiar `.env.integrated.example` para `.env`
+2. ajustar senhas e portas
+3. subir `docker-compose.integrated.yaml`
+4. importar os workflows em `n8n/`
+
+### Opcao B: topologia separada apps/data
 
 Para esta topologia:
 

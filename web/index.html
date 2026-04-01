@@ -37,33 +37,94 @@
 
       <main class="content">
         <div id="cockpit" class="view-module active">
-          <section class="hero">
-            <div class="hero-head">
-              <div>
-                <span class="pill">Visão executiva</span>
-                <h2>Planejamento Estratégico</h2>
-                <p>
-                  Painel de controle com dados de demanda, estoque, produção e reciclagem.
-                </p>
+          <section class="hero hero-cockpit">
+            <div class="hero-grid">
+              <div class="hero-copy">
+                <div class="hero-head">
+                  <div>
+                    <span class="pill">Visão executiva</span>
+                    <h2>Orquestração do PCP e da logística</h2>
+                    <p>
+                      Um cockpit único para enxergar carteira, gargalos de atendimento, carga
+                      operacional e ritmo de saída com leitura pronta para decisão.
+                    </p>
+                  </div>
+                </div>
+
+                <div class="hero-actions">
+                  <button id="run-mrp" class="button primary">Disparar MRP</button>
+                  <button id="reload-all" class="button">Atualizar painel</button>
+                </div>
+
+                <div class="hero-foot">
+                  <div>
+                    <small>Snapshot atual</small>
+                    <strong id="snapshot-at">-</strong>
+                  </div>
+                  <div id="mrp-status" class="run-status">Pronto para operação.</div>
+                </div>
               </div>
-              <div class="hero-actions">
-                <button id="run-mrp" class="button primary">Disparar MRP</button>
-                <button id="reload-all" class="button">Atualizar painel</button>
-              </div>
+
+              <aside class="hero-spotlight">
+                <div class="spotlight-card">
+                  <div class="section-head compact">
+                    <div>
+                      <small>Radar da rodada</small>
+                      <h3>Cobertura imediata</h3>
+                    </div>
+                  </div>
+                  <div id="coverage-meter" class="coverage-meter"></div>
+                  <div id="hero-signals" class="hero-signals"></div>
+                </div>
+              </aside>
             </div>
 
             <div class="stats" id="overview-cards"></div>
-
-            <div class="hero-foot">
-              <div>
-                <small>Snapshot atual</small>
-                <strong id="snapshot-at">-</strong>
-              </div>
-              <div id="mrp-status" class="run-status">Pronto para operação.</div>
-            </div>
           </section>
 
-          <section class="grid" style="margin-top: 18px;">
+          <section class="report-grid">
+            <article class="card report-card report-card-wide">
+              <div class="section-head">
+                <div>
+                  <small>Relatório visual</small>
+                  <h3>Distribuição dos romaneios</h3>
+                </div>
+              </div>
+              <p class="section-copy">
+                Leitura do funil logístico por status de saída, para diferenciar o que já pode
+                expedir, o que depende de programação e o que ainda está indefinido.
+              </p>
+              <div id="status-distribution-chart" class="report-chart"></div>
+            </article>
+
+            <article class="card report-card">
+              <div class="section-head">
+                <div>
+                  <small>Fila do PCP</small>
+                  <h3>Carteira por ação</h3>
+                </div>
+              </div>
+              <p class="section-copy">
+                Volume pressionado por montagem, produção, compra ou monitoramento.
+              </p>
+              <div id="action-demand-chart" class="report-chart compact"></div>
+            </article>
+
+            <article class="card report-card">
+              <div class="section-head">
+                <div>
+                  <small>Janela de saída</small>
+                  <h3>Calendário logístico</h3>
+                </div>
+              </div>
+              <p class="section-copy">
+                Concentração dos romaneios pela data prometida ou pela ausência de previsão.
+              </p>
+              <div id="timeline-chart" class="timeline-chart"></div>
+            </article>
+          </section>
+
+          <section class="cockpit-secondary">
             <article class="card">
               <div class="section-head">
                 <div>
@@ -83,6 +144,16 @@
               </div>
               <div id="alerts-list" class="stack"></div>
             </article>
+
+            <article class="card">
+              <div class="section-head">
+                <div>
+                  <small>Leituras da rodada</small>
+                  <h3>Insights executivos</h3>
+                </div>
+              </div>
+              <div id="report-insights" class="stack insights-list"></div>
+            </article>
           </section>
         </div>
 
@@ -93,6 +164,11 @@
               <h3>Matriz Kanban de Romaneios</h3>
             </div>
           </div>
+          <p class="section-copy">
+            Arraste as cargas entre datas, acompanhe o impacto no saldo interno por SKU e use o
+            resumo superior para priorizar o que exige tratativa imediata.
+          </p>
+          <div id="kanban-summary" class="kanban-summary"></div>
           <div id="kanban-wrapper" class="kanban-wrapper">
               <div class="detail-empty">Carregando matriz de logística...</div>
           </div>
