@@ -10,7 +10,7 @@ from typing import Any
 import pdfplumber
 
 
-SOURCE_CODE = "romaneio_pdf"
+SOURCE_CODE = "romaneio_pcp_atual"
 WORKFLOW_NAME = "PCP | 15B | PDF Romaneio Ingest"
 
 

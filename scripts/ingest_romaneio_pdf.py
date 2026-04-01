@@ -40,7 +40,7 @@ except ImportError:
 # ── Config ──────────────────────────────────────────────────────────────
 DEFAULT_FOLDER = "/Volumes/logistica/Automação Romaneio Logistica x PCP"
 DEFAULT_DB_URL = "http://192.168.25.250:8765/api/pcp/romaneios-kanban/sync"
-SOURCE_CODE = "romaneio_pdf"
+SOURCE_CODE = "romaneio_pcp_atual"
 WORKFLOW_NAME = "PCP | 15B | PDF Romaneio Ingest"
 
 
