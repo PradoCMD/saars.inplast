@@ -76,6 +76,10 @@
     background: radial-gradient(circle at 15% 50%, rgba(59, 130, 246, 0.05), transparent 25%),
                 radial-gradient(circle at 85% 30%, rgba(139, 92, 246, 0.05), transparent 25%);
   }
+
+  .app-container.sidebar-collapsed {
+    --sidebar-width: 88px;
+  }
   
   /* =========================================================================
      SIDEBAR
@@ -90,6 +94,8 @@
     flex-direction: column;
     z-index: 100;
     position: relative;
+    transition: width 0.28s ease, transform 0.28s ease, opacity 0.28s ease;
+    min-width: var(--sidebar-width);
   }
   
   .sidebar-header {
@@ -111,6 +117,10 @@
   .logo-text {
     display: flex;
     flex-direction: column;
+  }
+
+  .nav-label {
+    white-space: nowrap;
   }
   
   .logo-text strong {
@@ -164,6 +174,32 @@
   .nav-item .icon {
     font-size: 1.1rem;
     opacity: 0.8;
+    flex-shrink: 0;
+  }
+
+  .app-container.sidebar-collapsed .sidebar-header,
+  .app-container.sidebar-collapsed .sidebar-footer {
+    padding-left: 12px;
+    padding-right: 12px;
+  }
+
+  .app-container.sidebar-collapsed .logo-text,
+  .app-container.sidebar-collapsed .nav-label,
+  .app-container.sidebar-collapsed .status-info {
+    opacity: 0;
+    width: 0;
+    overflow: hidden;
+    pointer-events: none;
+  }
+
+  .app-container.sidebar-collapsed .nav-item {
+    justify-content: center;
+    padding-left: 10px;
+    padding-right: 10px;
+  }
+
+  .app-container.sidebar-collapsed .status-card {
+    justify-content: center;
   }
   
   .sidebar-footer {
@@ -236,6 +272,22 @@
     border-bottom: var(--border-light);
     z-index: 50;
   }
+
+  .breadcrumbs {
+    display: flex;
+    align-items: center;
+    gap: 14px;
+    min-width: 0;
+  }
+
+  .btn-icon {
+    width: 40px;
+    height: 40px;
+    padding: 0;
+    justify-content: center;
+    font-size: 1rem;
+    border-radius: 12px;
+  }
   
   .breadcrumbs h1 {
     font-size: 1.25rem;
@@ -246,6 +298,8 @@
     display: flex;
     align-items: center;
     gap: 16px;
+    flex-wrap: wrap;
+    justify-content: flex-end;
   }
   
   .search-bar {
@@ -384,6 +438,24 @@
     display: grid;
     grid-template-columns: 1fr 2fr;
     gap: 24px;
+  }
+
+  .header-titles {
+    display: flex;
+    flex-direction: column;
+    gap: 6px;
+  }
+
+  .panel-header.compact {
+    margin-bottom: 14px;
+    align-items: flex-start;
+    gap: 12px;
+  }
+
+  .summary-pills {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(160px, 1fr));
+    gap: 12px;
   }
 
   .aponta-shell {
@@ -1160,6 +1232,15 @@
       display: flex;
       align-items: center;
       gap: 10px;
+      flex-wrap: wrap;
+  }
+
+  .estoque-toolbar {
+      justify-content: flex-end;
+  }
+
+  .input-mini-wide {
+      width: min(360px, 100%);
   }
 
   .romaneio-row {
@@ -1201,6 +1282,15 @@
       line-height: 1.45;
   }
 
+  .romaneio-row-actions {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 8px;
+      flex-shrink: 0;
+  }
+
   .detail-container {
       display: flex;
       flex-direction: column;
@@ -1231,6 +1321,14 @@
       display: flex;
       flex-direction: column;
       gap: 16px;
+  }
+
+  .detail-toolbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+      flex-wrap: wrap;
   }
 
   .detail-pill {
@@ -1761,6 +1859,128 @@
       margin-bottom: 16px;
   }
 
+  .aponta-toolbar {
+      justify-content: flex-end;
+  }
+
+  .aponta-screen-tabs {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-items: center;
+      justify-content: flex-start;
+  }
+
+  .aponta-tablet-layout {
+      display: grid;
+      grid-template-columns: minmax(260px, 0.9fr) minmax(320px, 1.1fr) minmax(280px, 1fr);
+      gap: 18px;
+      grid-column: 1 / -1;
+      margin-top: 8px;
+  }
+
+  .aponta-tablet-panel {
+      padding: 18px;
+      min-height: 100%;
+      background: rgba(4, 9, 14, 0.48);
+  }
+
+  .aponta-queue-list,
+  .aponta-stage-list {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+  }
+
+  .aponta-queue-card,
+  .aponta-stage-row {
+      padding: 16px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.035);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      transition: var(--transition);
+  }
+
+  .aponta-queue-card {
+      cursor: pointer;
+  }
+
+  .aponta-queue-card:hover,
+  .aponta-stage-row:hover {
+      border-color: rgba(59, 130, 246, 0.28);
+      transform: translateY(-1px);
+  }
+
+  .aponta-queue-card.selected,
+  .aponta-stage-row.selected {
+      border-color: rgba(59, 130, 246, 0.72);
+      background: linear-gradient(135deg, rgba(59,130,246,0.16), rgba(255,255,255,0.03));
+      box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.14);
+  }
+
+  .aponta-queue-card small,
+  .aponta-stage-copy small {
+      color: var(--accent-primary);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+  }
+
+  .aponta-queue-card strong,
+  .aponta-stage-copy strong,
+  .aponta-stage-row strong {
+      font-size: 1rem;
+      line-height: 1.35;
+  }
+
+  .aponta-queue-card span,
+  .aponta-stage-copy span,
+  .aponta-stage-row span {
+      color: var(--text-secondary);
+      line-height: 1.45;
+  }
+
+  .aponta-queue-card em,
+  .aponta-stage-row em {
+      font-style: normal;
+      color: var(--text-muted);
+      font-size: 0.8rem;
+      line-height: 1.45;
+  }
+
+  .aponta-stage-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+  }
+
+  .aponta-stage-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+  }
+
+  .aponta-stage-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+  }
+
+  .aponta-action-row {
+      grid-column: 1 / -1;
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+  }
+
+  .aponta-action-row .btn {
+      justify-content: center;
+      min-height: 42px;
+  }
+
   .aponta-machine-card.selected {
       border-color: rgba(59, 130, 246, 0.75);
       box-shadow: 0 0 0 1px rgba(59, 130, 246, 0.22);
@@ -1800,17 +2020,124 @@
       gap: 16px;
   }
 
+  .source-group-card {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+      padding: 18px;
+      border-radius: 18px;
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      margin-top: 14px;
+  }
+
+  .source-group-body {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+  }
+
+  .source-card {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 16px;
+      padding: 16px;
+      border-radius: 16px;
+      background: rgba(255, 255, 255, 0.025);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+  }
+
+  .source-card-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 5px;
+      min-width: 0;
+  }
+
+  .source-card-copy small {
+      color: var(--accent-primary);
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+  }
+
+  .source-card-copy strong {
+      font-size: 1rem;
+      line-height: 1.35;
+  }
+
+  .source-card-copy em {
+      font-style: normal;
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+  }
+
+  .source-card-actions {
+      display: flex;
+      align-items: center;
+      gap: 8px;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+  }
+
+  .text-warning {
+      color: var(--status-warning);
+      font-weight: 700;
+  }
+
+  .app-container.operator-focus .sidebar {
+      width: 0;
+      min-width: 0;
+      opacity: 0;
+      transform: translateX(-100%);
+      border-right: none;
+      overflow: hidden;
+      pointer-events: none;
+  }
+
+  .app-container.operator-focus .topbar {
+      padding: 0 18px;
+  }
+
+  .app-container.operator-focus .breadcrumbs h1,
+  .app-container.operator-focus .search-bar,
+  .app-container.operator-focus #run-mrp,
+  .app-container.operator-focus #reload-all {
+      display: none;
+  }
+
+  .app-container.operator-focus .topbar-actions {
+      width: 100%;
+      justify-content: space-between;
+  }
+
+  .app-container.operator-focus .view-port {
+      padding: 18px;
+  }
+
+  .app-container.operator-focus #apontamento .module-header {
+      margin-bottom: 18px;
+  }
+
+  .app-container.operator-focus #apontamento .grid-layout-2.aponta-workspace {
+      grid-template-columns: 1fr;
+  }
+
   @media (max-width: 1080px) {
       .auth-shell,
       .kanban-layout,
       .programming-shell,
       .programming-board,
       .aponta-operator-panel,
+      .aponta-stage-metrics,
+      .aponta-action-row,
       .auth-highlights {
           grid-template-columns: 1fr;
       }
 
       .aponta-shell,
+      .aponta-tablet-layout,
       .romaneio-intake-grid,
       .grid-layout-2,
       .grid-layout-2-wide,
@@ -1842,5 +2169,20 @@
 
       .auth-screen {
           padding: 18px;
+      }
+
+      .source-card {
+          flex-direction: column;
+      }
+
+      .romaneio-row {
+          flex-direction: column;
+          align-items: flex-start;
+      }
+
+      .romaneio-row-actions,
+      .detail-toolbar {
+          width: 100%;
+          justify-content: flex-start;
       }
   }

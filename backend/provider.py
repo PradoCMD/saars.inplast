@@ -19,6 +19,63 @@ from .source_sync import (
     run_parser_envelope,
 )
 
+DEFAULT_APP_USER = {
+    "id": "user-root",
+    "username": "root",
+    "full_name": "Administrador Root",
+    "role": "root",
+    "password": "root@123",
+    "active": True,
+    "created_at": "2026-04-01T00:00:00.000Z",
+    "updated_at": "2026-04-01T00:00:00.000Z",
+}
+
+
+def _normalize_bool(value: Any) -> bool:
+    if isinstance(value, bool):
+        return value
+    return str(value).strip().lower() not in {"", "0", "false", "no", "off"}
+
+
+def _coerce_user_record(raw: dict[str, Any]) -> dict[str, Any]:
+    created_at = str(raw.get("created_at") or datetime.now(timezone.utc).isoformat())
+    return {
+        "id": str(raw.get("id") or f"user-{str(raw.get('username') or '').lower()}"),
+        "username": str(raw.get("username") or "").strip().lower(),
+        "full_name": str(raw.get("full_name") or raw.get("username") or "").strip(),
+        "role": str(raw.get("role") or "operator").strip(),
+        "password": str(raw.get("password") or "").strip(),
+        "active": _normalize_bool(raw.get("active", True)),
+        "created_at": created_at,
+        "updated_at": str(raw.get("updated_at") or created_at),
+    }
+
+
+def load_app_users(users_path: Path) -> list[dict[str, Any]]:
+    users_path.parent.mkdir(parents=True, exist_ok=True)
+    if users_path.exists():
+        payload = json.loads(users_path.read_text(encoding="utf-8"))
+        items = payload.get("items", payload) if isinstance(payload, dict) else payload
+        users = [_coerce_user_record(item) for item in items if item]
+    else:
+        users = []
+
+    if not any(item["username"] == "root" for item in users):
+        users.insert(0, {**DEFAULT_APP_USER})
+
+    users = sorted(users, key=lambda item: (item["username"] != "root", item["full_name"].lower()))
+    users_path.write_text(json.dumps({"items": users}, ensure_ascii=False, indent=2), encoding="utf-8")
+    return users
+
+
+def save_app_users(users_path: Path, users: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    sanitized = [_coerce_user_record(item) for item in users if item]
+    if not any(item["username"] == "root" for item in sanitized):
+        sanitized.insert(0, {**DEFAULT_APP_USER})
+    users_path.parent.mkdir(parents=True, exist_ok=True)
+    users_path.write_text(json.dumps({"items": sanitized}, ensure_ascii=False, indent=2), encoding="utf-8")
+    return sanitized
+
 
 class DataProvider(ABC):
     @abstractmethod
@@ -84,6 +141,18 @@ class DataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def users(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_user(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def authenticate_user(self, username: str, password: str) -> dict[str, Any] | None:
+        raise NotImplementedError
+
+    @abstractmethod
     def run_mrp(self) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -107,6 +176,10 @@ class DataProvider(ABC):
     def ingest_romaneio_event(self, source_code: str, payload: dict[str, Any], meta: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
+    @abstractmethod
+    def delete_romaneio(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
 
 class MockProvider(DataProvider):
     def __init__(self, data_dir: Path) -> None:
@@ -114,6 +187,9 @@ class MockProvider(DataProvider):
 
     def _read_json(self, name: str) -> dict[str, Any]:
         return json.loads((self.data_dir / name).read_text(encoding="utf-8"))
+
+    def _users_path(self) -> Path:
+        return self.data_dir / "app_users.json"
 
     def overview(self, company_code: str | None = None) -> dict[str, Any]:
         return self._read_json("overview.json")
@@ -212,6 +288,45 @@ class MockProvider(DataProvider):
 
     def alerts(self) -> dict[str, Any]:
         return self._read_json("alerts.json")
+
+    def users(self) -> dict[str, Any]:
+        return {"items": load_app_users(self._users_path())}
+
+    def save_user(self, payload: dict[str, Any]) -> dict[str, Any]:
+        users = load_app_users(self._users_path())
+        username = str(payload.get("username") or "").strip().lower()
+        if not username:
+            raise RuntimeError("Usuário obrigatório.")
+
+        existing = next((item for item in users if item["username"] == username), None)
+        if (existing or {}).get("username") == "root" and str(payload.get("active", True)).lower() == "false":
+            raise RuntimeError("O usuário root não pode ser desativado.")
+
+        next_user = _coerce_user_record(
+            {
+                "id": payload.get("id") or (existing or {}).get("id") or f"user-{username}",
+                "username": username,
+                "full_name": payload.get("full_name") or (existing or {}).get("full_name") or username,
+                "role": payload.get("role") or (existing or {}).get("role") or "operator",
+                "password": payload.get("password") or (existing or {}).get("password") or "",
+                "active": payload.get("active", (existing or {}).get("active", True)),
+                "created_at": (existing or {}).get("created_at") or datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+        next_users = [item for item in users if item["username"] != username]
+        next_users.append(next_user)
+        persisted = save_app_users(self._users_path(), next_users)
+        return {"status": "saved", "user": next_user, "items": persisted}
+
+    def authenticate_user(self, username: str, password: str) -> dict[str, Any] | None:
+        users = load_app_users(self._users_path())
+        normalized = str(username or "").strip().lower()
+        user = next((item for item in users if item["username"] == normalized and item["active"]), None)
+        if not user or user["password"] != str(password or ""):
+            return None
+        return user
 
     def run_mrp(self) -> dict[str, Any]:
         return {
@@ -343,12 +458,39 @@ class MockProvider(DataProvider):
             "item_count": len(romaneio.get("itens", [])),
         }
 
+    def delete_romaneio(self, payload: dict[str, Any]) -> dict[str, Any]:
+        romaneio_code = str(payload.get("romaneio") or "").strip()
+        if not romaneio_code:
+            raise RuntimeError("Romaneio obrigatório para exclusão.")
+
+        romaneios_path = self.data_dir / "romaneios.json"
+        detail_path = self.data_dir / f"romaneio_{romaneio_code}.json"
+        removed = False
+
+        if romaneios_path.exists():
+            list_payload = json.loads(romaneios_path.read_text(encoding="utf-8"))
+            current_items = list_payload.get("items", [])
+            next_items = [item for item in current_items if str(item.get("romaneio")) != romaneio_code]
+            removed = len(next_items) != len(current_items)
+            list_payload["items"] = next_items
+            romaneios_path.write_text(json.dumps(list_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        if detail_path.exists():
+            detail_path.unlink()
+            removed = True
+
+        return {
+            "status": "deleted" if removed else "not_found",
+            "romaneio": romaneio_code,
+        }
+
 
 class PostgresProvider(DataProvider):
-    def __init__(self, settings: Settings) -> None:
+    def __init__(self, settings: Settings, data_dir: Path) -> None:
         if not settings.database_url:
             raise RuntimeError("PCP_DATABASE_URL ou DATABASE_URL e obrigatoria no modo postgres")
         self.settings = settings
+        self.data_dir = data_dir
         self.database_url = settings.database_url
         self.actions_database_url = settings.actions_database_url or settings.database_url
         self.driver_name, self.driver = self._load_driver()
@@ -391,6 +533,9 @@ class PostgresProvider(DataProvider):
             except json.JSONDecodeError:
                 return value
         return value
+
+    def _users_path(self) -> Path:
+        return self.data_dir / "app_users.json"
 
     def _fetchall(self, sql: str, params: tuple[Any, ...] = (), write: bool = False) -> list[dict[str, Any]]:
         with self._connect(write=write) as connection:
@@ -591,6 +736,45 @@ class PostgresProvider(DataProvider):
     def alerts(self) -> dict[str, Any]:
         return {"items": self._fetchall(queries.ALERTS_SQL)}
 
+    def users(self) -> dict[str, Any]:
+        return {"items": load_app_users(self._users_path())}
+
+    def save_user(self, payload: dict[str, Any]) -> dict[str, Any]:
+        users = load_app_users(self._users_path())
+        username = str(payload.get("username") or "").strip().lower()
+        if not username:
+            raise RuntimeError("Usuário obrigatório.")
+
+        existing = next((item for item in users if item["username"] == username), None)
+        if (existing or {}).get("username") == "root" and str(payload.get("active", True)).lower() == "false":
+            raise RuntimeError("O usuário root não pode ser desativado.")
+
+        next_user = _coerce_user_record(
+            {
+                "id": payload.get("id") or (existing or {}).get("id") or f"user-{username}",
+                "username": username,
+                "full_name": payload.get("full_name") or (existing or {}).get("full_name") or username,
+                "role": payload.get("role") or (existing or {}).get("role") or "operator",
+                "password": payload.get("password") or (existing or {}).get("password") or "",
+                "active": payload.get("active", (existing or {}).get("active", True)),
+                "created_at": (existing or {}).get("created_at") or datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+
+        next_users = [item for item in users if item["username"] != username]
+        next_users.append(next_user)
+        persisted = save_app_users(self._users_path(), next_users)
+        return {"status": "saved", "user": next_user, "items": persisted}
+
+    def authenticate_user(self, username: str, password: str) -> dict[str, Any] | None:
+        users = load_app_users(self._users_path())
+        normalized = str(username or "").strip().lower()
+        user = next((item for item in users if item["username"] == normalized and item["active"]), None)
+        if not user or user["password"] != str(password or ""):
+            return None
+        return user
+
     def run_mrp(self) -> dict[str, Any]:
         row = self._fetchone(queries.RUN_MRP_SQL, write=True)
         run_id = row["run_id"] if row else None
@@ -748,8 +932,34 @@ class PostgresProvider(DataProvider):
             return {"status": "unknown"}
         return row.get("ingest") or {"status": "unknown"}
 
+    def delete_romaneio(self, payload: dict[str, Any]) -> dict[str, Any]:
+        romaneio_code = str(payload.get("romaneio") or "").strip()
+        if not romaneio_code:
+            raise RuntimeError("Romaneio obrigatório para exclusão.")
+        row = self._fetchone(
+            queries.DELETE_ROMANEIO_EVENT_SQL,
+            (
+                f"delete:{romaneio_code}:{datetime.now(timezone.utc).strftime('%Y%m%d%H%M%S%f')}",
+                payload.get("event_at") or datetime.now(timezone.utc).isoformat(),
+                romaneio_code,
+                str(payload.get("empresa") or ""),
+                str(payload.get("deleted_by") or ""),
+                str(payload.get("reason") or "manual_delete"),
+                romaneio_code,
+            ),
+            write=True,
+        )
+        if not row:
+            raise RuntimeError("Não foi possível registrar a exclusão do romaneio.")
+        return {
+            "status": (row.get("ingest") or {}).get("status", "deleted"),
+            "romaneio": romaneio_code,
+            "ingest": row.get("ingest") or {},
+            "source_code": row.get("source_code"),
+        }
+
 
 def build_provider(settings: Settings, data_dir: Path) -> DataProvider:
     if settings.data_mode == "postgres":
-        return PostgresProvider(settings)
+        return PostgresProvider(settings, data_dir)
     return MockProvider(data_dir)

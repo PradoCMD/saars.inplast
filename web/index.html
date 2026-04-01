@@ -72,47 +72,51 @@
         <nav class="main-nav">
           <a href="#cockpit" class="nav-item active">
             <span class="icon">📊</span>
-            Cockpit
+            <span class="nav-label">Cockpit</span>
           </a>
           <a href="#romaneios-kanban" class="nav-item">
             <span class="icon">📋</span>
-            Kanban Logístico
+            <span class="nav-label">Kanban Logístico</span>
           </a>
           <a href="#romaneios" class="nav-item">
             <span class="icon">📦</span>
-            Romaneios
+            <span class="nav-label">Romaneios</span>
+          </a>
+          <a href="#estoque-atual" class="nav-item">
+            <span class="icon">📚</span>
+            <span class="nav-label">Estoque Atual</span>
           </a>
           <a href="#estruturas" class="nav-item">
             <span class="icon">🏗️</span>
-            Estruturas
+            <span class="nav-label">Estruturas</span>
           </a>
           <a href="#programacao" class="nav-item">
             <span class="icon">📅</span>
-            Programação
+            <span class="nav-label">Programação</span>
           </a>
           <a href="#apontamento" class="nav-item">
             <span class="icon">📱</span>
-            Apontamento
+            <span class="nav-label">Apontamento</span>
           </a>
           <a href="#montagem" class="nav-item">
             <span class="icon">⚙️</span>
-            Montagem (Esteiras)
+            <span class="nav-label">Montagem (Esteiras)</span>
           </a>
           <a href="#producao" class="nav-item">
             <span class="icon">🏭</span>
-            Produção (Extrusoras)
+            <span class="nav-label">Produção (Extrusoras)</span>
           </a>
           <a href="#compras" class="nav-item">
             <span class="icon">🛒</span>
-            Compras
+            <span class="nav-label">Compras</span>
           </a>
           <a href="#fontes" class="nav-item">
             <span class="icon">🔐</span>
-            Governança
+            <span class="nav-label">Governança</span>
           </a>
           <a href="#usuarios" class="nav-item">
             <span class="icon">👤</span>
-            Usuários
+            <span class="nav-label">Usuários</span>
           </a>
         </nav>
 
@@ -132,6 +136,9 @@
         <!-- Modern Topbar -->
         <header class="topbar">
           <div class="breadcrumbs">
+            <button id="sidebar-toggle" type="button" class="btn btn-secondary btn-icon" aria-label="Recolher painel lateral">
+              ☰
+            </button>
             <h1 id="view-title">Cockpit Executivo</h1>
           </div>
           
@@ -362,6 +369,48 @@
             </div>
           </div>
 
+          <!-- ESTOQUE ATUAL -->
+          <div id="estoque-atual" class="view-module">
+            <div class="module-header">
+              <div class="header-titles">
+                <h2>Estoque Atual</h2>
+                <p>Consulta dedicada do saldo atual com busca por SKU ou nome e filtros por tipo de produto.</p>
+              </div>
+              <div class="filter-controls estoque-toolbar">
+                <input id="stock-search-input" type="text" class="input-mini input-mini-wide" placeholder="Buscar código ou nome do produto..." />
+                <select id="stock-type-filter" class="input-mini">
+                  <option value="">Todos os tipos</option>
+                  <option value="materia_prima">Matéria-prima</option>
+                  <option value="intermediario">Produto intermediário</option>
+                  <option value="acabado">Produto acabado</option>
+                  <option value="componente">Componente</option>
+                </select>
+              </div>
+            </div>
+
+            <section class="glass-panel">
+              <div class="panel-header sticky">
+                <div>
+                  <h3>Saldo Atual Consolidado</h3>
+                  <p class="section-copy">Somente leitura do estoque atual, com apoio de saldo e pressão da carteira para facilitar a conferência.</p>
+                </div>
+                <div id="stock-summary" class="inline-stats"></div>
+              </div>
+              <table class="modern-table">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Produto</th>
+                    <th>Tipo</th>
+                    <th>Estoque Atual</th>
+                    <th>Situação</th>
+                  </tr>
+                </thead>
+                <tbody id="stock-table"></tbody>
+              </table>
+            </section>
+          </div>
+
           <!-- ESTRUTURAS -->
           <div id="estruturas" class="view-module grid-layout-2-wide">
             <div class="glass-panel">
@@ -564,17 +613,55 @@
             <div class="module-header">
               <div class="header-titles">
                 <h2>Apontamento de Produção</h2>
-                <p>Leitura operacional das máquinas, apontamento hora a hora, paradas e perdas com base nas rotinas atuais da fábrica.</p>
+                <p>Subinterface operacional dedicada para tablet, com fila do turno, execução da OP, paradas, perdas e histórico do operador.</p>
+              </div>
+              <div class="filter-controls aponta-toolbar">
+                <span id="apontamento-session-pill" class="status-badge info">Modo gestor</span>
+                <button id="apontamento-operator-mode" type="button" class="btn btn-secondary">Entrar em modo operador</button>
               </div>
             </div>
 
             <section class="glass-panel aponta-shell">
               <div class="aponta-shell-copy">
                 <small class="aponta-kicker">Operação assistida</small>
-                <h3>Execução, refugos, paradas e consumo em um único módulo</h3>
-                <p>Esta área traduz as planilhas de acompanhamento e apontamento para uma rotina operacional contínua dentro do app.</p>
+                <h3>Fila da fábrica, execução da OP e apontamento do operador no mesmo fluxo</h3>
+                <p>O operador escolhe a atividade, executa a OP, registra parada, perdas e fechamento sem precisar navegar por outros módulos.</p>
               </div>
-              <div id="apontamento-machine-grid" class="aponta-machine-grid"></div>
+              <div id="apontamento-screen-tabs" class="aponta-screen-tabs"></div>
+              <div class="aponta-tablet-layout">
+                <div class="glass-panel aponta-tablet-panel">
+                  <div class="panel-header compact">
+                    <div>
+                      <h3>Fila do Turno</h3>
+                      <span class="section-copy">Programações prontas para o operador assumir.</span>
+                    </div>
+                    <span id="apontamento-queue-count" class="status-badge info">0</span>
+                  </div>
+                  <div id="apontamento-queue" class="aponta-queue-list"></div>
+                </div>
+
+                <div class="glass-panel aponta-tablet-panel">
+                  <div class="panel-header compact">
+                    <div>
+                      <h3>Execução da OP</h3>
+                      <span class="section-copy">Resumo vivo da OP, máquina e progresso da atividade.</span>
+                    </div>
+                    <span id="apontamento-stage-status" class="status-badge info">Resumo</span>
+                  </div>
+                  <div id="apontamento-stage-panel" class="aponta-stage-panel"></div>
+                </div>
+
+                <div class="glass-panel aponta-tablet-panel">
+                  <div class="panel-header compact">
+                    <div>
+                      <h3>Máquinas e ações rápidas</h3>
+                      <span class="section-copy">Selecione a máquina e abra o evento correto para apontar.</span>
+                    </div>
+                  </div>
+                  <div id="apontamento-operator-panel" class="aponta-operator-panel"></div>
+                  <div id="apontamento-machine-grid" class="aponta-machine-grid"></div>
+                </div>
+              </div>
             </section>
 
             <div class="grid-layout-2 aponta-workspace">
@@ -600,13 +687,9 @@
 
               <div class="glass-panel">
                 <div class="panel-header">
-                  <h3>Fluxos e Automação</h3>
+                  <h3>Registro Operacional</h3>
                 </div>
                 <div id="apontamento-flow-list" class="aponta-flow-list"></div>
-                <div class="panel-header mt-4">
-                  <h3>Painel Operacional</h3>
-                </div>
-                <div id="apontamento-operator-panel" class="aponta-operator-panel"></div>
                 <form id="apontamento-form" class="aponta-form">
                   <div class="input-grid">
                     <div class="input-group">
@@ -762,7 +845,15 @@
 
           <div id="fontes" class="view-module grid-layout-2">
             <div class="glass-panel">
-              <div class="panel-header"><h3>Governança de Fontes</h3></div>
+              <div class="panel-header">
+                <div>
+                  <h3>Governança de Fontes</h3>
+                  <p class="section-copy">Separação entre integrações ativas, pendentes de implantação e fontes desativadas.</p>
+                </div>
+                <button id="sync-all-sources" type="button" class="btn btn-secondary">Sincronizar fontes ativas</button>
+              </div>
+              <div id="sources-summary" class="summary-pills"></div>
+              <span id="sources-status" class="status-msg"></span>
               <div id="sources-list" class="list-container"></div>
             </div>
             <div class="glass-panel">

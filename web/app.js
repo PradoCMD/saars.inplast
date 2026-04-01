@@ -10,17 +10,25 @@ const state = {
   romaneiosApi: [],
   romaneiosLocais: [],
   romaneiosFiltro: "",
+  estoqueFiltro: "",
+  estoqueBusca: "",
   globalSearch: "",
+  currentView: "cockpit",
+  sidebarCollapsed: false,
   kanbanStatusFilter: "todos",
   kanbanSelecionado: null,
   programmingActionFilter: "",
+  apontamentoScreen: "resumo",
   apontamentoSelecionado: "Máquina 1",
+  apontamentoFilaSelecionada: null,
+  apontamentoOperatorMode: false,
   apontamentoLogs: [],
   datasets: {
     kanban: { products: [], romaneios: [] },
     programming: [],
     assembly: [],
     production: [],
+    painel: [],
   },
   currentUser: null,
   users: [],
@@ -31,6 +39,8 @@ const LEGACY_LOCAL_ROMANEIOS_STORAGE_KEYS = ["pcp_local_romaneios_v1"];
 const APONTAMENTO_LOGS_STORAGE_KEY = "pcp_apontamento_logs_v1";
 const APP_USERS_STORAGE_KEY = "pcp_app_users_v1";
 const APP_SESSION_STORAGE_KEY = "pcp_app_session_v1";
+const APP_SIDEBAR_STORAGE_KEY = "pcp_sidebar_collapsed_v1";
+const APP_APONTAMENTO_MODE_STORAGE_KEY = "pcp_apontamento_operator_mode_v1";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const DEFAULT_ROOT_USER = {
@@ -98,6 +108,16 @@ function formatStatusLabel(value) {
     return "Sem previsao";
   }
   return String(value).replace(/_/g, " ");
+}
+
+function formatProductType(value) {
+  const mapping = {
+    materia_prima: "Matéria-prima",
+    intermediario: "Intermediário",
+    acabado: "Acabado",
+    componente: "Componente",
+  };
+  return mapping[String(value || "").toLowerCase()] || (value || "Não informado");
 }
 
 function statusClass(value) {
@@ -362,12 +382,34 @@ function saveUsers(items) {
   window.localStorage.setItem(APP_USERS_STORAGE_KEY, JSON.stringify(sanitized));
 }
 
+function mergeUsersWithDefault(items) {
+  const users = Array.isArray(items) ? items.filter(Boolean) : [];
+  const hasRoot = users.some((item) => String(item.username || "").toLowerCase() === "root");
+  return hasRoot ? users : [{ ...DEFAULT_ROOT_USER }, ...users];
+}
+
+async function carregarUsuariosBackend(silent = false) {
+  try {
+    const payload = await api("/api/pcp/users");
+    saveUsers(mergeUsersWithDefault(payload.items || []));
+    return state.users;
+  } catch (error) {
+    if (!silent) {
+      setElementStatus("user-status", error.message, "error");
+    }
+    return state.users;
+  }
+}
+
 function loadSession() {
   const session = safeJsonParse(window.localStorage.getItem(APP_SESSION_STORAGE_KEY) || "null", null);
-  if (!session?.user_id) {
+  if (!session?.user_id && !session?.username) {
     return null;
   }
-  const user = state.users.find((item) => item.id === session.user_id && item.active);
+  const user = state.users.find((item) => (
+    (session.user_id && item.id === session.user_id) ||
+    (session.username && item.username === session.username)
+  ) && item.active);
   if (!user) {
     window.localStorage.removeItem(APP_SESSION_STORAGE_KEY);
     return null;
@@ -381,9 +423,77 @@ function loadSession() {
 function persistSession(user) {
   state.currentUser = user;
   if (user) {
-    window.localStorage.setItem(APP_SESSION_STORAGE_KEY, JSON.stringify({ user_id: user.id, username: user.username }));
+    window.localStorage.setItem(
+      APP_SESSION_STORAGE_KEY,
+      JSON.stringify({
+        user_id: user.id,
+        username: user.username,
+        full_name: user.full_name,
+        role: user.role,
+      }),
+    );
   } else {
     window.localStorage.removeItem(APP_SESSION_STORAGE_KEY);
+  }
+}
+
+function loadSidebarPreference() {
+  return window.localStorage.getItem(APP_SIDEBAR_STORAGE_KEY) === "1";
+}
+
+function saveSidebarPreference(value) {
+  window.localStorage.setItem(APP_SIDEBAR_STORAGE_KEY, value ? "1" : "0");
+}
+
+function loadOperatorModePreference() {
+  return window.localStorage.getItem(APP_APONTAMENTO_MODE_STORAGE_KEY) === "1";
+}
+
+function saveOperatorModePreference(value) {
+  window.localStorage.setItem(APP_APONTAMENTO_MODE_STORAGE_KEY, value ? "1" : "0");
+}
+
+function applyShellState() {
+  const shell = document.getElementById("app-shell");
+  const sidebarToggle = document.getElementById("sidebar-toggle");
+  const collapsed = state.sidebarCollapsed || (state.apontamentoOperatorMode && state.currentView === "apontamento");
+  const operatorFocus = state.apontamentoOperatorMode && state.currentView === "apontamento";
+
+  shell?.classList.toggle("sidebar-collapsed", collapsed);
+  shell?.classList.toggle("operator-focus", operatorFocus);
+
+  if (sidebarToggle) {
+    sidebarToggle.textContent = collapsed ? "☷" : "☰";
+    sidebarToggle.setAttribute("aria-label", collapsed ? "Expandir painel lateral" : "Recolher painel lateral");
+  }
+
+  const operatorButton = document.getElementById("apontamento-operator-mode");
+  const pill = document.getElementById("apontamento-session-pill");
+  if (operatorButton) {
+    operatorButton.textContent = state.apontamentoOperatorMode ? "Sair do modo operador" : "Entrar em modo operador";
+  }
+  if (pill) {
+    pill.textContent = state.apontamentoOperatorMode ? "Modo operador" : "Modo gestor";
+    pill.className = `status-badge ${state.apontamentoOperatorMode ? "ready" : "info"}`;
+  }
+}
+
+function toggleSidebar(forceValue) {
+  state.sidebarCollapsed = typeof forceValue === "boolean" ? forceValue : !state.sidebarCollapsed;
+  saveSidebarPreference(state.sidebarCollapsed);
+  applyShellState();
+}
+
+function setApontamentoOperatorMode(nextValue) {
+  state.apontamentoOperatorMode = Boolean(nextValue);
+  saveOperatorModePreference(state.apontamentoOperatorMode);
+  if (state.apontamentoOperatorMode) {
+    state.apontamentoScreen = "fila";
+    window.location.hash = "#apontamento";
+    switchTab("#apontamento");
+  } else {
+    applyShellState();
+    renderApontamento();
   }
 }
 
@@ -514,6 +624,10 @@ function findLocalRomaneioBySelectionCode(code) {
   return state.romaneiosLocais.find((item) => item.local_id === code) || null;
 }
 
+function findApiRomaneioBySelectionCode(code) {
+  return state.romaneiosApi.find((item) => String(item.romaneio) === String(code)) || null;
+}
+
 function buildExistingRomaneioIdentityMap() {
   const lookup = new Map();
   buildRomaneiosCollection().forEach((item) => {
@@ -625,13 +739,17 @@ function renderUsersModule() {
             <span>${user.role} · ${user.active ? "Ativo" : "Inativo"}</span>
           </div>
           <div class="user-card-actions">
-            <button type="button" class="btn btn-secondary btn-xs" data-action="edit">Editar</button>
-            <button type="button" class="btn btn-secondary btn-xs" data-action="toggle">${user.active ? "Desativar" : "Ativar"}</button>
+            <button type="button" class="btn btn-secondary btn-xs" data-action="edit" ${canManageUsers ? "" : "disabled"}>Editar</button>
+            <button type="button" class="btn btn-secondary btn-xs" data-action="toggle" ${canManageUsers ? "" : "disabled"}>${user.active ? "Desativar" : "Ativar"}</button>
           </div>
         </article>
       `);
 
       card.querySelector('[data-action="edit"]').addEventListener("click", () => {
+        if (!canManageUsers) {
+          setElementStatus("user-status", "Faça login como root ou gestor para alterar usuários.", "error");
+          return;
+        }
         const form = document.getElementById("user-form");
         if (!form) return;
         form.dataset.editingUserId = user.id;
@@ -645,22 +763,34 @@ function renderUsersModule() {
         switchTab("#usuarios");
       });
 
-      card.querySelector('[data-action="toggle"]').addEventListener("click", () => {
+      card.querySelector('[data-action="toggle"]').addEventListener("click", async () => {
+        if (!canManageUsers) {
+          setElementStatus("user-status", "Faça login como root ou gestor para alterar usuários.", "error");
+          return;
+        }
         if (user.username === "root" && user.active) {
           setElementStatus("user-status", "O usuário root não pode ser desativado.", "error");
           return;
         }
-        const nextUsers = users.map((item) => (
-          item.id === user.id
-            ? { ...item, active: !item.active, updated_at: new Date().toISOString() }
-            : item
-        ));
-        saveUsers(nextUsers);
-        if (state.currentUser?.id === user.id && !nextUsers.find((item) => item.id === user.id)?.active) {
-          persistSession(null);
+        try {
+          const nextUser = {
+            ...user,
+            active: !user.active,
+            updated_at: new Date().toISOString(),
+          };
+          const response = await postJson("/api/pcp/users/save", nextUser);
+          saveUsers(mergeUsersWithDefault(response.items || []));
+          if (state.currentUser?.id === user.id && !nextUser.active) {
+            persistSession(null);
+          } else if (state.currentUser?.id === user.id) {
+            persistSession(nextUser);
+          }
+          renderAuthState();
+          renderUsersModule();
+          setElementStatus("user-status", `Usuário ${user.username} ${nextUser.active ? "ativado" : "desativado"} com sucesso.`, "success");
+        } catch (error) {
+          setElementStatus("user-status", error.message, "error");
         }
-        renderAuthState();
-        renderUsersModule();
       });
 
       list.appendChild(card);
@@ -1246,18 +1376,30 @@ function renderRomaneios() {
         ? `${item.pdf_name || "Romaneio digitado"}${item.pedido ? ` | Pedido ${item.pedido}` : ""}`
         : `${number.format(item.quantidade_total)} unidades | Saida ${formatDateTime(item.previsao_saida_at)}`;
       const row = el(`
-        <button class="romaneio-row ${isLocal ? "local" : ""} ${isSelected ? "selected" : ""}">
+        <article class="romaneio-row ${isLocal ? "local" : ""} ${isSelected ? "selected" : ""}">
           <div>
             <small>${item.empresa}</small>
             <strong>${formatRomaneioCode(item.romaneio)}</strong>
             <span class="muted">${secondaryLine}</span>
           </div>
-          <div>
+          <div class="romaneio-row-actions">
             <span class="tag ${statusClass(item.previsao_saida_status)}">${formatStatusLabel(item.previsao_saida_status)}</span>
+            <button type="button" class="btn btn-secondary btn-xs" data-action="open">Abrir</button>
+            <button type="button" class="btn btn-secondary btn-xs" data-action="delete">${isLocal ? "Remover" : "Excluir"}</button>
           </div>
-        </button>
+        </article>
       `);
       row.addEventListener("click", () => carregarRomaneio(item.selection_code));
+      row.querySelector('[data-action="open"]').addEventListener("click", (event) => {
+        event.stopPropagation();
+        carregarRomaneio(item.selection_code);
+      });
+      row.querySelector('[data-action="delete"]').addEventListener("click", (event) => {
+        event.stopPropagation();
+        excluirRomaneio(item.selection_code).catch((error) => {
+          setElementStatus("romaneio-dropzone-status", error.message, "error");
+        });
+      });
       wrapper.appendChild(row);
     });
   }
@@ -1271,7 +1413,12 @@ function renderRomaneioDetail(data) {
   wrapper.appendChild(
     el(`
       <div class="detail-section">
-        <span class="detail-pill">${header.status_evento || "processado"}</span>
+        <div class="detail-toolbar">
+          <span class="detail-pill">${header.status_evento || "processado"}</span>
+          <div class="kanban-inline-actions">
+            <button type="button" class="btn btn-secondary btn-xs" id="romaneio-detail-delete">Excluir romaneio</button>
+          </div>
+        </div>
         <div class="detail-grid">
           <div class="detail-card">
             <small>Romaneio</small>
@@ -1297,6 +1444,11 @@ function renderRomaneioDetail(data) {
       </div>
     `),
   );
+  wrapper.querySelector("#romaneio-detail-delete")?.addEventListener("click", () => {
+    excluirRomaneio(header.romaneio).catch((error) => {
+      setElementStatus("romaneio-dropzone-status", error.message, "error");
+    });
+  });
 
   const items = el(`<div class="detail-list"></div>`);
   (data.items || []).forEach((item) => {
@@ -1337,7 +1489,12 @@ function renderLocalRomaneioDetail(entry) {
   wrapper.appendChild(
     el(`
       <div class="detail-section">
-        <span class="detail-pill">${entry.source_type === "pdf" ? "pdf_local" : "manual_local"}</span>
+        <div class="detail-toolbar">
+          <span class="detail-pill">${entry.source_type === "pdf" ? "pdf_local" : "manual_local"}</span>
+          <div class="kanban-inline-actions">
+            <button type="button" class="btn btn-secondary btn-xs" id="romaneio-local-delete">Remover da fila</button>
+          </div>
+        </div>
         <div class="detail-grid">
           <div class="detail-card">
             <small>Romaneio</small>
@@ -1363,6 +1520,7 @@ function renderLocalRomaneioDetail(entry) {
       </div>
     `),
   );
+  wrapper.querySelector("#romaneio-local-delete")?.addEventListener("click", () => removerRomaneioLocal(entry.local_id));
 
   wrapper.appendChild(
     entry.observacao
@@ -1557,6 +1715,11 @@ function renderProgramming(items) {
 }
 
 function renderApontamento() {
+  const queueList = document.getElementById("apontamento-queue");
+  const stagePanel = document.getElementById("apontamento-stage-panel");
+  const stageStatus = document.getElementById("apontamento-stage-status");
+  const queueCount = document.getElementById("apontamento-queue-count");
+  const screenTabs = document.getElementById("apontamento-screen-tabs");
   const machineGrid = document.getElementById("apontamento-machine-grid");
   const hourTable = document.getElementById("apontamento-hour-table");
   const flowList = document.getElementById("apontamento-flow-list");
@@ -1565,7 +1728,7 @@ function renderApontamento() {
   const logList = document.getElementById("apontamento-log-list");
   const form = document.getElementById("apontamento-form");
 
-  if (!machineGrid || !hourTable || !flowList || !lossList || !operatorPanel || !logList || !form) {
+  if (!queueList || !stagePanel || !stageStatus || !queueCount || !screenTabs || !machineGrid || !hourTable || !flowList || !lossList || !operatorPanel || !logList || !form) {
     return;
   }
 
@@ -1578,6 +1741,23 @@ function renderApontamento() {
     state.apontamentoSelecionado = machines[0].maquina;
   }
   const selectedMachine = machines.find((item) => item.maquina === state.apontamentoSelecionado) || machines[0];
+  const queueItems = buildApontamentoQueue().filter((item) =>
+    matchesSearch([item.sku, item.produto, item.op_code, item.machine_hint, item.status], searchQuery),
+  );
+  if (!state.apontamentoFilaSelecionada || !queueItems.some((item) => item.queue_key === state.apontamentoFilaSelecionada)) {
+    state.apontamentoFilaSelecionada = queueItems[0]?.queue_key || null;
+  }
+  const selectedQueueItem = queueItems.find((item) => item.queue_key === state.apontamentoFilaSelecionada) || null;
+
+  const screens = [
+    { key: "resumo", label: "Resumo" },
+    { key: "fila", label: "Fila do turno" },
+    { key: "paradas", label: "Paradas e perdas" },
+    { key: "historico", label: "Histórico" },
+  ];
+  if (!screens.some((item) => item.key === state.apontamentoScreen)) {
+    state.apontamentoScreen = "resumo";
+  }
 
   const machineField = form.elements.namedItem("maquina");
   if (machineField) {
@@ -1589,6 +1769,59 @@ function renderApontamento() {
   const operatorField = form.elements.namedItem("operator");
   if (operatorField && !operatorField.value && state.currentUser) {
     operatorField.value = state.currentUser.full_name || state.currentUser.username;
+  }
+  const opField = form.elements.namedItem("op_code");
+  if (opField && selectedQueueItem) {
+    opField.value = selectedQueueItem.op_code;
+  }
+
+  screenTabs.innerHTML = "";
+  screens.forEach((screen) => {
+    const button = el(`
+      <button type="button" class="btn ${screen.key === state.apontamentoScreen ? "btn-primary" : "btn-secondary"} btn-xs">
+        ${screen.label}
+      </button>
+    `);
+    button.addEventListener("click", () => {
+      state.apontamentoScreen = screen.key;
+      renderApontamento();
+    });
+    screenTabs.appendChild(button);
+  });
+  stageStatus.textContent = screens.find((item) => item.key === state.apontamentoScreen)?.label || "Resumo";
+  queueCount.textContent = number.format(queueItems.length);
+
+  queueList.innerHTML = "";
+  if (!queueItems.length) {
+    queueList.appendChild(emptyState("Nenhuma programação pronta para o turno com os filtros atuais."));
+  } else {
+    queueItems.forEach((item) => {
+      const card = el(`
+        <article class="aponta-queue-card ${item.queue_key === state.apontamentoFilaSelecionada ? "selected" : ""}">
+          <small>${formatStatusLabel(item.status)} · ${formatDateTimeWithFallback(item.planned_start_at, "Agora")}</small>
+          <strong>${item.op_code}</strong>
+          <span>${item.sku} · ${item.produto}</span>
+          <em>${number.format(item.quantity_planned || 0)} un · ${item.machine_hint}</em>
+          <button type="button" class="btn btn-secondary btn-xs">Assumir</button>
+        </article>
+      `);
+      card.addEventListener("click", () => {
+        state.apontamentoFilaSelecionada = item.queue_key;
+        renderApontamento();
+      });
+      card.querySelector("button").addEventListener("click", (event) => {
+        event.stopPropagation();
+        state.apontamentoFilaSelecionada = item.queue_key;
+        prefillApontamentoForm({
+          maquina: selectedMachine.maquina,
+          op_code: item.op_code,
+          event_type: "iniciar",
+          screen: "resumo",
+          reason: item.notes || "",
+        });
+      });
+      queueList.appendChild(card);
+    });
   }
 
   machineGrid.innerHTML = "";
@@ -1632,24 +1865,29 @@ function renderApontamento() {
       machineGrid.appendChild(card);
     });
 
+  const machineLogs = state.apontamentoLogs
+    .filter((entry) => entry.machine_code === machineCodeFromLabel(selectedMachine.maquina))
+    .slice(0, 10);
+
   hourTable.innerHTML = "";
   buildApontamentoTableRows()
     .filter((item) => matchesSearch([item.maquina, item.motivo], searchQuery))
+    .filter((item) => item.maquina === machineCodeFromLabel(selectedMachine.maquina) || item.maquina === selectedMachine.maquina)
     .slice(0, 18)
     .forEach((item) => {
-    hourTable.appendChild(
-      el(`
-        <tr>
-          <td>${item.faixa}</td>
-          <td><strong>${item.maquina}</strong></td>
-          <td>${number.format(item.pecas)}</td>
-          <td>${number.format(item.refugos)}</td>
-          <td>${item.paradaInicio === "-" ? "Sem parada" : `${item.paradaInicio} → ${item.paradaFim}`}</td>
-          <td>${item.motivo}</td>
-        </tr>
-      `),
-    );
-  });
+      hourTable.appendChild(
+        el(`
+          <tr>
+            <td>${item.faixa}</td>
+            <td><strong>${item.maquina}</strong></td>
+            <td>${number.format(item.pecas)}</td>
+            <td>${number.format(item.refugos)}</td>
+            <td>${item.paradaInicio === "-" ? "Sem parada" : `${item.paradaInicio} → ${item.paradaFim}`}</td>
+            <td>${item.motivo}</td>
+          </tr>
+        `),
+      );
+    });
 
   operatorPanel.innerHTML = `
     <div class="aponta-operator-card">
@@ -1658,16 +1896,129 @@ function renderApontamento() {
       <span>${selectedMachine.produto}</span>
     </div>
     <div class="aponta-operator-card">
+      <small>OP atual</small>
+      <strong>${selectedQueueItem?.op_code || "Sem OP assumida"}</strong>
+      <span>${selectedQueueItem ? `${number.format(selectedQueueItem.quantity_planned || 0)} un planejadas` : "Escolha uma atividade na fila"}</span>
+    </div>
+    <div class="aponta-operator-card">
       <small>Status</small>
       <strong>${selectedMachine.status}</strong>
       <span>${number.format(selectedMachine.pecasRestantes || 0)} peças restantes</span>
     </div>
-    <div class="aponta-operator-card">
-      <small>Turno atual</small>
-      <strong>${number.format(selectedMachine.somaTurno || 0)} peças</strong>
-      <span>${number.format(selectedMachine.totalScrap || 0)} refugo(s)</span>
+    <div class="aponta-action-row">
+      <button type="button" class="btn btn-primary btn-xs" data-event="iniciar">Iniciar OP</button>
+      <button type="button" class="btn btn-secondary btn-xs" data-event="apontar">Apontar produção</button>
+      <button type="button" class="btn btn-secondary btn-xs" data-event="parada">Registrar parada</button>
+      <button type="button" class="btn btn-secondary btn-xs" data-event="finalizar">Finalizar atividade</button>
     </div>
   `;
+  operatorPanel.querySelectorAll("[data-event]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const eventType = button.getAttribute("data-event");
+      prefillApontamentoForm({
+        maquina: selectedMachine.maquina,
+        op_code: selectedQueueItem?.op_code || "",
+        event_type: eventType,
+        screen: apontaScreenFromEvent(eventType),
+        reason: eventType === "parada" ? "Informe o motivo da parada." : "",
+      });
+    });
+  });
+
+  if (state.apontamentoScreen === "fila") {
+    stagePanel.innerHTML = `
+      <div class="aponta-stage-copy">
+        <small>Fila do turno</small>
+        <strong>${queueItems.length ? "Atividades prontas para execução" : "Sem atividade pronta"}</strong>
+        <span>Assuma uma programação, confira o recurso sugerido e dispare a execução da OP.</span>
+      </div>
+      <div class="aponta-stage-list">
+        ${(queueItems.length
+          ? queueItems.map((item) => `
+              <div class="aponta-stage-row ${item.queue_key === state.apontamentoFilaSelecionada ? "selected" : ""}">
+                <strong>${item.op_code}</strong>
+                <span>${item.sku} · ${item.produto}</span>
+                <em>${number.format(item.quantity_planned || 0)} un · ${item.machine_hint}</em>
+              </div>
+            `).join("")
+          : `<div class="detail-empty">Nenhuma atividade programada para a fila atual.</div>`)}
+      </div>
+    `;
+  } else if (state.apontamentoScreen === "paradas") {
+    stagePanel.innerHTML = `
+      <div class="aponta-stage-copy">
+        <small>Paradas e perdas</small>
+        <strong>Motivos operacionais do turno</strong>
+        <span>Use esta tela para abrir a parada, apontar motivo e medir o impacto antes da retomada.</span>
+      </div>
+      <div class="aponta-stage-list">
+        ${apontamentoLosses.map((item) => `
+          <div class="aponta-stage-row">
+            <strong>${item.motivo}</strong>
+            <span>${item.impacto}</span>
+            <em>${item.detalhe}</em>
+          </div>
+        `).join("")}
+      </div>
+    `;
+  } else if (state.apontamentoScreen === "historico") {
+    stagePanel.innerHTML = `
+      <div class="aponta-stage-copy">
+        <small>Histórico operacional</small>
+        <strong>${selectedMachine.maquina}</strong>
+        <span>Últimos registros de produção, parada e fechamento desta máquina.</span>
+      </div>
+      <div class="aponta-stage-list">
+        ${(machineLogs.length
+          ? machineLogs.map((entry) => `
+              <div class="aponta-stage-row">
+                <strong>${formatStatusLabel(entry.event_type)}</strong>
+                <span>${entry.operator} · ${entry.op_code || "Sem OP"}</span>
+                <em>${formatDateTimeWithFallback(entry.created_at, "Agora")} · ${entry.reason || "Sem observação"}</em>
+              </div>
+            `).join("")
+          : `<div class="detail-empty">Nenhum registro operacional para esta máquina ainda.</div>`)}
+      </div>
+    `;
+  } else {
+    stagePanel.innerHTML = `
+      <div class="aponta-stage-copy">
+        <small>Execução ativa</small>
+        <strong>${selectedQueueItem?.op_code || "Sem OP selecionada"}</strong>
+        <span>${selectedQueueItem ? `${selectedQueueItem.sku} · ${selectedQueueItem.produto}` : "Assuma uma atividade na fila para iniciar o apontamento."}</span>
+      </div>
+      <div class="aponta-stage-metrics">
+        <div class="mini-card">
+          <small>Quantidade planejada</small>
+          <strong>${number.format(selectedQueueItem?.quantity_planned || 0)}</strong>
+        </div>
+        <div class="mini-card">
+          <small>Produção no turno</small>
+          <strong>${number.format(selectedMachine.somaTurno || 0)}</strong>
+        </div>
+        <div class="mini-card">
+          <small>Refugo acumulado</small>
+          <strong>${number.format(selectedMachine.totalScrap || 0)}</strong>
+        </div>
+        <div class="mini-card">
+          <small>Disponível em</small>
+          <strong>${formatDateTimeWithFallback(selectedQueueItem?.available_at, "Sem disponibilidade")}</strong>
+        </div>
+      </div>
+      <div class="aponta-stage-list">
+        <div class="aponta-stage-row selected">
+          <strong>Recurso sugerido</strong>
+          <span>${selectedQueueItem?.machine_hint || selectedMachine.maquina}</span>
+          <em>${selectedQueueItem?.notes || "Sem observação operacional para esta OP."}</em>
+        </div>
+        <div class="aponta-stage-row">
+          <strong>Próxima ação</strong>
+          <span>${selectedMachine.status === "Parada" ? "Registrar motivo e continuidade" : "Apontar produção ou finalizar atividade"}</span>
+          <em>Use os botões rápidos para abrir o evento correto no tablet.</em>
+        </div>
+      </div>
+    `;
+  }
 
   flowList.innerHTML = "";
   apontamentoFlows.forEach((item) => {
@@ -1696,13 +2047,10 @@ function renderApontamento() {
   });
 
   logList.innerHTML = "";
-  const logs = state.apontamentoLogs
-    .filter((entry) => entry.machine_code === machineCodeFromLabel(selectedMachine.maquina))
-    .slice(0, 10);
-  if (!logs.length) {
+  if (!machineLogs.length) {
     logList.appendChild(emptyState("Sem registros lançados para esta máquina ainda."));
   } else {
-    logs.forEach((entry) => {
+    machineLogs.forEach((entry) => {
       logList.appendChild(
         el(`
           <article class="aponta-log-card">
@@ -1851,28 +2199,108 @@ function renderCosts(items) {
 
 function renderSources(items) {
   const wrapper = document.getElementById("sources-list");
+  const summary = document.getElementById("sources-summary");
+  if (!wrapper || !summary) {
+    return;
+  }
   wrapper.innerHTML = "";
-  if (!items.length) {
+  summary.innerHTML = "";
+  const filtered = (Array.isArray(items) ? items : []).filter((item) =>
+    matchesSearch(
+      [item.source_code, item.source_name, item.source_area, item.contract_status, item.freshness_status],
+      getGlobalSearchQuery(),
+    ),
+  );
+  if (!filtered.length) {
     wrapper.appendChild(emptyState("Nenhuma fonte cadastrada para exibicao."));
-  } else {
-    items.forEach((item) => {
-      const cssStatusClass = statusClass(item.freshness_status);
-      wrapper.appendChild(
-        el(`
-          <div class="list-card">
-            <div class="source-row">
-              <div>
-                <small>${item.source_area}</small>
-                <strong>${item.source_name}</strong>
-                <em>${item.last_success_at ? formatDateTimeWithFallback(item.last_success_at, "Sem carga validada") : "Sem carga validada"}</em>
-              </div>
+    return;
+  }
+
+  const groups = [
+    {
+      key: "active",
+      label: "Ativas",
+      helper: "Fontes que entram no cálculo e podem ser sincronizadas agora.",
+      items: filtered.filter((item) => item.contract_status === "known" && item.is_active),
+    },
+    {
+      key: "pending",
+      label: "Pendentes",
+      helper: "Integrações mapeadas, mas ainda não homologadas para o cálculo oficial.",
+      items: filtered.filter((item) => item.contract_status === "pending"),
+    },
+    {
+      key: "inactive",
+      label: "Desativadas",
+      helper: "Fontes fora da rotina ativa. Não significam erro operacional por si só.",
+      items: filtered.filter((item) => item.contract_status !== "pending" && !item.is_active),
+    },
+  ];
+
+  [
+    ["Ativas", groups[0].items.length],
+    ["Pendentes", groups[1].items.length],
+    ["Desativadas", groups[2].items.length],
+  ].forEach(([label, value]) => {
+    summary.appendChild(
+      el(`
+        <div class="mini-card">
+          <small>${label}</small>
+          <strong>${number.format(value)}</strong>
+        </div>
+      `),
+    );
+  });
+
+  groups.forEach((group) => {
+    const section = el(`
+      <section class="source-group-card">
+        <div class="panel-header compact">
+          <div>
+            <h3>${group.label}</h3>
+            <span class="section-copy">${group.helper}</span>
+          </div>
+          <span class="status-badge info">${group.items.length}</span>
+        </div>
+        <div class="source-group-body"></div>
+      </section>
+    `);
+
+    const body = section.querySelector(".source-group-body");
+    if (!group.items.length) {
+      body.appendChild(emptyState(`Nenhuma fonte em ${group.label.toLowerCase()}.`));
+    } else {
+      group.items.forEach((item) => {
+        const cssStatusClass = statusClass(item.freshness_status);
+        const canSync = item.is_active && item.contract_status === "known";
+        const card = el(`
+          <div class="source-card">
+            <div class="source-card-copy">
+              <small>${item.source_area} · ${item.source_code}</small>
+              <strong>${item.source_name}</strong>
+              <em>${item.last_success_at ? `Última carga ${formatDateTimeWithFallback(item.last_success_at, "Sem carga validada")}` : "Sem carga validada ainda"}</em>
+              <span class="muted">${item.contract_status === "pending" ? "Contrato pendente de implantação" : item.is_active ? "Fonte operacional ativa" : "Fonte desativada para a rotina"}</span>
+            </div>
+            <div class="source-card-actions">
               <span class="tag ${cssStatusClass}">${item.freshness_status}</span>
+              ${canSync ? `<button type="button" class="btn btn-secondary btn-xs" data-source-code="${item.source_code}">Sincronizar</button>` : ""}
             </div>
           </div>
-        `),
-      );
-    });
-  }
+        `);
+
+        const button = card.querySelector("button[data-source-code]");
+        if (button) {
+          button.addEventListener("click", async () => {
+            await syncSources([item.source_code]);
+          });
+        }
+
+        body.appendChild(card);
+      });
+    }
+
+    wrapper.appendChild(section);
+  });
 }
 
 function renderPainel(items) {
@@ -1895,6 +2323,72 @@ function renderPainel(items) {
       );
     });
   }
+}
+
+function renderEstoqueAtual(items) {
+  const tbody = document.getElementById("stock-table");
+  const summary = document.getElementById("stock-summary");
+  if (!tbody || !summary) {
+    return;
+  }
+
+  const searchQuery = String(state.estoqueBusca || "").trim().toLowerCase();
+  const typeFilter = String(state.estoqueFiltro || "").trim().toLowerCase();
+  const filtered = (Array.isArray(items) ? items : []).filter((item) => {
+    if (typeFilter && String(item.tipo || item.product_type || "").toLowerCase() !== typeFilter) {
+      return false;
+    }
+    return matchesSearch([item.sku, item.produto, item.tipo, item.product_type], searchQuery);
+  });
+
+  const totals = {
+    skus: filtered.length,
+    estoque: sumBy(filtered, (item) => item.estoque_atual || 0),
+    disponiveis: filtered.filter((item) => Number(item.estoque_atual || 0) > 0).length,
+    criticos: filtered.filter((item) => Number(item.estoque_atual || 0) <= 0).length,
+  };
+
+  summary.innerHTML = "";
+  [
+    ["SKUs", number.format(totals.skus)],
+    ["Estoque atual", number.format(totals.estoque)],
+    ["Com saldo disponível", number.format(totals.disponiveis)],
+    ["Itens críticos", number.format(totals.criticos)],
+  ].forEach(([label, value]) => {
+    summary.appendChild(
+      el(`
+        <div class="mini-card">
+          <small>${label}</small>
+          <strong>${value}</strong>
+        </div>
+      `),
+    );
+  });
+
+  tbody.innerHTML = "";
+  if (!filtered.length) {
+    tbody.appendChild(
+      el(`<tr><td colspan="5" class="muted">Nenhum item do estoque atual atende aos filtros informados.</td></tr>`),
+    );
+    return;
+  }
+
+  filtered.forEach((item) => {
+    const stock = Number(item.estoque_atual || 0);
+    const tone = stock <= 0 ? "high" : stock < 50 ? "warning" : "ok";
+    const label = stock <= 0 ? "Sem saldo" : stock < 50 ? "Baixo" : "Disponível";
+    tbody.appendChild(
+      el(`
+        <tr class="interactive-row">
+          <td><strong>${item.sku}</strong></td>
+          <td>${item.produto}</td>
+          <td>${formatProductType(item.tipo || item.product_type)}</td>
+          <td class="${stock <= 0 ? "text-warning" : ""}">${number.format(stock)}</td>
+          <td><span class="tag ${tone}">${label}</span></td>
+        </tr>
+      `),
+    );
+  });
 }
 
 function payloadFromForm(form) {
@@ -1983,6 +2477,61 @@ function prefillProgrammingForm(payload, options = {}) {
   }
 }
 
+function buildApontamentoQueue() {
+  const queue = (state.datasets.programming || [])
+    .filter((item) => ["montar", "produzir"].includes(String(item.action || "").toLowerCase()))
+    .sort((left, right) => new Date(left.planned_start_at || 0) - new Date(right.planned_start_at || 0))
+    .map((item, index) => ({
+      queue_key: item.schedule_key || `${item.sku}-${item.planned_start_at || index}`,
+      sku: item.sku,
+      produto: item.produto,
+      action: item.action,
+      product_type: item.product_type,
+      quantity_planned: Number(item.quantity_planned || 0),
+      planned_start_at: item.planned_start_at,
+      available_at: item.available_at,
+      op_code: item.romaneio_reference || item.schedule_key || `OP-${item.sku}`,
+      machine_hint: item.workstation_code || item.assembly_line_code || "Máquina 1",
+      notes: item.notes || "",
+      status: item.planning_status || "programado",
+    }));
+
+  if (queue.length) {
+    return queue;
+  }
+
+  return [
+    ...(state.datasets.assembly || []).slice(0, 4).map((item, index) => ({
+      queue_key: `assembly-${item.sku}-${index}`,
+      sku: item.sku,
+      produto: item.produto,
+      action: "montar",
+      product_type: item.product_type || "acabado",
+      quantity_planned: Number(item.net_required || 0),
+      planned_start_at: new Date().toISOString(),
+      available_at: addHoursToIso(new Date().toISOString(), 4),
+      op_code: `OP-${item.sku}`,
+      machine_hint: `Esteira ${index + 1}`,
+      notes: "Sugestão automática da fila de montagem.",
+      status: "sugerido",
+    })),
+    ...(state.datasets.production || []).slice(0, 4).map((item, index) => ({
+      queue_key: `production-${item.sku}-${index}`,
+      sku: item.sku,
+      produto: item.produto,
+      action: "produzir",
+      product_type: item.product_type || "intermediario",
+      quantity_planned: Number(item.net_required || 0),
+      planned_start_at: new Date().toISOString(),
+      available_at: addHoursToIso(new Date().toISOString(), 8),
+      op_code: `OP-${item.sku}`,
+      machine_hint: `Extrusora ${index + 1}`,
+      notes: "Sugestão automática da fila de produção.",
+      status: "sugerido",
+    })),
+  ];
+}
+
 function buildApontamentoMachines() {
   return apontamentoMachines.map((machine) => {
     const code = machineCodeFromLabel(machine.maquina);
@@ -2047,10 +2596,31 @@ function prefillApontamentoForm(payload) {
   if (payload.event_type && form.elements.namedItem("event_type")) {
     form.elements.namedItem("event_type").value = payload.event_type;
   }
+  if (payload.op_code && form.elements.namedItem("op_code")) {
+    form.elements.namedItem("op_code").value = payload.op_code;
+  }
   if (payload.reason && form.elements.namedItem("reason")) {
     form.elements.namedItem("reason").value = payload.reason;
   }
+  if (payload.maquina) {
+    state.apontamentoSelecionado = payload.maquina;
+  }
+  if (payload.screen) {
+    state.apontamentoScreen = payload.screen;
+  }
+  renderApontamento();
   setElementStatus("apontamento-status", "Painel de apontamento pré-preenchido para a máquina selecionada.", "success");
+}
+
+function apontaScreenFromEvent(eventType) {
+  const normalized = String(eventType || "").toLowerCase();
+  if (normalized === "parada") {
+    return "paradas";
+  }
+  if (normalized === "finalizar" || normalized === "apontar") {
+    return "historico";
+  }
+  return "resumo";
 }
 
 let kanbanState = { products: [], romaneios: [] };
@@ -2742,6 +3312,41 @@ function removerRomaneioLocal(localId) {
   refreshRomaneiosWorkspace();
 }
 
+async function excluirRomaneio(code) {
+  const localEntry = findLocalRomaneioBySelectionCode(code);
+  if (localEntry) {
+    const confirmedLocal = window.confirm(`Deseja remover o romaneio local ${formatRomaneioCode(localEntry.romaneio)} da fila?`);
+    if (!confirmedLocal) {
+      return;
+    }
+    removerRomaneioLocal(localEntry.local_id);
+    return;
+  }
+
+  const romaneio = findApiRomaneioBySelectionCode(code);
+  if (!romaneio) {
+    throw new Error("Romaneio não encontrado para exclusão.");
+  }
+
+  const confirmed = window.confirm(
+    `Deseja excluir o romaneio ${formatRomaneioCode(romaneio.romaneio)}? A carteira e os itens desse romaneio serão substituídos pela exclusão no sistema.`,
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  setElementStatus("romaneio-dropzone-status", `Excluindo ${formatRomaneioCode(romaneio.romaneio)}...`);
+  await postJson("/api/pcp/romaneios/delete", {
+    romaneio: romaneio.romaneio,
+    empresa: romaneio.empresa,
+    deleted_by: state.currentUser?.username || "app",
+    reason: "Operador confirmou exclusão do romaneio",
+  });
+  state.romaneioSelecionado = null;
+  await carregarTudo();
+  setElementStatus("romaneio-dropzone-status", `Romaneio ${formatRomaneioCode(romaneio.romaneio)} excluído com sucesso.`, "success");
+}
+
 function confirmRomaneioReplacement(entry) {
   const identity = entry.romaneio_identity || normalizeRomaneioIdentity(entry.romaneio || entry.pdf_name || "");
   if (!identity) {
@@ -2945,11 +3550,30 @@ function rerenderOperationalViews() {
   renderKanban(state.datasets.kanban);
   renderProgramming(state.datasets.programming);
   renderApontamento();
+  renderEstoqueAtual(state.datasets.painel);
   renderMrpTable("assembly-table", state.datasets.assembly);
   renderFactorySimulation(state.datasets.assembly, "assembly-lanes", 2);
   renderMrpTable("production-table", state.datasets.production);
   renderFactorySimulation(state.datasets.production, "production-lanes", 6);
   renderUsersModule();
+}
+
+async function syncSources(sourceCodes = []) {
+  const label = sourceCodes.length ? `Sincronizando ${sourceCodes.length} fonte(s)...` : "Sincronizando fontes ativas...";
+  setElementStatus("sources-status", label);
+  try {
+    const response = await postJson("/api/pcp/sources/sync", sourceCodes.length ? { source_codes: sourceCodes } : {});
+    const okCount = Array.isArray(response.results) ? response.results.length : 0;
+    const errorCount = Array.isArray(response.errors) ? response.errors.length : 0;
+    setElementStatus(
+      "sources-status",
+      errorCount ? `${okCount} fonte(s) sincronizadas e ${errorCount} com erro.` : `${okCount} fonte(s) sincronizadas com sucesso.`,
+      errorCount ? "error" : "success",
+    );
+    await carregarTudo();
+  } catch (error) {
+    setElementStatus("sources-status", error.message, "error");
+  }
 }
 
 function resetUserForm() {
@@ -2967,65 +3591,79 @@ function resetUserForm() {
   }
 }
 
-function salvarUsuario(event) {
+async function salvarUsuario(event) {
   event.preventDefault();
-  if (!state.currentUser || !["root", "manager"].includes(state.currentUser.role)) {
-    setElementStatus("user-status", "Apenas administradores podem gerenciar usuários.", "error");
-    return;
+  try {
+    if (!state.currentUser || !["root", "manager"].includes(state.currentUser.role)) {
+      setElementStatus("user-status", "Apenas administradores podem gerenciar usuários.", "error");
+      return;
+    }
+
+    const form = event.currentTarget;
+    const payload = payloadFromForm(form);
+    if (!payload.username || !payload.full_name || !payload.password) {
+      setElementStatus("user-status", "Preencha usuário, nome e senha.", "error");
+      return;
+    }
+
+    const editingUserId = form.dataset.editingUserId || "";
+    const users = ensureUsersStorage();
+    const exists = users.find((item) => String(item.username).toLowerCase() === String(payload.username).toLowerCase());
+    if (exists && exists.id !== editingUserId) {
+      setElementStatus("user-status", "Já existe um usuário com esse login.", "error");
+      return;
+    }
+
+    const nextUser = {
+      id: editingUserId || `user-${Date.now()}`,
+      username: String(payload.username).trim().toLowerCase(),
+      full_name: String(payload.full_name).trim(),
+      role: payload.role || "operator",
+      active: String(payload.active || "true") === "true",
+      password: String(payload.password).trim(),
+      created_at: editingUserId ? (users.find((item) => item.id === editingUserId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
+      updated_at: new Date().toISOString(),
+    };
+
+    const nextUsers = editingUserId
+      ? users.map((item) => (item.id === editingUserId ? nextUser : item))
+      : [nextUser, ...users];
+
+    const response = await postJson("/api/pcp/users/save", nextUser);
+    saveUsers(mergeUsersWithDefault(response.items || nextUsers));
+    await carregarUsuariosBackend(true);
+    if (state.currentUser?.id === nextUser.id) {
+      persistSession(nextUser);
+      renderAuthState();
+    }
+    renderUsersModule();
+    resetUserForm();
+    setElementStatus("user-status", `Usuário ${nextUser.username} salvo com sucesso.`, "success");
+  } catch (error) {
+    setElementStatus("user-status", error.message, "error");
   }
-
-  const form = event.currentTarget;
-  const payload = payloadFromForm(form);
-  if (!payload.username || !payload.full_name || !payload.password) {
-    setElementStatus("user-status", "Preencha usuário, nome e senha.", "error");
-    return;
-  }
-
-  const editingUserId = form.dataset.editingUserId || "";
-  const users = ensureUsersStorage();
-  const exists = users.find((item) => String(item.username).toLowerCase() === String(payload.username).toLowerCase());
-  if (exists && exists.id !== editingUserId) {
-    setElementStatus("user-status", "Já existe um usuário com esse login.", "error");
-    return;
-  }
-
-  const nextUser = {
-    id: editingUserId || `user-${Date.now()}`,
-    username: String(payload.username).trim().toLowerCase(),
-    full_name: String(payload.full_name).trim(),
-    role: payload.role || "operator",
-    active: String(payload.active || "true") === "true",
-    password: String(payload.password).trim(),
-    created_at: editingUserId ? (users.find((item) => item.id === editingUserId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
-    updated_at: new Date().toISOString(),
-  };
-
-  const nextUsers = editingUserId
-    ? users.map((item) => (item.id === editingUserId ? nextUser : item))
-    : [nextUser, ...users];
-
-  saveUsers(nextUsers);
-  if (state.currentUser?.id === nextUser.id) {
-    persistSession(nextUser);
-    renderAuthState();
-  }
-  renderUsersModule();
-  resetUserForm();
-  setElementStatus("user-status", `Usuário ${nextUser.username} salvo com sucesso.`, "success");
 }
 
-function autenticarUsuario(event) {
+async function autenticarUsuario(event) {
   event.preventDefault();
   const form = event.currentTarget;
   const payload = payloadFromForm(form);
-  const users = ensureUsersStorage();
   const username = String(payload.username || "").trim().toLowerCase();
-  const user = users.find((item) => item.username === username);
-  if (!user || !user.active || user.password !== payload.password) {
+
+  await carregarUsuariosBackend(true);
+
+  let response;
+  try {
+    response = await postJson("/api/pcp/auth/login", {
+      username,
+      password: String(payload.password || ""),
+    });
+  } catch (error) {
     setElementStatus("login-status", "Usuário ou senha inválidos.", "error");
     return;
   }
 
+  const user = response.user;
   persistSession(user);
   renderAuthState();
   renderUsersModule();
@@ -3112,6 +3750,7 @@ function salvarApontamento(event) {
 
     saveApontamentoLogs([entry, ...state.apontamentoLogs]);
     state.apontamentoSelecionado = payload.maquina;
+    state.apontamentoScreen = payload.event_type === "parada" ? "paradas" : "historico";
     renderApontamento();
     setElementStatus("apontamento-status", "Apontamento registrado no diário operacional.", "success");
     const currentMachine = payload.maquina;
@@ -3223,6 +3862,7 @@ async function carregarTudo() {
     costs,
     sources,
     painel,
+    users,
   ] = await Promise.all([
     api("/api/pcp/overview"),
     api("/api/pcp/alerts"),
@@ -3237,6 +3877,7 @@ async function carregarTudo() {
     api("/api/pcp/costs"),
     api("/api/pcp/sources"),
     api("/api/pcp/painel"),
+    api("/api/pcp/users"),
   ]);
 
   renderOverview(overview);
@@ -3249,6 +3890,8 @@ async function carregarTudo() {
   state.datasets.programming = Array.isArray(programming.items) ? programming.items : [];
   state.datasets.assembly = Array.isArray(assembly.items) ? assembly.items : [];
   state.datasets.production = Array.isArray(production.items) ? production.items : [];
+  state.datasets.painel = Array.isArray(painel.items) ? painel.items : [];
+  saveUsers(mergeUsersWithDefault(users.items || []));
   refreshRomaneiosWorkspace();
   renderKanban(kanban);
   renderStructures(structures);
@@ -3263,6 +3906,7 @@ async function carregarTudo() {
   renderCosts(costs.items);
   renderSources(sources.items);
   renderPainel(painel.items);
+  renderEstoqueAtual(state.datasets.painel);
   renderUsersModule();
   renderCockpitReports({
     overview,
@@ -3292,6 +3936,10 @@ document.getElementById("apontamento-form")?.elements.namedItem("maquina")?.addE
   state.apontamentoSelecionado = event.target.value || state.apontamentoSelecionado;
   renderApontamento();
 });
+document.getElementById("apontamento-form")?.elements.namedItem("event_type")?.addEventListener("change", (event) => {
+  state.apontamentoScreen = apontaScreenFromEvent(event.target.value);
+  renderApontamento();
+});
 document.getElementById("programming-reset")?.addEventListener("click", () => {
   document.getElementById("programming-form")?.reset();
   setElementStatus("programming-status", "Formulário de programação limpo.", "success");
@@ -3301,11 +3949,21 @@ document.getElementById("apontamento-reset")?.addEventListener("click", () => {
   if (state.apontamentoSelecionado && document.getElementById("apontamento-form")?.elements.namedItem("maquina")) {
     document.getElementById("apontamento-form").elements.namedItem("maquina").value = state.apontamentoSelecionado;
   }
+  state.apontamentoScreen = "resumo";
+  renderApontamento();
   setElementStatus("apontamento-status", "Formulário de apontamento limpo.", "success");
 });
 document.getElementById("global-search-input")?.addEventListener("input", (event) => {
   state.globalSearch = event.target.value || "";
   rerenderOperationalViews();
+});
+document.getElementById("stock-search-input")?.addEventListener("input", (event) => {
+  state.estoqueBusca = event.target.value || "";
+  renderEstoqueAtual(state.datasets.painel);
+});
+document.getElementById("stock-type-filter")?.addEventListener("change", (event) => {
+  state.estoqueFiltro = event.target.value || "";
+  renderEstoqueAtual(state.datasets.painel);
 });
 document.getElementById("kanban-status-filter")?.addEventListener("change", (event) => {
   state.kanbanStatusFilter = event.target.value || "todos";
@@ -3325,19 +3983,29 @@ document.getElementById("user-form")?.addEventListener("submit", salvarUsuario);
 document.getElementById("user-form-reset")?.addEventListener("click", resetUserForm);
 document.getElementById("login-form")?.addEventListener("submit", autenticarUsuario);
 document.getElementById("logout-button")?.addEventListener("click", logoutUsuario);
+document.getElementById("sidebar-toggle")?.addEventListener("click", () => toggleSidebar());
+document.getElementById("apontamento-operator-mode")?.addEventListener("click", () => {
+  setApontamentoOperatorMode(!state.apontamentoOperatorMode);
+});
+document.getElementById("sync-all-sources")?.addEventListener("click", () => {
+  syncSources().catch((error) => {
+    setElementStatus("sources-status", error.message, "error");
+  });
+});
 configurarRomaneioIntake();
 ensureUsersStorage();
+state.sidebarCollapsed = loadSidebarPreference();
+state.apontamentoOperatorMode = loadOperatorModePreference();
 state.apontamentoLogs = loadApontamentoLogs();
-{
-  const session = loadSession();
-  const user = session ? state.users.find((item) => item.id === session.user_id) || null : null;
-  persistSession(user);
-}
-renderAuthState();
-renderUsersModule();
+bootstrapSessionAndData().catch((error) => {
+  setElementStatus("login-status", error.message, "error");
+  renderAuthState();
+  renderUsersModule();
+});
 
 function switchTab(hash) {
   const targetId = hash.replace('#', '') || 'cockpit';
+  state.currentView = targetId;
   
   document.querySelectorAll('.view-module').forEach(el => el.classList.remove('active'));
   document.querySelectorAll('.main-nav .nav-item').forEach(a => a.classList.remove('active'));
@@ -3352,15 +4020,28 @@ function switchTab(hash) {
   } else {
     document.getElementById('view-title').textContent = 'Cockpit Executivo';
   }
-  
+
+  applyShellState();
   window.scrollTo(0, 0);
 }
 
 window.addEventListener('hashchange', () => switchTab(window.location.hash));
 switchTab(window.location.hash);
+async function bootstrapSessionAndData() {
+  applyShellState();
+  await carregarUsuariosBackend(true);
+  const session = loadSession();
+  const user = session
+    ? state.users.find((item) => (
+      (session.user_id && item.id === session.user_id)
+      || (session.username && item.username === session.username)
+    )) || null
+    : null;
+  persistSession(user);
+  renderAuthState();
+  renderUsersModule();
 
-if (state.currentUser) {
-  carregarTudo().catch((error) => {
-    document.getElementById("mrp-status").textContent = "Erro de conexão: " + error.message;
-  });
+  if (state.currentUser) {
+    await carregarTudo();
+  }
 }

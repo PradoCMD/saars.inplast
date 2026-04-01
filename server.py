@@ -135,9 +135,30 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 self.send_json(HTTPStatus.OK, PROVIDER.save_programming_entry(payload))
                 return
 
+            if parsed.path == "/api/pcp/users/save":
+                payload = self.read_json_body()
+                self.send_json(HTTPStatus.OK, PROVIDER.save_user(payload))
+                return
+
+            if parsed.path == "/api/pcp/auth/login":
+                payload = self.read_json_body()
+                username = str(payload.get("username") or "").strip()
+                password = str(payload.get("password") or "").strip()
+                user = PROVIDER.authenticate_user(username, password)
+                if not user:
+                    self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "Usuário ou senha inválidos"})
+                    return
+                self.send_json(HTTPStatus.OK, {"status": "authenticated", "user": user})
+                return
+
             if parsed.path == "/api/pcp/romaneios-kanban/update-date":
                 payload = self.read_json_body()
                 self.send_json(HTTPStatus.OK, PROVIDER.save_romaneio_schedule(payload))
+                return
+
+            if parsed.path == "/api/pcp/romaneios/delete":
+                payload = self.read_json_body()
+                self.send_json(HTTPStatus.OK, PROVIDER.delete_romaneio(payload))
                 return
 
             if parsed.path == "/api/pcp/romaneios-kanban/sync":
@@ -266,6 +287,10 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                     HTTPStatus.OK,
                     PROVIDER.programming(action=(query.get("action", [""])[0] or "").strip() or None),
                 )
+                return
+
+            if path == "/api/pcp/users":
+                self.send_json(HTTPStatus.OK, PROVIDER.users())
                 return
 
             if path == "/api/pcp/purchases":

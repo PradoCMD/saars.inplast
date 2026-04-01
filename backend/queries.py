@@ -349,7 +349,11 @@ select
     source_code,
     initcap(replace(source_code, '_', ' ')) as source_name,
     source_area,
+    parser_name,
     last_success_at,
+    is_active,
+    is_required,
+    contract_status,
     case freshness_status
         when 'fresh' then 'ok'
         when 'stale' then 'warning'
@@ -359,6 +363,7 @@ from (
     select
         source_code,
         source_area,
+        parser_name,
         last_success_at,
         is_active,
         is_required,
@@ -532,6 +537,41 @@ select
     event_key,
     (select source_code from chosen_source) as source_code
 from inserted
+"""
+
+DELETE_ROMANEIO_EVENT_SQL = """
+with chosen_source as (
+    select source_code
+    from ops.source_registry
+    where source_area = 'demanda_romaneio'
+      and contract_status = 'known'
+    order by
+        case when source_code = 'romaneio_pcp_atual' then 0 else 1 end,
+        case when is_active then 0 else 1 end,
+        source_id
+    limit 1
+)
+select
+    (select source_code from chosen_source) as source_code,
+    ops.ingest_romaneio_event_payload(
+        (select source_code from chosen_source),
+        jsonb_build_object(
+            'event_id', %s,
+            'event_type', 'delete',
+            'event_at', %s::timestamptz,
+            'romaneio', jsonb_build_object(
+                'codigo', %s,
+                'empresa', nullif(%s, ''),
+                'itens', jsonb_build_array()
+            )
+        ),
+        jsonb_build_object(
+            'deleted_by', nullif(%s, ''),
+            'reason', coalesce(nullif(%s, ''), 'manual_delete'),
+            'romaneio_code', %s
+        )
+    ) as ingest
+from chosen_source
 """
 
 INGEST_INVENTORY_PAYLOAD_SQL = """
