@@ -99,6 +99,10 @@ class DataProvider(ABC):
     def sync_sources(self, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
+    @abstractmethod
+    def ingest_romaneio_event(self, source_code: str, payload: dict[str, Any], meta: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
 
 class MockProvider(DataProvider):
     def __init__(self, data_dir: Path) -> None:
@@ -234,6 +238,73 @@ class MockProvider(DataProvider):
             "requested_sources": requested_codes or list(STOCK_SOURCE_CODES),
             "results": [],
             "errors": [],
+        }
+
+    def ingest_romaneio_event(self, source_code: str, payload: dict[str, Any], meta: dict[str, Any]) -> dict[str, Any]:
+        romaneio = payload.get("romaneio", {})
+        romaneio_code = str(romaneio.get("codigo") or "").strip()
+        if not romaneio_code:
+            raise RuntimeError("Payload de romaneio sem código.")
+
+        romaneios_path = self.data_dir / "romaneios.json"
+        detail_path = self.data_dir / f"romaneio_{romaneio_code}.json"
+        list_payload = {"items": []}
+        if romaneios_path.exists():
+            list_payload = json.loads(romaneios_path.read_text(encoding="utf-8"))
+
+        quantidade_total = sum(float(item.get("quantidade") or item.get("quantity_total") or 0) for item in romaneio.get("itens", []))
+        list_item = {
+            "romaneio": romaneio_code,
+            "empresa": romaneio.get("empresa") or meta.get("nome_empresa") or "INPLAST",
+            "status_evento": "processed",
+            "data_evento": payload.get("event_at"),
+            "itens": len(romaneio.get("itens", [])),
+            "quantidade_total": quantidade_total,
+            "previsao_saida_at": None,
+            "previsao_saida_status": "sem_previsao",
+            "criterio_previsao": "pdf_parser",
+            "valor_total": float(romaneio.get("valor_total") or 0),
+        }
+
+        existing_items = [item for item in list_payload.get("items", []) if str(item.get("romaneio")) != romaneio_code]
+        existing_items.insert(0, list_item)
+        list_payload["items"] = existing_items
+        romaneios_path.write_text(json.dumps(list_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        detail_payload = {
+            "header": {
+                **list_item,
+                "previsao_saida_observacao": "Romaneio importado manualmente via PDF.",
+            },
+            "items": [
+                {
+                    "sku": item.get("sku", ""),
+                    "produto": item.get("produto") or item.get("descricao") or item.get("sku", ""),
+                    "quantidade": float(item.get("quantidade") or item.get("quantity_total") or 0),
+                    "impacto": "Importado de PDF",
+                    "quantidade_atendida_estoque": 0,
+                    "quantidade_pendente": float(item.get("quantidade") or item.get("quantity_total") or 0),
+                    "previsao_disponibilidade_at": None,
+                    "modo_atendimento": "Aguardando cálculo MRP",
+                    "previsao_disponibilidade_status": "sem_previsao",
+                }
+                for item in romaneio.get("itens", [])
+            ],
+            "events": [
+                {
+                    "event_id": payload.get("event_id"),
+                    "event_type": payload.get("event_type"),
+                    "received_at": payload.get("event_at"),
+                    "status": "processed",
+                }
+            ],
+        }
+        detail_path.write_text(json.dumps(detail_payload, ensure_ascii=False, indent=2), encoding="utf-8")
+
+        return {
+            "status": "processed",
+            "romaneio_code": romaneio_code,
+            "item_count": len(romaneio.get("itens", [])),
         }
 
 
@@ -603,6 +674,20 @@ class PostgresProvider(DataProvider):
             "errors": errors,
             "snapshot_at": snapshot_at,
         }
+
+    def ingest_romaneio_event(self, source_code: str, payload: dict[str, Any], meta: dict[str, Any]) -> dict[str, Any]:
+        row = self._fetchone(
+            queries.INGEST_ROMANEIO_EVENT_SQL,
+            (
+                source_code,
+                json.dumps(payload, ensure_ascii=False),
+                json.dumps(meta, ensure_ascii=False),
+            ),
+            write=True,
+        )
+        if not row:
+            return {"status": "unknown"}
+        return row.get("ingest") or {"status": "unknown"}
 
 
 def build_provider(settings: Settings, data_dir: Path) -> DataProvider:

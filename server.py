@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import base64
 import json
 from datetime import date, datetime
 from decimal import Decimal
@@ -10,6 +11,8 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlparse
 
 from backend import Settings, build_provider
+from backend.romaneio_pdf import SOURCE_CODE as ROMANEIO_PDF_SOURCE_CODE
+from backend.romaneio_pdf import build_romaneio_event, parse_romaneio_pdf_bytes
 
 
 ROOT = Path(__file__).resolve().parent
@@ -37,6 +40,89 @@ def json_default(value):
     if isinstance(value, Decimal):
         return float(value)
     raise TypeError(f"Tipo nao serializavel: {type(value)!r}")
+
+
+def upsert_kanban_romaneios(records: list[dict]) -> int:
+    db_path = ROOT / "backend" / "kanban_db.json"
+    db_data = {"romaneios": []}
+    if db_path.exists():
+        try:
+            db_data = json.loads(db_path.read_text(encoding="utf-8"))
+        except Exception:
+            db_data = {"romaneios": []}
+
+    rom_map = {str(item.get("romaneio")): item for item in db_data.get("romaneios", []) if item.get("romaneio")}
+
+    for incoming in records:
+        romaneio_code = str(incoming.get("ordem_carga") or "").strip()
+        if not romaneio_code:
+            continue
+        existing = rom_map.get(romaneio_code, {})
+        rom_map[romaneio_code] = {
+            "romaneio": romaneio_code,
+            "empresa": incoming.get("nome_empresa") or existing.get("empresa", ""),
+            "data_evento": existing.get("data_evento") or datetime.now().isoformat(),
+            "previsao_saida_at": existing.get("previsao_saida_at"),
+            "items": incoming.get("itens", []),
+            "valor_total": incoming.get("total_geral", 0),
+        }
+
+    db_data["romaneios"] = list(rom_map.values())
+    db_path.write_text(json.dumps(db_data, ensure_ascii=False, indent=2), encoding="utf-8")
+    return len(db_data["romaneios"])
+
+
+def sync_parsed_romaneios(records: list[dict]) -> dict:
+    results: list[dict] = []
+    errors: list[dict] = []
+    successful_records: list[dict] = []
+
+    for parsed in records:
+        try:
+            payload, meta = build_romaneio_event(parsed)
+            ingest = PROVIDER.ingest_romaneio_event(ROMANEIO_PDF_SOURCE_CODE, payload, meta)
+            ingest_status = str((ingest or {}).get("status") or "").lower()
+            if ingest_status in {"processed", "duplicate_ignored", "noop", "success", "saved"}:
+                successful_records.append(parsed)
+            else:
+                errors.append(
+                    {
+                        "romaneio": parsed.get("ordem_carga"),
+                        "file_name": parsed.get("file"),
+                        "error": f"Ingestão retornou status '{ingest_status or 'unknown'}'.",
+                    }
+                )
+            results.append(
+                {
+                    "romaneio": parsed.get("ordem_carga"),
+                    "file_name": parsed.get("file"),
+                    "item_count": len(parsed.get("itens", [])),
+                    "ingest": ingest,
+                }
+            )
+        except Exception as exc:  # noqa: BLE001
+            errors.append(
+                {
+                    "romaneio": parsed.get("ordem_carga"),
+                    "file_name": parsed.get("file"),
+                    "error": str(exc),
+                }
+            )
+
+    kanban_count = upsert_kanban_romaneios([parsed for parsed in successful_records if parsed.get("ordem_carga")])
+    status = "success"
+    if errors and results:
+        status = "partial"
+    elif errors and not results:
+        status = "error"
+
+    return {
+        "status": status,
+        "count": len(results),
+        "kanban_count": kanban_count,
+        "results": results,
+        "errors": errors,
+    }
 
 
 class PcpApiHandler(BaseHTTPRequestHandler):
@@ -94,32 +180,35 @@ class PcpApiHandler(BaseHTTPRequestHandler):
 
             if parsed.path == "/api/pcp/romaneios-kanban/sync":
                 payload = self.read_json_body()
-                db_path = Path(__file__).parent / "backend/kanban_db.json"
-                db_data = {"romaneios": []}
-                if db_path.exists():
+                records = payload if isinstance(payload, list) else payload.get("records") or []
+                self.send_json(HTTPStatus.OK, sync_parsed_romaneios(records))
+                return
+
+            if parsed.path == "/api/pcp/romaneios/upload":
+                payload = self.read_json_body()
+                files = payload.get("files") or []
+                parsed_records: list[dict] = []
+                file_errors: list[dict] = []
+
+                for entry in files:
+                    name = str(entry.get("name") or "").strip()
+                    content_base64 = str(entry.get("content_base64") or "").strip()
+                    if not name or not content_base64:
+                        file_errors.append({"file_name": name or "sem_nome", "error": "Arquivo sem nome ou conteúdo."})
+                        continue
                     try:
-                        db_data = json.loads(db_path.read_text("utf-8"))
-                    except Exception:
-                        pass
-                
-                rom_map = {str(r["romaneio"]): r for r in db_data.get("romaneios", [])}
-                for incoming in payload:
-                    rom_id = str(incoming.get("ordem_carga", ""))
-                    if not rom_id: continue
-                    from datetime import datetime
-                    data_evento = incoming.get("data_evento") or datetime.now().isoformat()
-                    new_r = {
-                        "romaneio": rom_id,
-                        "empresa": incoming.get("nome_empresa", ""),
-                        "data_evento": rom_map.get(rom_id, {}).get("data_evento", data_evento),
-                        "previsao_saida_at": rom_map.get(rom_id, {}).get("previsao_saida_at"),
-                        "items": incoming.get("itens", [])
-                    }
-                    rom_map[rom_id] = new_r
-                
-                db_data["romaneios"] = list(rom_map.values())
-                db_path.write_text(json.dumps(db_data, indent=2, ensure_ascii=False))
-                self.send_json(HTTPStatus.OK, {"ok": True, "count": len(db_data["romaneios"])})
+                        file_bytes = base64.b64decode(content_base64)
+                        parsed_records.append(parse_romaneio_pdf_bytes(file_bytes, name))
+                    except Exception as exc:  # noqa: BLE001
+                        file_errors.append({"file_name": name, "error": str(exc)})
+
+                response = sync_parsed_romaneios(parsed_records)
+                response["uploaded_files"] = len(files)
+                if file_errors:
+                    response["errors"] = response.get("errors", []) + file_errors
+                    if response["status"] == "success":
+                        response["status"] = "partial"
+                self.send_json(HTTPStatus.OK, response)
                 return
         except Exception as exc:  # noqa: BLE001
             self.send_json(

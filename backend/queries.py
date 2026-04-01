@@ -437,3 +437,7 @@ select ops.save_supply_programming_entry(%s, %s::jsonb) as entry_id
 INGEST_INVENTORY_PAYLOAD_SQL = """
 select ops.ingest_inventory_payload(%s, %s::timestamptz, %s::jsonb, %s::jsonb) as run_id
 """
+
+INGEST_ROMANEIO_EVENT_SQL = """
+select ops.ingest_romaneio_event_payload(%s, %s::jsonb, %s::jsonb) as ingest
+"""

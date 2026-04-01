@@ -225,6 +225,19 @@ function createManualRomaneioEntry(payload) {
   };
 }
 
+function readFileAsBase64(file) {
+  return new Promise((resolve, reject) => {
+    const reader = new FileReader();
+    reader.onload = () => {
+      const result = String(reader.result || "");
+      const base64 = result.includes(",") ? result.split(",")[1] : result;
+      resolve(base64);
+    };
+    reader.onerror = () => reject(new Error(`Falha ao ler o arquivo ${file.name}.`));
+    reader.readAsDataURL(file);
+  });
+}
+
 async function api(path) {
   const response = await fetch(path);
   if (!response.ok) {
@@ -1437,21 +1450,73 @@ function appendRomaneiosLocais(entries, messageTargetId, successMessage) {
   });
 }
 
+async function uploadRomaneioPdfFiles(fileEntries) {
+  if (!fileEntries.length) {
+    return;
+  }
+
+  setElementStatus("romaneio-dropzone-status", `Enviando ${fileEntries.length} PDF(s) para o sistema...`);
+
+  try {
+    const filesPayload = await Promise.all(
+      fileEntries.map(async ({ file }) => ({
+        name: file.name,
+        content_base64: await readFileAsBase64(file),
+      })),
+    );
+
+    const response = await postJson("/api/pcp/romaneios/upload", { files: filesPayload });
+    const successfulFiles = new Set((response.results || []).map((item) => item.file_name).filter(Boolean));
+    const failedFiles = new Map((response.errors || []).map((item) => [item.file_name, item.error]));
+
+    const nextLocalItems = state.romaneiosLocais
+      .map((item) => (
+        failedFiles.has(item.pdf_name)
+          ? { ...item, observacao: `Falha ao importar: ${failedFiles.get(item.pdf_name)}` }
+          : item
+      ))
+      .filter((item) => !successfulFiles.has(item.pdf_name));
+
+    saveLocalRomaneios(nextLocalItems);
+
+    if (successfulFiles.size) {
+      const firstRomaneio = (response.results || []).find((item) => item.romaneio)?.romaneio;
+      if (firstRomaneio) {
+        state.romaneioSelecionado = String(firstRomaneio);
+      }
+      await carregarTudo();
+    } else {
+      refreshRomaneiosWorkspace();
+    }
+
+    const errorCount = (response.errors || []).length;
+    setElementStatus(
+      "romaneio-dropzone-status",
+      errorCount
+        ? `${successfulFiles.size} PDF(s) importados e ${errorCount} com erro.`
+        : `${successfulFiles.size} PDF(s) importados para o sistema.`,
+      errorCount ? "error" : "success",
+    );
+  } catch (error) {
+    setElementStatus("romaneio-dropzone-status", error.message, "error");
+  }
+}
+
 function handleRomaneioPdfFiles(fileList) {
-  const entries = Array.from(fileList || [])
-    .filter((file) => /\.pdf$/i.test(file.name))
-    .map(createPdfRomaneioEntry);
+  const files = Array.from(fileList || []).filter((file) => /\.pdf$/i.test(file.name));
+  const entries = files.map(createPdfRomaneioEntry);
 
   if (!entries.length) {
     setElementStatus("romaneio-dropzone-status", "Nenhum PDF válido foi selecionado.", "error");
     return;
   }
 
-  appendRomaneiosLocais(
-    entries,
-    "romaneio-dropzone-status",
-    `${entries.length} PDF(s) adicionados à fila local.`,
-  );
+  saveLocalRomaneios([...entries, ...state.romaneiosLocais]);
+  refreshRomaneiosWorkspace();
+  setElementStatus("romaneio-dropzone-status", `${entries.length} PDF(s) adicionados. Iniciando importação...`);
+  uploadRomaneioPdfFiles(entries.map((entry, index) => ({ entry, file: files[index] }))).catch((error) => {
+    setElementStatus("romaneio-dropzone-status", error.message, "error");
+  });
 }
 
 function configurarRomaneioIntake() {
