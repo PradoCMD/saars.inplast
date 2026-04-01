@@ -1,0 +1,625 @@
+.aponta-page {
+  display: flex;
+  flex-direction: column;
+  gap: 24px;
+}
+
+.aponta-hero-panel {
+  padding: 28px 30px;
+  border-radius: 30px;
+  background:
+    radial-gradient(circle at top left, rgba(113, 215, 101, 0.15), transparent 30%),
+    linear-gradient(180deg, #f7faf5 0%, #eef3ea 100%);
+  color: #203528;
+  box-shadow: 0 22px 50px rgba(0, 0, 0, 0.22);
+}
+
+.aponta-hero-copy h2 {
+  margin: 8px 0 10px;
+  font-size: clamp(2rem, 3.6vw, 3.3rem);
+  color: #225735;
+}
+
+.aponta-hero-copy p {
+  max-width: 760px;
+  color: rgba(32, 53, 40, 0.72);
+  line-height: 1.65;
+}
+
+.aponta-kicker {
+  display: inline-flex;
+  padding: 6px 12px;
+  border-radius: 999px;
+  background: rgba(90, 197, 90, 0.12);
+  color: #3d9a4e;
+  font-size: 0.78rem;
+  font-weight: 700;
+  letter-spacing: 0.08em;
+  text-transform: uppercase;
+}
+
+.aponta-chip-row {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 12px;
+  margin-top: 22px;
+}
+
+.aponta-chip {
+  border: 1px solid rgba(32, 87, 53, 0.14);
+  border-radius: 999px;
+  background: rgba(255, 255, 255, 0.78);
+  color: #2d5338;
+  padding: 10px 16px;
+  font-weight: 600;
+  cursor: pointer;
+  transition: transform 0.2s ease, box-shadow 0.2s ease, border-color 0.2s ease;
+}
+
+.aponta-chip:hover,
+.aponta-chip.active {
+  transform: translateY(-2px);
+  border-color: rgba(85, 181, 85, 0.4);
+  box-shadow: 0 12px 22px rgba(0, 0, 0, 0.08);
+}
+
+.aponta-section {
+  display: flex;
+  flex-direction: column;
+  gap: 16px;
+}
+
+.aponta-section-header {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 16px;
+}
+
+.aponta-section-header small {
+  color: var(--text-secondary);
+  text-transform: uppercase;
+  letter-spacing: 0.08em;
+}
+
+.aponta-section-header h3 {
+  margin-top: 4px;
+  font-size: 1.35rem;
+}
+
+.aponta-phone-grid {
+  display: grid;
+  grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+  gap: 18px;
+}
+
+.aponta-phone-card {
+  position: relative;
+  width: 100%;
+  max-width: 246px;
+  margin: 0 auto;
+  padding: 9px;
+  border-radius: 36px;
+  background: linear-gradient(180deg, #171717 0%, #070707 100%);
+  box-shadow:
+    inset 0 0 0 1px rgba(255, 255, 255, 0.05),
+    0 18px 40px rgba(0, 0, 0, 0.28);
+}
+
+.aponta-phone-card::before {
+  content: '';
+  position: absolute;
+  inset: 9px;
+  border-radius: 28px;
+  background: #111;
+}
+
+.aponta-screen {
+  position: relative;
+  z-index: 1;
+  min-height: 500px;
+  overflow: hidden;
+  border-radius: 28px;
+}
+
+.aponta-screen-light {
+  display: flex;
+  flex-direction: column;
+  justify-content: space-between;
+  padding: 22px 18px 16px;
+  background: #fff;
+}
+
+.aponta-screen-dark {
+  background: #2f3331;
+}
+
+.aponta-login-hero {
+  padding: 20px 16px 24px;
+  border-radius: 0 0 24px 24px;
+  background: linear-gradient(180deg, #fff 0%, #f7fbf4 100%);
+  box-shadow: 0 14px 24px rgba(79, 124, 79, 0.12);
+}
+
+.aponta-logo {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 10px;
+}
+
+.aponta-logo-mark {
+  position: relative;
+  width: 40px;
+  height: 40px;
+}
+
+.aponta-logo-mark span {
+  position: absolute;
+  border: 3px solid #7fce72;
+  border-radius: 14px;
+}
+
+.aponta-logo-mark span:nth-child(1) {
+  inset: 1px 9px 11px 9px;
+  transform: rotate(40deg);
+}
+
+.aponta-logo-mark span:nth-child(2) {
+  inset: 10px 1px 10px 16px;
+  transform: rotate(-18deg);
+}
+
+.aponta-logo-mark span:nth-child(3) {
+  inset: 12px 16px 2px 4px;
+  transform: rotate(-52deg);
+}
+
+.aponta-logo-text {
+  text-align: center;
+}
+
+.aponta-logo-text strong {
+  display: block;
+  color: #4a4f4b;
+  font-size: 1.85rem;
+  letter-spacing: 0.08em;
+}
+
+.aponta-logo-text small {
+  color: #8fbe81;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.aponta-login-form {
+  display: flex;
+  flex-direction: column;
+  gap: 14px;
+  padding: 20px 4px 0;
+}
+
+.aponta-pill-input {
+  display: flex;
+  align-items: center;
+  gap: 10px;
+  height: 40px;
+  padding: 0 14px;
+  border-radius: 999px;
+  border: 1px solid #e6ebe4;
+  color: #9aa29d;
+}
+
+.aponta-pill-input input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #6d736d;
+  font-size: 0.74rem;
+}
+
+.aponta-primary-button {
+  height: 36px;
+  border: 0;
+  border-radius: 2px;
+  background: #74d75f;
+  color: #fff;
+  font-weight: 700;
+}
+
+.aponta-floating-help {
+  width: 22px;
+  height: 22px;
+  margin-left: auto;
+  border-radius: 999px;
+  background: #d7f5d2;
+  border: 2px solid #73d65f;
+}
+
+.aponta-topbar {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  padding: 12px 14px 10px;
+  background: linear-gradient(180deg, #4fb14a 0%, #367f35 100%);
+  color: #dff2de;
+}
+
+.aponta-topbar.compact {
+  padding: 10px 12px 8px;
+}
+
+.aponta-topbar strong {
+  font-size: 0.78rem;
+}
+
+.aponta-topbar-back {
+  font-size: 1.1rem;
+}
+
+.aponta-topbar-icons {
+  display: flex;
+  gap: 7px;
+}
+
+.aponta-topbar-icons span {
+  width: 8px;
+  height: 8px;
+  border-radius: 999px;
+  background: rgba(223, 242, 222, 0.82);
+}
+
+.aponta-mini-toolbar {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  padding: 8px 10px;
+  font-size: 0.58rem;
+  color: #83a486;
+  text-align: center;
+}
+
+.aponta-mini-toolbar span.active {
+  color: #dff2de;
+  font-weight: 700;
+}
+
+.aponta-search-box {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin: 10px 10px 0;
+  padding: 10px 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #88a28f;
+}
+
+.aponta-search-box input {
+  width: 100%;
+  border: 0;
+  outline: 0;
+  background: transparent;
+  color: #d5dad4;
+  font-size: 0.72rem;
+}
+
+.aponta-list-stack {
+  display: flex;
+  flex-direction: column;
+  gap: 9px;
+  padding: 10px;
+}
+
+.aponta-order-card {
+  padding: 12px 12px 10px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.04);
+  color: #d2d7cf;
+  font-size: 0.64rem;
+  line-height: 1.45;
+}
+
+.aponta-order-card header,
+.aponta-order-card footer {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+}
+
+.aponta-order-card header {
+  margin-bottom: 6px;
+  color: #8ed77e;
+  font-weight: 700;
+}
+
+.aponta-order-card footer {
+  margin-top: 6px;
+  color: #93a093;
+}
+
+.aponta-priority {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 18px;
+  height: 18px;
+  border-radius: 999px;
+  color: #fff;
+  font-weight: 800;
+}
+
+.aponta-priority.warning {
+  background: #d58d1e;
+}
+
+.aponta-priority.info {
+  background: #1da3c7;
+}
+
+.aponta-stage-card,
+.aponta-history-card,
+.aponta-reasons-card,
+.aponta-products-block {
+  margin: 10px;
+  padding: 12px;
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.06);
+  color: #d6dcd4;
+}
+
+.aponta-stage-card small,
+.aponta-history-head,
+.aponta-reasons-head,
+.aponta-products-head {
+  display: block;
+  margin-bottom: 8px;
+  color: #98dd8c;
+  font-weight: 700;
+  font-size: 0.62rem;
+  text-transform: uppercase;
+}
+
+.aponta-stage-card p {
+  font-size: 0.64rem;
+  line-height: 1.45;
+}
+
+.aponta-action-row {
+  display: grid;
+  grid-template-columns: repeat(2, 1fr);
+  gap: 10px;
+  margin: 8px 10px 0;
+}
+
+.aponta-round-action {
+  display: flex;
+  flex-direction: column;
+  align-items: center;
+  gap: 6px;
+  padding: 10px 8px;
+  border: 0;
+  border-radius: 14px;
+  background: rgba(255, 255, 255, 0.07);
+  color: #e2e7e0;
+  font-size: 0.62rem;
+}
+
+.aponta-round-action svg {
+  font-size: 1.15rem;
+  color: #7ed467;
+}
+
+.aponta-history-row {
+  display: grid;
+  grid-template-columns: 10px 1fr;
+  gap: 8px;
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+}
+
+.aponta-history-row:first-of-type {
+  border-top: 0;
+}
+
+.aponta-history-row strong,
+.aponta-product-row strong {
+  display: block;
+  font-size: 0.6rem;
+  color: #f0f3ef;
+}
+
+.aponta-history-row small,
+.aponta-product-row small {
+  display: block;
+  color: #9ca79c;
+  font-size: 0.56rem;
+}
+
+.dot {
+  width: 8px;
+  height: 8px;
+  margin-top: 5px;
+  border-radius: 999px;
+}
+
+.dot.high {
+  background: #e56e5b;
+}
+
+.dot.ok {
+  background: #78d264;
+}
+
+.aponta-reason-row,
+.aponta-product-row {
+  display: grid;
+  grid-template-columns: 18px 1fr;
+  gap: 10px;
+  align-items: center;
+  padding: 8px 0;
+  border-top: 1px solid rgba(255, 255, 255, 0.06);
+  font-size: 0.6rem;
+}
+
+.aponta-reason-row:first-of-type,
+.aponta-product-row:first-of-type {
+  border-top: 0;
+}
+
+.aponta-reason-row strong {
+  color: #8fdb82;
+}
+
+.aponta-product-row {
+  grid-template-columns: 1fr auto;
+}
+
+.aponta-product-row span {
+  color: #8ed77e;
+  font-size: 0.58rem;
+  font-weight: 700;
+}
+
+.aponta-products-stack {
+  padding-top: 2px;
+}
+
+.aponta-bottom-button {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  gap: 8px;
+  width: calc(100% - 20px);
+  height: 38px;
+  margin: 10px;
+  border: 0;
+  border-radius: 10px;
+  background: #3d9547;
+  color: #fff;
+  font-size: 0.68rem;
+  font-weight: 700;
+}
+
+.aponta-bottom-button.secondary {
+  background: #6cc767;
+}
+
+.aponta-modal {
+  position: absolute;
+  inset: 0;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  background: rgba(0, 0, 0, 0.24);
+}
+
+.aponta-modal.compact {
+  align-items: center;
+}
+
+.aponta-modal-body {
+  width: 172px;
+  padding: 14px 12px 12px;
+  border-radius: 6px;
+  background: #fff;
+  text-align: center;
+  box-shadow: 0 12px 30px rgba(0, 0, 0, 0.24);
+}
+
+.aponta-modal-body.form {
+  width: 180px;
+}
+
+.aponta-modal-body strong {
+  display: block;
+  color: #4e524f;
+  font-size: 0.7rem;
+  line-height: 1.35;
+}
+
+.aponta-modal-actions {
+  display: flex;
+  justify-content: center;
+  gap: 8px;
+  margin-top: 12px;
+}
+
+.aponta-btn {
+  min-width: 66px;
+  height: 24px;
+  border: 0;
+  border-radius: 3px;
+  color: #fff;
+  font-size: 0.56rem;
+  font-weight: 700;
+}
+
+.aponta-btn.danger {
+  background: #ef5141;
+}
+
+.aponta-btn.success {
+  background: #71cf65;
+}
+
+.aponta-mini-form {
+  display: flex;
+  flex-direction: column;
+  gap: 6px;
+  margin-top: 10px;
+}
+
+.aponta-mini-form input {
+  height: 24px;
+  padding: 0 8px;
+  border: 1px solid #dde3dc;
+  border-radius: 3px;
+  font-size: 0.6rem;
+}
+
+.aponta-notes-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 18px;
+}
+
+.aponta-note-list {
+  display: grid;
+  gap: 12px;
+}
+
+.aponta-note-list div {
+  display: grid;
+  grid-template-columns: 22px 1fr;
+  gap: 10px;
+  align-items: center;
+  color: var(--text-secondary);
+}
+
+.aponta-note-list svg {
+  color: #7fd56b;
+}
+
+.aponta-next-copy {
+  color: var(--text-secondary);
+  line-height: 1.65;
+}
+
+@media (max-width: 960px) {
+  .aponta-notes-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .aponta-hero-panel {
+    padding: 22px;
+    border-radius: 24px;
+  }
+
+  .aponta-section-header {
+    align-items: flex-start;
+    flex-direction: column;
+  }
+}

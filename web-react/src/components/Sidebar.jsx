@@ -1,8 +1,9 @@
-import { FiBarChart2, FiLayers, FiPackage, FiTool, FiCalendar, FiSettings, FiShoppingCart, FiShield } from 'react-icons/fi';
+import { FiBarChart2, FiLayers, FiPackage, FiTool, FiCalendar, FiSettings, FiShoppingCart, FiShield, FiSmartphone } from 'react-icons/fi';
 
 function Sidebar({ activeView }) {
   const routes = [
     { id: 'cockpit', icon: <FiBarChart2 />, label: 'Cockpit' },
+    { id: 'apontamento', icon: <FiSmartphone />, label: 'Apontamento' },
     { id: 'romaneios-kanban', icon: <FiLayers />, label: 'Kanban Logístico' },
     { id: 'romaneios', icon: <FiPackage />, label: 'Romaneios' },
     { id: 'estruturas', icon: <FiTool />, label: 'Estruturas' },

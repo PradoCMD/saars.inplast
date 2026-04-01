@@ -3,6 +3,7 @@ import { FiSearch, FiPlay, FiRefreshCw } from 'react-icons/fi';
 function Topbar({ activeView }) {
   const titles = {
     'cockpit': 'Cockpit Executivo',
+    'apontamento': 'App Apontamento de Produção',
     'romaneios-kanban': 'Kanban Logístico',
     'romaneios': 'Romaneios Recebidos',
     'estruturas': 'Engenharia de Estruturas',

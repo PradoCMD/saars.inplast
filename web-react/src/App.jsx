@@ -4,6 +4,8 @@ import Topbar from './components/Topbar'
 import Cockpit from './pages/Cockpit'
 import KanbanBoard from './pages/KanbanBoard'
 import FactorySimulator from './pages/FactorySimulator'
+import ProductionTracking from './pages/ProductionTracking'
+import RomaneiosInbox from './pages/RomaneiosInbox'
 
 import './index.css'
 
@@ -16,10 +18,11 @@ function App() {
   const fetchAppData = async () => {
     try {
       const [
-         overview, kanban, assembly, production
+         overview, kanban, romaneios, assembly, production
       ] = await Promise.all([
          fetch('/api/pcp/overview').then(res => res.json()).catch(() => ({})),
          fetch('/api/pcp/romaneios-kanban').then(res => res.json()).catch(() => ({ romaneios: [] })),
+         fetch('/api/pcp/romaneios').then(res => res.json()).catch(() => ({ items: [] })),
          fetch('/api/pcp/assembly').then(res => res.json()).catch(() => ({ items: [] })),
          fetch('/api/pcp/production').then(res => res.json()).catch(() => ({ items: [] }))
       ]);
@@ -28,6 +31,7 @@ function App() {
         loaded: true,
         overview,
         kanban,
+        romaneios,
         assembly,
         production
       });
@@ -58,6 +62,8 @@ function App() {
         <div className="view-port">
           {activeView === 'cockpit' && <Cockpit data={data} />}
           {activeView === 'romaneios-kanban' && <KanbanBoard data={data} />}
+          {activeView === 'romaneios' && <RomaneiosInbox data={data} />}
+          {activeView === 'apontamento' && <ProductionTracking />}
           {activeView === 'montagem' && (
              <FactorySimulator 
                  title="Esteiras de Montagem (Simulação Horária)"
@@ -78,7 +84,7 @@ function App() {
           )}
           
           {/* Fallback for undeveloped pages in this demo */}
-          {!['cockpit', 'romaneios-kanban', 'montagem', 'producao'].includes(activeView) && (
+          {!['cockpit', 'romaneios-kanban', 'romaneios', 'apontamento', 'montagem', 'producao'].includes(activeView) && (
             <div className="glass-panel animate-in">
                <div className="panel-header">
                   <h3>Módulo {activeView}</h3>

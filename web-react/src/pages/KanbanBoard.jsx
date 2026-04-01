@@ -81,7 +81,7 @@ function KanbanBoard() {
                 const cards = column.cardIds.map((cId) => data.cards[cId]);
 
                 return (
-                   <div key={column.id} className="kanban-lane" style={{ borderColor: \`var(--status-\${column.tone})\` }}>
+                   <div key={column.id} className="kanban-lane" style={{ borderColor: `var(--status-${column.tone})` }}>
                       <div className="kanban-lane-header">
                          <div style={{ display: 'flex', flexDirection: 'column' }}>
                             <h3 style={{ color: 'var(--text-primary)', fontSize: '1.05rem' }}>{column.title}</h3>
