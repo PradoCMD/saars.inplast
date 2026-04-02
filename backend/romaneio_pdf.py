@@ -175,7 +175,7 @@ def build_romaneio_event(parsed: dict[str, Any]) -> tuple[dict[str, Any], dict[s
             "status": "1",
             "pedido": ",".join(pedido["numero_unico"] for pedido in parsed["pedidos"]),
             "parceiro": parsed["pedidos"][0]["parceiro"] if parsed["pedidos"] else "",
-            "cidade": "",
+            "cidade": parsed.get("cidade") or (parsed["pedidos"][0].get("cidade") if parsed["pedidos"] else ""),
             "valor_total": parsed["total_geral"],
             "itens": parsed["itens"],
         },
@@ -199,6 +199,7 @@ def build_romaneio_event(parsed: dict[str, Any]) -> tuple[dict[str, Any], dict[s
         "ordem_carga": parsed["ordem_carga"],
         "romaneio_identity": parsed.get("romaneio_identity") or parsed["ordem_carga"],
         "pedidos_detail": parsed["pedidos"],
+        "source_origin": parsed.get("source_origin") or "pdf_parser",
     }
 
     return payload, meta

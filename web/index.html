@@ -114,6 +114,10 @@
             <span class="icon">🔐</span>
             <span class="nav-label">Governança</span>
           </a>
+          <a href="#integracoes" class="nav-item">
+            <span class="icon">🔗</span>
+            <span class="nav-label">Integrações</span>
+          </a>
           <a href="#usuarios" class="nav-item">
             <span class="icon">👤</span>
             <span class="nav-label">Usuários</span>
@@ -306,8 +310,13 @@
                   <h3>Entrada de Romaneios</h3>
                   <p class="section-copy">Adicione romaneios manualmente ou envie os PDFs do seu computador para montar a fila operacional.</p>
                 </div>
-                <div id="romaneio-intake-summary" class="inline-stats"></div>
+                <div class="panel-actions">
+                  <button id="refresh-romaneios" type="button" class="btn btn-primary">Atualizar romaneios</button>
+                  <button id="open-integracoes" type="button" class="btn btn-secondary">Integrações</button>
+                  <div id="romaneio-intake-summary" class="inline-stats"></div>
+                </div>
               </div>
+              <span id="romaneio-refresh-status" class="status-msg"></span>
 
               <div class="romaneio-intake-grid">
                 <div
@@ -962,6 +971,81 @@
               <table class="modern-table">
                 <tbody id="painel-table"></tbody>
               </table>
+            </div>
+          </div>
+
+          <div id="integracoes" class="view-module grid-layout-2-wide">
+            <div class="glass-panel">
+              <div class="panel-header">
+                <div>
+                  <h3>Integrações Operacionais</h3>
+                  <p class="section-copy">Cadastre o webhook do n8n para buscar novos romaneios e acompanhe o último refresh.</p>
+                </div>
+                <button id="integration-run-now" type="button" class="btn btn-secondary">Rodar agora</button>
+              </div>
+              <div id="integrations-summary" class="summary-pills"></div>
+              <div id="integrations-list" class="users-list mt-4"></div>
+            </div>
+
+            <div class="glass-panel">
+              <div class="panel-header">
+                <div>
+                  <h3>Cadastro de Integração</h3>
+                  <p class="section-copy">Mantenha aqui a URL, autenticação e payload do webhook de atualização dos romaneios.</p>
+                </div>
+              </div>
+              <form id="integration-form" class="users-form">
+                <input type="hidden" name="id" />
+                <input type="hidden" name="integration_type" value="n8n_webhook_romaneios" />
+                <div class="input-grid">
+                  <div class="input-group">
+                    <label>Nome</label>
+                    <input type="text" name="name" class="modern-input" placeholder="Romaneios N8N" required />
+                  </div>
+                  <div class="input-group">
+                    <label>Método</label>
+                    <select name="method" class="modern-input">
+                      <option value="POST">POST</option>
+                      <option value="GET">GET</option>
+                    </select>
+                  </div>
+                  <div class="input-group full-width">
+                    <label>Webhook URL</label>
+                    <input type="url" name="webhook_url" class="modern-input" placeholder="https://seu-n8n/webhook/romaneios" required />
+                  </div>
+                  <div class="input-group">
+                    <label>Autenticação</label>
+                    <select name="auth_type" class="modern-input">
+                      <option value="none">Sem autenticação</option>
+                      <option value="bearer">Bearer</option>
+                    </select>
+                  </div>
+                  <div class="input-group">
+                    <label>Token / Segredo</label>
+                    <input type="text" name="auth_value" class="modern-input" placeholder="Opcional" />
+                  </div>
+                  <div class="input-group">
+                    <label>Status</label>
+                    <select name="active" class="modern-input">
+                      <option value="true">Ativa</option>
+                      <option value="false">Inativa</option>
+                    </select>
+                  </div>
+                  <div class="input-group full-width">
+                    <label>Headers extras (JSON)</label>
+                    <textarea name="extra_headers_json" class="modern-input" rows="4" placeholder='{"X-Chave":"valor"}'>{}</textarea>
+                  </div>
+                  <div class="input-group full-width">
+                    <label>Body da requisição (JSON)</label>
+                    <textarea name="request_body_json" class="modern-input" rows="6" placeholder='{"force":true}'>{}</textarea>
+                  </div>
+                </div>
+                <div class="form-footer">
+                  <button type="submit" class="btn btn-primary">Salvar integração</button>
+                  <button type="button" id="integration-form-reset" class="btn btn-secondary">Limpar</button>
+                  <span id="integration-status" class="status-msg"></span>
+                </div>
+              </form>
             </div>
           </div>
 

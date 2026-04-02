@@ -8,9 +8,12 @@ from decimal import Decimal
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
 from pathlib import Path
+from urllib.error import HTTPError, URLError
 from urllib.parse import parse_qs, urlparse
+from urllib.request import Request, urlopen
 
 from backend import Settings, build_provider
+from backend.romaneio_integration import normalize_webhook_romaneios
 from backend.romaneio_pdf import SOURCE_CODE as ROMANEIO_PDF_SOURCE_CODE
 from backend.romaneio_pdf import build_romaneio_event, normalize_romaneio_identity, parse_romaneio_pdf_bytes
 
@@ -103,6 +106,7 @@ def _merge_parsed_records(records: list[dict]) -> dict:
                 "ped_mercos": str(pedido.get("ped_mercos") or "").strip(),
                 "codigo_parceiro": str(pedido.get("codigo_parceiro") or "").strip(),
                 "parceiro": str(pedido.get("parceiro") or "").strip(),
+                "cidade": str(pedido.get("cidade") or "").strip(),
                 "valor_total": round(_to_float(pedido.get("valor_total")), 2),
             }
             if key not in merged_pedidos:
@@ -110,7 +114,7 @@ def _merge_parsed_records(records: list[dict]) -> dict:
                 pedido_order.append(key)
             else:
                 current = merged_pedidos[key]
-                for field in ("numero_unico", "ped_mercos", "codigo_parceiro", "parceiro"):
+                for field in ("numero_unico", "ped_mercos", "codigo_parceiro", "parceiro", "cidade"):
                     if not current.get(field) and normalized.get(field):
                         current[field] = normalized[field]
                 current["valor_total"] = max(_to_float(current.get("valor_total")), normalized["valor_total"])
@@ -298,6 +302,119 @@ def sync_parsed_romaneios(records: list[dict]) -> dict:
     }
 
 
+def _parse_json_config_field(value, fallback):
+    if value in (None, ""):
+        return fallback
+    if isinstance(value, (dict, list)):
+        return value
+    text = str(value).strip()
+    if not text:
+        return fallback
+    return json.loads(text)
+
+
+def _resolve_romaneio_integration(integration_id: str | None = None) -> dict:
+    items = (PROVIDER.integrations() or {}).get("items") or []
+    candidates = [
+        item
+        for item in items
+        if item.get("integration_type") == "n8n_webhook_romaneios"
+        and (integration_id is None or str(item.get("id")) == str(integration_id))
+    ]
+    if integration_id and not candidates:
+        raise RuntimeError("Integração de romaneios não encontrada.")
+    active = next((item for item in candidates if item.get("active")), None) if candidates else None
+    if active:
+        return active
+    if integration_id and candidates:
+        return candidates[0]
+    raise RuntimeError("Nenhuma integração ativa de romaneios foi cadastrada.")
+
+
+def _call_integration_webhook(integration: dict) -> tuple[int, dict | list]:
+    webhook_url = str(integration.get("webhook_url") or "").strip()
+    if not webhook_url:
+        raise RuntimeError("Webhook da integração de romaneios não configurado.")
+
+    method = str(integration.get("method") or "POST").strip().upper() or "POST"
+    headers = {"Accept": "application/json"}
+    extra_headers = _parse_json_config_field(integration.get("extra_headers_json"), {})
+    if isinstance(extra_headers, dict):
+        headers.update({str(key): str(value) for key, value in extra_headers.items() if value is not None})
+
+    auth_type = str(integration.get("auth_type") or "none").strip().lower()
+    auth_value = str(integration.get("auth_value") or "").strip()
+    if auth_type == "bearer" and auth_value:
+        headers["Authorization"] = f"Bearer {auth_value}"
+
+    body_payload = _parse_json_config_field(integration.get("request_body_json"), {})
+    body_bytes = None
+    if method != "GET":
+        headers["Content-Type"] = "application/json"
+        body_bytes = json.dumps(body_payload, ensure_ascii=False).encode("utf-8")
+
+    request = Request(webhook_url, data=body_bytes, headers=headers, method=method)
+    try:
+        with urlopen(request, timeout=60) as response:
+            status_code = getattr(response, "status", None) or response.getcode()
+            raw_body = response.read().decode("utf-8") if response else ""
+    except HTTPError as exc:
+        error_body = exc.read().decode("utf-8", errors="ignore")
+        raise RuntimeError(f"Webhook retornou HTTP {exc.code}: {error_body or exc.reason}") from exc
+    except URLError as exc:
+        raise RuntimeError(f"Falha de comunicação com o webhook: {exc.reason}") from exc
+
+    if not raw_body.strip():
+        return status_code, {}
+    try:
+        return status_code, json.loads(raw_body)
+    except json.JSONDecodeError as exc:
+        raise RuntimeError("Webhook de romaneios retornou uma resposta que não é JSON válido.") from exc
+
+
+def refresh_romaneios_from_integration(payload: dict | None = None) -> dict:
+    request_payload = payload or {}
+    integration = _resolve_romaneio_integration(str(request_payload.get("integration_id") or "").strip() or None)
+    integration_id = integration.get("id")
+    synced_at = datetime.utcnow().isoformat() + "Z"
+
+    try:
+        webhook_status, webhook_payload = _call_integration_webhook(integration)
+        parsed_records = normalize_webhook_romaneios(webhook_payload)
+        if not parsed_records:
+            raise RuntimeError("O webhook não retornou nenhum romaneio aproveitável para ingestão.")
+        response = sync_parsed_romaneios(parsed_records)
+        PROVIDER.save_integration(
+            {
+                "id": integration_id,
+                "last_status": response.get("status") or "success",
+                "last_synced_at": synced_at,
+                "last_error": "",
+            }
+        )
+        return {
+            **response,
+            "integration": {
+                "id": integration_id,
+                "name": integration.get("name"),
+                "integration_type": integration.get("integration_type"),
+            },
+            "webhook_status_code": webhook_status,
+            "received_records": len(parsed_records),
+            "refreshed_romaneios": [record.get("ordem_carga") for record in parsed_records if record.get("ordem_carga")],
+        }
+    except Exception as exc:  # noqa: BLE001
+        PROVIDER.save_integration(
+            {
+                "id": integration_id,
+                "last_status": "error",
+                "last_synced_at": synced_at,
+                "last_error": str(exc),
+            }
+        )
+        raise
+
+
 class PcpApiHandler(BaseHTTPRequestHandler):
     server_version = "PCPSaaSReference/1.1"
 
@@ -342,6 +459,11 @@ class PcpApiHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/pcp/users/save":
                 payload = self.read_json_body()
                 self.send_json(HTTPStatus.OK, PROVIDER.save_user(payload))
+                return
+
+            if parsed.path == "/api/pcp/integrations/save":
+                payload = self.read_json_body()
+                self.send_json(HTTPStatus.OK, PROVIDER.save_integration(payload))
                 return
 
             if parsed.path == "/api/pcp/auth/login":
@@ -396,6 +518,11 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                     if response["status"] == "success":
                         response["status"] = "partial"
                 self.send_json(HTTPStatus.OK, response)
+                return
+
+            if parsed.path == "/api/pcp/romaneios/refresh":
+                payload = self.read_json_body()
+                self.send_json(HTTPStatus.OK, refresh_romaneios_from_integration(payload))
                 return
         except Exception as exc:  # noqa: BLE001
             self.send_json(
@@ -495,6 +622,10 @@ class PcpApiHandler(BaseHTTPRequestHandler):
 
             if path == "/api/pcp/users":
                 self.send_json(HTTPStatus.OK, PROVIDER.users())
+                return
+
+            if path == "/api/pcp/integrations":
+                self.send_json(HTTPStatus.OK, PROVIDER.integrations())
                 return
 
             if path == "/api/pcp/purchases":

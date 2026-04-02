@@ -31,6 +31,24 @@ DEFAULT_APP_USER = {
     "updated_at": "2026-04-01T00:00:00.000Z",
 }
 
+DEFAULT_APP_INTEGRATION = {
+    "id": "integration-romaneios-n8n",
+    "name": "Romaneios N8N",
+    "integration_type": "n8n_webhook_romaneios",
+    "webhook_url": "",
+    "method": "POST",
+    "auth_type": "none",
+    "auth_value": "",
+    "extra_headers_json": "{}",
+    "request_body_json": "{}",
+    "active": False,
+    "last_status": "idle",
+    "last_synced_at": "",
+    "last_error": "",
+    "created_at": "2026-04-02T00:00:00.000Z",
+    "updated_at": "2026-04-02T00:00:00.000Z",
+}
+
 ROMANEIO_REFERENCE_DATES_PATH = Path(__file__).resolve().parent.parent / "data" / "romaneio_reference_dates.json"
 
 
@@ -75,6 +93,105 @@ def save_app_users(users_path: Path, users: list[dict[str, Any]]) -> list[dict[s
         sanitized.insert(0, {**DEFAULT_APP_USER})
     users_path.parent.mkdir(parents=True, exist_ok=True)
     users_path.write_text(json.dumps({"items": sanitized}, ensure_ascii=False, indent=2), encoding="utf-8")
+    return sanitized
+
+
+def _stringify_json_field(value: Any, fallback: str = "{}") -> str:
+    if value is None or value == "":
+        return fallback
+    if isinstance(value, (dict, list)):
+        return json.dumps(value, ensure_ascii=False, indent=2)
+    text = str(value).strip()
+    if not text:
+        return fallback
+    try:
+        parsed = json.loads(text)
+    except json.JSONDecodeError:
+        return text
+    return json.dumps(parsed, ensure_ascii=False, indent=2)
+
+
+def _integration_id_for(raw: dict[str, Any]) -> str:
+    explicit = str(raw.get("id") or "").strip()
+    if explicit:
+        return explicit
+    integration_type = str(raw.get("integration_type") or DEFAULT_APP_INTEGRATION["integration_type"]).strip().lower()
+    if integration_type == "n8n_webhook_romaneios":
+        return DEFAULT_APP_INTEGRATION["id"]
+    slug = re.sub(r"[^a-z0-9]+", "-", integration_type).strip("-") or "custom"
+    return f"integration-{slug}"
+
+
+def _coerce_integration_record(raw: dict[str, Any]) -> dict[str, Any]:
+    created_at = str(raw.get("created_at") or datetime.now(timezone.utc).isoformat())
+    auth_value = str(raw.get("auth_value") or "").strip()
+    auth_type = str(raw.get("auth_type") or ("bearer" if auth_value else "none")).strip().lower() or "none"
+    return {
+        "id": _integration_id_for(raw),
+        "name": str(raw.get("name") or "Integração").strip() or "Integração",
+        "integration_type": str(raw.get("integration_type") or DEFAULT_APP_INTEGRATION["integration_type"]).strip()
+        or DEFAULT_APP_INTEGRATION["integration_type"],
+        "webhook_url": str(raw.get("webhook_url") or "").strip(),
+        "method": str(raw.get("method") or "POST").strip().upper() or "POST",
+        "auth_type": auth_type,
+        "auth_value": auth_value,
+        "extra_headers_json": _stringify_json_field(raw.get("extra_headers_json"), "{}"),
+        "request_body_json": _stringify_json_field(raw.get("request_body_json"), "{}"),
+        "active": _normalize_bool(raw.get("active", False)),
+        "last_status": str(raw.get("last_status") or "idle").strip() or "idle",
+        "last_synced_at": str(raw.get("last_synced_at") or "").strip(),
+        "last_error": str(raw.get("last_error") or "").strip(),
+        "created_at": created_at,
+        "updated_at": str(raw.get("updated_at") or created_at),
+    }
+
+
+def _default_integrations_from_settings(settings: Settings | None) -> list[dict[str, Any]]:
+    if not settings or not settings.n8n_romaneios_webhook_url:
+        return []
+    return [
+        _coerce_integration_record(
+            {
+                **DEFAULT_APP_INTEGRATION,
+                "webhook_url": settings.n8n_romaneios_webhook_url,
+                "auth_type": "bearer" if settings.n8n_romaneios_webhook_token else "none",
+                "auth_value": settings.n8n_romaneios_webhook_token or "",
+                "active": True,
+                "last_status": "configured",
+            }
+        )
+    ]
+
+
+def load_app_integrations(integrations_path: Path, settings: Settings | None = None) -> list[dict[str, Any]]:
+    if integrations_path.exists():
+        payload = json.loads(integrations_path.read_text(encoding="utf-8"))
+        items = payload.get("items", payload) if isinstance(payload, dict) else payload
+        integrations = [_coerce_integration_record(item) for item in items if item]
+    else:
+        integrations = []
+
+    defaults = _default_integrations_from_settings(settings)
+    for default_item in defaults:
+        if not any(item["id"] == default_item["id"] for item in integrations):
+            integrations.insert(0, default_item)
+
+    integrations = sorted(integrations, key=lambda item: (not item["active"], item["name"].lower()))
+    return integrations
+
+
+def save_app_integrations(
+    integrations_path: Path,
+    integrations: list[dict[str, Any]],
+    settings: Settings | None = None,
+) -> list[dict[str, Any]]:
+    sanitized = [_coerce_integration_record(item) for item in integrations if item]
+    defaults = _default_integrations_from_settings(settings)
+    for default_item in defaults:
+        if not any(item["id"] == default_item["id"] for item in sanitized):
+            sanitized.insert(0, default_item)
+    integrations_path.parent.mkdir(parents=True, exist_ok=True)
+    integrations_path.write_text(json.dumps({"items": sanitized}, ensure_ascii=False, indent=2), encoding="utf-8")
     return sanitized
 
 
@@ -197,7 +314,15 @@ class DataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def integrations(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def save_user(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
     @abstractmethod
@@ -242,6 +367,9 @@ class MockProvider(DataProvider):
 
     def _users_path(self) -> Path:
         return self.data_dir / "app_users.json"
+
+    def _integrations_path(self) -> Path:
+        return self.data_dir / "app_integrations.json"
 
     def overview(self, company_code: str | None = None) -> dict[str, Any]:
         return self._read_json("overview.json")
@@ -351,6 +479,9 @@ class MockProvider(DataProvider):
     def users(self) -> dict[str, Any]:
         return {"items": load_app_users(self._users_path())}
 
+    def integrations(self) -> dict[str, Any]:
+        return {"items": load_app_integrations(self._integrations_path())}
+
     def save_user(self, payload: dict[str, Any]) -> dict[str, Any]:
         users = load_app_users(self._users_path())
         username = str(payload.get("username") or "").strip().lower()
@@ -378,6 +509,33 @@ class MockProvider(DataProvider):
         next_users.append(next_user)
         persisted = save_app_users(self._users_path(), next_users)
         return {"status": "saved", "user": next_user, "items": persisted}
+
+    def save_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
+        integrations = load_app_integrations(self._integrations_path())
+        integration_type = str(payload.get("integration_type") or DEFAULT_APP_INTEGRATION["integration_type"]).strip()
+        integration_id = _integration_id_for(payload)
+        existing = next(
+            (
+                item
+                for item in integrations
+                if item["id"] == integration_id or (item["integration_type"] == integration_type and not payload.get("id"))
+            ),
+            None,
+        )
+        next_integration = _coerce_integration_record(
+            {
+                **(existing or DEFAULT_APP_INTEGRATION),
+                **payload,
+                "id": integration_id,
+                "integration_type": integration_type,
+                "created_at": (existing or DEFAULT_APP_INTEGRATION).get("created_at") or datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        next_items = [item for item in integrations if item["id"] != next_integration["id"]]
+        next_items.append(next_integration)
+        persisted = save_app_integrations(self._integrations_path(), next_items)
+        return {"status": "saved", "integration": next_integration, "items": persisted}
 
     def authenticate_user(self, username: str, password: str) -> dict[str, Any] | None:
         users = load_app_users(self._users_path())
@@ -597,6 +755,9 @@ class PostgresProvider(DataProvider):
     def _users_path(self) -> Path:
         return self.data_dir / "app_users.json"
 
+    def _integrations_path(self) -> Path:
+        return self.data_dir / "app_integrations.json"
+
     def _fetchall(self, sql: str, params: tuple[Any, ...] = (), write: bool = False) -> list[dict[str, Any]]:
         with self._connect(write=write) as connection:
             with connection.cursor() as cursor:
@@ -803,6 +964,9 @@ class PostgresProvider(DataProvider):
     def users(self) -> dict[str, Any]:
         return {"items": load_app_users(self._users_path())}
 
+    def integrations(self) -> dict[str, Any]:
+        return {"items": load_app_integrations(self._integrations_path(), self.settings)}
+
     def save_user(self, payload: dict[str, Any]) -> dict[str, Any]:
         users = load_app_users(self._users_path())
         username = str(payload.get("username") or "").strip().lower()
@@ -830,6 +994,33 @@ class PostgresProvider(DataProvider):
         next_users.append(next_user)
         persisted = save_app_users(self._users_path(), next_users)
         return {"status": "saved", "user": next_user, "items": persisted}
+
+    def save_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
+        integrations = load_app_integrations(self._integrations_path(), self.settings)
+        integration_type = str(payload.get("integration_type") or DEFAULT_APP_INTEGRATION["integration_type"]).strip()
+        integration_id = _integration_id_for(payload)
+        existing = next(
+            (
+                item
+                for item in integrations
+                if item["id"] == integration_id or (item["integration_type"] == integration_type and not payload.get("id"))
+            ),
+            None,
+        )
+        next_integration = _coerce_integration_record(
+            {
+                **(existing or DEFAULT_APP_INTEGRATION),
+                **payload,
+                "id": integration_id,
+                "integration_type": integration_type,
+                "created_at": (existing or DEFAULT_APP_INTEGRATION).get("created_at") or datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        next_items = [item for item in integrations if item["id"] != next_integration["id"]]
+        next_items.append(next_integration)
+        persisted = save_app_integrations(self._integrations_path(), next_items, self.settings)
+        return {"status": "saved", "integration": next_integration, "items": persisted}
 
     def authenticate_user(self, username: str, password: str) -> dict[str, Any] | None:
         users = load_app_users(self._users_path())

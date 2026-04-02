@@ -72,6 +72,7 @@ const state = {
     production: [],
     painel: [],
   },
+  integrations: [],
   currentUser: null,
   users: [],
   mrpRunning: false,
@@ -1908,7 +1909,7 @@ async function postJson(path, payload) {
   });
   const data = await response.json();
   if (!response.ok) {
-    throw new Error(data.detail || `Falha ao enviar dados para ${path}`);
+    throw new Error(data.detail || data.error || data.message || `Falha ao enviar dados para ${path}`);
   }
   return data;
 }
@@ -3356,6 +3357,134 @@ function renderSources(items) {
   });
 }
 
+function resetIntegrationForm() {
+  const form = document.getElementById("integration-form");
+  if (!form) {
+    return;
+  }
+  form.reset();
+  delete form.dataset.editingIntegrationId;
+  if (form.elements.namedItem("integration_type")) {
+    form.elements.namedItem("integration_type").value = "n8n_webhook_romaneios";
+  }
+  if (form.elements.namedItem("method")) {
+    form.elements.namedItem("method").value = "POST";
+  }
+  if (form.elements.namedItem("auth_type")) {
+    form.elements.namedItem("auth_type").value = "none";
+  }
+  if (form.elements.namedItem("active")) {
+    form.elements.namedItem("active").value = "true";
+  }
+  if (form.elements.namedItem("extra_headers_json")) {
+    form.elements.namedItem("extra_headers_json").value = "{}";
+  }
+  if (form.elements.namedItem("request_body_json")) {
+    form.elements.namedItem("request_body_json").value = "{}";
+  }
+}
+
+function populateIntegrationForm(item) {
+  const form = document.getElementById("integration-form");
+  if (!form || !item) {
+    return;
+  }
+  form.dataset.editingIntegrationId = item.id || "";
+  [
+    "id",
+    "name",
+    "integration_type",
+    "webhook_url",
+    "method",
+    "auth_type",
+    "auth_value",
+    "extra_headers_json",
+    "request_body_json",
+  ].forEach((field) => {
+    if (form.elements.namedItem(field)) {
+      form.elements.namedItem(field).value = item[field] ?? "";
+    }
+  });
+  if (form.elements.namedItem("active")) {
+    form.elements.namedItem("active").value = String(item.active ? "true" : "false");
+  }
+}
+
+function renderIntegrations(items) {
+  const summary = document.getElementById("integrations-summary");
+  const list = document.getElementById("integrations-list");
+  if (!summary || !list) {
+    return;
+  }
+
+  const integrations = Array.isArray(items) ? items : [];
+  summary.innerHTML = "";
+  list.innerHTML = "";
+
+  const activeCount = integrations.filter((item) => item.active).length;
+  const lastSync = integrations
+    .map((item) => item.last_synced_at)
+    .filter(Boolean)
+    .sort()
+    .reverse()[0];
+
+  [
+    ["Ativas", number.format(activeCount)],
+    ["Cadastradas", number.format(integrations.length)],
+    ["Último refresh", formatDateTimeWithFallback(lastSync, "Sem execução")],
+  ].forEach(([label, value]) => {
+    summary.appendChild(
+      el(`
+        <div class="mini-card">
+          <small>${label}</small>
+          <strong>${value}</strong>
+        </div>
+      `),
+    );
+  });
+
+  if (!integrations.length) {
+    list.appendChild(emptyState("Nenhuma integração cadastrada. Configure o webhook do n8n para atualizar os romaneios."));
+    resetIntegrationForm();
+    return;
+  }
+
+  integrations.forEach((item) => {
+    const statusTone = item.last_status === "error" ? "high" : item.active ? "ok" : "missing";
+    const card = el(`
+      <div class="source-card integration-card">
+        <div class="source-card-copy">
+          <small>${item.integration_type}</small>
+          <strong>${item.name}</strong>
+          <em>${item.webhook_url || "Webhook ainda não configurado"}</em>
+          <span class="muted">${item.last_error || (item.last_synced_at ? `Último refresh ${formatDateTimeWithFallback(item.last_synced_at, "agora")}` : "Sem refresh executado")}</span>
+        </div>
+        <div class="source-card-actions">
+          <span class="tag ${statusTone}">${item.active ? (item.last_status || "ativa") : "inativa"}</span>
+          <button type="button" class="btn btn-secondary btn-xs" data-action="edit">Editar</button>
+          <button type="button" class="btn btn-secondary btn-xs" data-action="run">Atualizar</button>
+        </div>
+      </div>
+    `);
+    card.querySelector('[data-action="edit"]')?.addEventListener("click", () => {
+      populateIntegrationForm(item);
+      setElementStatus("integration-status", `Editando ${item.name}.`);
+    });
+    card.querySelector('[data-action="run"]')?.addEventListener("click", () => {
+      atualizarRomaneiosViaWebhook(item.id).catch((error) => {
+        setElementStatus("integration-status", error.message, "error");
+      });
+    });
+    list.appendChild(card);
+  });
+
+  const currentForm = document.getElementById("integration-form");
+  const editingId = currentForm?.dataset.editingIntegrationId || "";
+  if (!editingId) {
+    populateIntegrationForm(integrations[0]);
+  }
+}
+
 function renderPainel(items) {
   const tbody = document.getElementById("painel-table");
   tbody.innerHTML = "";
@@ -3442,6 +3571,54 @@ function renderEstoqueAtual(items) {
       `),
     );
   });
+}
+
+async function salvarIntegracao(event) {
+  event.preventDefault();
+  try {
+    if (!state.currentUser || !["root", "manager"].includes(state.currentUser.role)) {
+      setElementStatus("integration-status", "Apenas administradores podem alterar integrações.", "error");
+      return;
+    }
+
+    const form = event.currentTarget;
+    const payload = payloadFromForm(form);
+    if (!payload.name || !payload.webhook_url) {
+      setElementStatus("integration-status", "Informe nome e webhook da integração.", "error");
+      return;
+    }
+    payload.id = form.dataset.editingIntegrationId || payload.id || "";
+    payload.active = String(payload.active || "true") === "true";
+    const response = await postJson("/api/pcp/integrations/save", payload);
+    state.integrations = Array.isArray(response.items) ? response.items : state.integrations;
+    renderIntegrations(state.integrations);
+    populateIntegrationForm(response.integration || payload);
+    setElementStatus("integration-status", `Integração ${payload.name} salva com sucesso.`, "success");
+  } catch (error) {
+    setElementStatus("integration-status", error.message, "error");
+  }
+}
+
+async function atualizarRomaneiosViaWebhook(integrationId = "") {
+  const statusIds = ["romaneio-refresh-status", "integration-status", "romaneio-dropzone-status"];
+  statusIds.forEach((id) => setElementStatus(id, "Atualizando romaneios via integração..."));
+  try {
+    const response = await postJson("/api/pcp/romaneios/refresh", integrationId ? { integration_id: integrationId } : {});
+    if (Array.isArray(response.refreshed_romaneios) && response.refreshed_romaneios.length) {
+      state.romaneioSelecionado = String(response.refreshed_romaneios[0]);
+    }
+    await carregarTudo();
+    const successCount = Number(response.count || response.received_records || 0);
+    const errorCount = Array.isArray(response.errors) ? response.errors.length : 0;
+    const message = errorCount
+      ? `${successCount} romaneio(s) processados e ${errorCount} com erro.`
+      : `${successCount} romaneio(s) atualizados pelo webhook.`;
+    statusIds.forEach((id) => setElementStatus(id, message, errorCount ? "error" : "success"));
+    return response;
+  } catch (error) {
+    statusIds.forEach((id) => setElementStatus(id, error.message, "error"));
+    throw error;
+  }
 }
 
 function payloadFromForm(form) {
@@ -4868,6 +5045,7 @@ function rerenderOperationalViews() {
   renderHourlyModule("montagem");
   renderMrpTable("production-table", state.datasets.production);
   renderHourlyModule("producao");
+  renderIntegrations(state.integrations);
   renderUsersModule();
   applyHorizontalScrollEnhancements();
 }
@@ -5215,6 +5393,7 @@ async function carregarTudo() {
     recycling,
     costs,
     sources,
+    integrations,
     painel,
     users,
   ] = await Promise.all([
@@ -5230,6 +5409,7 @@ async function carregarTudo() {
     safeApi("/api/pcp/recycling", { items: [] }, warnings),
     safeApi("/api/pcp/costs", { items: [] }, warnings),
     safeApi("/api/pcp/sources", { items: [] }, warnings),
+    safeApi("/api/pcp/integrations", { items: [] }, warnings),
     safeApi("/api/pcp/painel", { items: [] }, warnings),
     safeApi("/api/pcp/users", { items: state.users || [] }, warnings),
   ]);
@@ -5245,6 +5425,7 @@ async function carregarTudo() {
   state.datasets.assembly = Array.isArray(assembly.items) ? assembly.items : [];
   state.datasets.production = Array.isArray(production.items) ? production.items : [];
   state.datasets.painel = Array.isArray(painel.items) ? painel.items : [];
+  state.integrations = Array.isArray(integrations.items) ? integrations.items : [];
   saveUsers(mergeUsersWithDefault(users.items || []));
   refreshRomaneiosWorkspace();
   renderKanban(kanban);
@@ -5259,6 +5440,7 @@ async function carregarTudo() {
   renderRecycling(recycling.items);
   renderCosts(costs.items);
   renderSources(sources.items);
+  renderIntegrations(state.integrations);
   renderPainel(painel.items);
   renderEstoqueAtual(state.datasets.painel);
   renderUsersModule();
@@ -5379,6 +5561,20 @@ document.getElementById("sync-all-sources")?.addEventListener("click", () => {
   syncSources().catch((error) => {
     setElementStatus("sources-status", error.message, "error");
   });
+});
+document.getElementById("refresh-romaneios")?.addEventListener("click", () => {
+  atualizarRomaneiosViaWebhook().catch(() => {});
+});
+document.getElementById("open-integracoes")?.addEventListener("click", () => {
+  switchTab("#integracoes");
+});
+document.getElementById("integration-run-now")?.addEventListener("click", () => {
+  atualizarRomaneiosViaWebhook().catch(() => {});
+});
+document.getElementById("integration-form")?.addEventListener("submit", salvarIntegracao);
+document.getElementById("integration-form-reset")?.addEventListener("click", () => {
+  resetIntegrationForm();
+  setElementStatus("integration-status", "Formulário de integração limpo.", "success");
 });
 window.addEventListener("resize", () => {
   refreshHorizontalScrollers();

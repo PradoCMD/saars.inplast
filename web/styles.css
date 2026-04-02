@@ -1275,6 +1275,14 @@
       gap: 24px;
   }
 
+  .panel-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+  }
+
   .section-copy {
       margin-top: 8px;
       color: var(--text-secondary);
@@ -2888,6 +2896,11 @@
       gap: 8px;
       flex-wrap: wrap;
       justify-content: flex-end;
+  }
+
+  .integration-card .muted {
+      max-width: 320px;
+      text-align: right;
   }
 
   .text-warning {
