@@ -4,6 +4,37 @@ const money = new Intl.NumberFormat("pt-BR", {
 });
 
 const number = new Intl.NumberFormat("pt-BR");
+const APP_TIMEZONE = "America/Sao_Paulo";
+const APP_FIXED_OFFSET = "-03:00";
+const appDateTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: APP_TIMEZONE,
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const appDateFormatter = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: APP_TIMEZONE,
+  day: "2-digit",
+  month: "2-digit",
+  year: "numeric",
+});
+const appTimeFormatter = new Intl.DateTimeFormat("pt-BR", {
+  timeZone: APP_TIMEZONE,
+  hour: "2-digit",
+  minute: "2-digit",
+});
+const appIsoPartsFormatter = new Intl.DateTimeFormat("en-CA", {
+  timeZone: APP_TIMEZONE,
+  year: "numeric",
+  month: "2-digit",
+  day: "2-digit",
+  hour: "2-digit",
+  minute: "2-digit",
+  second: "2-digit",
+  hour12: false,
+});
 
 const state = {
   romaneioSelecionado: null,
@@ -18,6 +49,7 @@ const state = {
   kanbanStatusFilter: "todos",
   kanbanViewMode: "board",
   kanbanSelecionado: null,
+  kanbanInspectorCollapsed: true,
   programmingActionFilter: "",
   hourlySelections: {
     montagem: { resourceId: "montagem-01", focusSku: "" },
@@ -154,26 +186,70 @@ function formatDateTime(value) {
   return formatDateTimeWithFallback(value, "Sem previsao");
 }
 
-function formatDateTimeWithFallback(value, fallback) {
-  if (!value) {
-    return fallback;
+function parseDateValue(value) {
+  if (value instanceof Date) {
+    return Number.isNaN(value.getTime()) ? null : value;
   }
-  const parsed = new Date(value);
+  const text = String(value || "").trim();
+  if (!text) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
+    return new Date(`${text}T12:00:00${APP_FIXED_OFFSET}`);
+  }
+  const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) {
+    return null;
+  }
+  return parsed;
+}
+
+function getAppTimeParts(value) {
+  const parsed = parseDateValue(value);
+  if (!parsed) {
+    return null;
+  }
+  return appIsoPartsFormatter.formatToParts(parsed).reduce((accumulator, part) => {
+    if (part.type !== "literal") {
+      accumulator[part.type] = part.value;
+    }
+    return accumulator;
+  }, {});
+}
+
+function buildAppIsoFromLocalText(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return null;
+  }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text)) {
+    return `${text}:00${APP_FIXED_OFFSET}`;
+  }
+  return text;
+}
+
+function formatDateTimeWithFallback(value, fallback) {
+  const parsed = parseDateValue(value);
+  if (!parsed) {
     return fallback;
   }
-  return parsed.toLocaleString("pt-BR");
+  return appDateTimeFormatter.format(parsed);
 }
 
 function formatDateWithFallback(value, fallback) {
-  if (!value) {
+  const parsed = parseDateValue(value);
+  if (!parsed) {
     return fallback;
   }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
+  return appDateFormatter.format(parsed);
+}
+
+function formatTimeWithFallback(value, fallback) {
+  const parsed = parseDateValue(value);
+  if (!parsed) {
     return fallback;
   }
-  return parsed.toLocaleDateString("pt-BR");
+  return appTimeFormatter.format(parsed);
 }
 
 function clamp(value, min, max) {
@@ -185,19 +261,15 @@ function sumBy(items, getValue) {
 }
 
 function startOfToday() {
-  const now = new Date();
-  return new Date(now.getFullYear(), now.getMonth(), now.getDate());
+  const parts = getAppTimeParts(new Date());
+  if (!parts) {
+    return new Date();
+  }
+  return new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00${APP_FIXED_OFFSET}`);
 }
 
 function parseIsoDate(value) {
-  if (!value) {
-    return null;
-  }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return null;
-  }
-  return parsed;
+  return parseDateValue(value);
 }
 
 function formatStatusLabel(value) {
@@ -514,6 +586,26 @@ function ensureHorizontalScroller(node, shellClass = "") {
   node.classList.add("x-scroll-track");
 
   const scrollStep = () => Math.max(viewport.clientWidth * 0.82, 240);
+  let hoverTimer = null;
+
+  const stopAutoScroll = () => {
+    if (hoverTimer) {
+      window.clearInterval(hoverTimer);
+      hoverTimer = null;
+    }
+  };
+
+  const startAutoScroll = (direction) => {
+    stopAutoScroll();
+    hoverTimer = window.setInterval(() => {
+      const previous = viewport.scrollLeft;
+      viewport.scrollLeft += direction * Math.max(viewport.clientWidth * 0.12, 42);
+      refreshHorizontalScroller(shell);
+      if (viewport.scrollLeft === previous) {
+        stopAutoScroll();
+      }
+    }, 40);
+  };
 
   leftButton.addEventListener("click", () => {
     viewport.scrollBy({ left: -scrollStep(), behavior: "smooth" });
@@ -524,6 +616,12 @@ function ensureHorizontalScroller(node, shellClass = "") {
   });
 
   viewport.addEventListener("scroll", () => refreshHorizontalScroller(shell), { passive: true });
+  leftButton.addEventListener("mouseenter", () => startAutoScroll(-1));
+  rightButton.addEventListener("mouseenter", () => startAutoScroll(1));
+  leftButton.addEventListener("mouseleave", stopAutoScroll);
+  rightButton.addEventListener("mouseleave", stopAutoScroll);
+  leftButton.addEventListener("blur", stopAutoScroll);
+  rightButton.addEventListener("blur", stopAutoScroll);
   window.requestAnimationFrame(() => refreshHorizontalScroller(shell));
   return shell;
 }
@@ -535,16 +633,11 @@ function applyHorizontalScrollEnhancements(root = document) {
 }
 
 function toDatetimeLocalValue(value) {
-  if (!value) {
+  const parts = getAppTimeParts(value);
+  if (!parts) {
     return "";
   }
-  const parsed = new Date(value);
-  if (Number.isNaN(parsed.getTime())) {
-    return "";
-  }
-  const offset = parsed.getTimezoneOffset();
-  const local = new Date(parsed.getTime() - offset * 60 * 1000);
-  return local.toISOString().slice(0, 16);
+  return `${parts.year}-${parts.month}-${parts.day}T${parts.hour}:${parts.minute}`;
 }
 
 function addHoursToIso(value, hours) {
@@ -568,10 +661,12 @@ function durationBetweenClocks(start, end) {
 }
 
 function buildLocalIsoForClock(clockValue, baseDate = new Date()) {
-  const next = new Date(baseDate);
+  const parts = getAppTimeParts(baseDate);
   const [hour = "0", minute = "0"] = String(clockValue || "0:00").split(":");
-  next.setHours(Number(hour) || 0, Number(minute) || 0, 0, 0);
-  return next.toISOString();
+  if (!parts) {
+    return `${new Date().toISOString().slice(0, 10)}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00${APP_FIXED_OFFSET}`;
+  }
+  return `${parts.year}-${parts.month}-${parts.day}T${String(hour).padStart(2, "0")}:${String(minute).padStart(2, "0")}:00${APP_FIXED_OFFSET}`;
 }
 
 function normalizeRomaneioLookupCode(value) {
@@ -1855,7 +1950,7 @@ function describeTimelineBucket(dateKey) {
     };
   }
 
-  const date = new Date(`${dateKey}T12:00:00`);
+  const date = new Date(`${dateKey}T12:00:00${APP_FIXED_OFFSET}`);
   const diffDays = Math.round((date.getTime() - startOfToday().getTime()) / DAY_MS);
   if (diffDays < 0) {
     return {
@@ -2291,7 +2386,7 @@ function renderRomaneioDetail(data) {
         <div class="detail-card">
           <small>${item.event_type}</small>
           <strong>${item.event_id}</strong>
-          <em>${new Date(item.received_at).toLocaleString("pt-BR")} | ${item.status}</em>
+          <em>${formatDateTimeWithFallback(item.received_at, "Sem recebimento")} | ${item.status}</em>
         </div>
       `),
     );
@@ -3221,7 +3316,7 @@ function payloadFromForm(form) {
       continue;
     }
     if (form.elements.namedItem(key)?.type === "datetime-local") {
-      payload[key] = new Date(text).toISOString();
+      payload[key] = buildAppIsoFromLocalText(text);
       continue;
     }
     payload[key] = text;
@@ -3753,10 +3848,18 @@ function syncKanbanInspectorHeader(viewMode, selectedCard) {
   const title = document.getElementById("kanban-inspector-title");
   const copy = document.getElementById("kanban-inspector-copy");
   const label = document.getElementById("kanban-selected-label");
+  const toggle = document.getElementById("kanban-inspector-toggle");
 
-  if (!title || !copy || !label) {
+  if (!title || !copy || !label || !toggle) {
     return;
   }
+
+  const isBoardMode = viewMode === "board";
+  const isCollapsed = isBoardMode && state.kanbanInspectorCollapsed;
+  toggle.hidden = !isBoardMode;
+  toggle.textContent = isCollapsed ? "Abrir" : "Ocultar";
+  toggle.className = `btn ${isCollapsed ? "btn-primary" : "btn-secondary"} btn-xs`;
+  toggle.setAttribute("aria-label", isCollapsed ? "Abrir detalhes do romaneio" : "Recolher detalhes do romaneio");
 
   if (!selectedCard) {
     title.textContent = viewMode === "workbench" ? "Workbench Logístico" : "Detalhes do Romaneio";
@@ -3820,7 +3923,7 @@ function bindKanbanInspectorActions(inspector, context) {
 
   inspector.querySelector("#kanban-save-date")?.addEventListener("click", async () => {
     const field = inspector.querySelector("#kanban-manual-date");
-    const value = field?.value ? new Date(field.value).toISOString() : null;
+    const value = field?.value ? buildAppIsoFromLocalText(field.value) : null;
     try {
       await postJson("/api/pcp/romaneios-kanban/update-date", {
         romaneio: selectedCard.romaneio,
@@ -4173,6 +4276,7 @@ function renderKanban(data) {
   if (layout) {
     layout.classList.remove("mode-board", "mode-workbench");
     layout.classList.add(`mode-${viewMode}`);
+    layout.classList.toggle("inspector-collapsed", viewMode === "board" && state.kanbanInspectorCollapsed);
   }
   renderKanbanSummary(model);
   renderKanbanInspector(model, data, viewMode);
@@ -4235,12 +4339,14 @@ function renderKanban(data) {
       
       card.addEventListener("click", () => {
         state.kanbanSelecionado = cardData.romaneio;
+        state.kanbanInspectorCollapsed = false;
         renderKanban(kanbanState);
       });
 
       card.querySelector('[data-action="inspect"]').addEventListener("click", async (event) => {
         event.stopPropagation();
         state.kanbanSelecionado = cardData.romaneio;
+        state.kanbanInspectorCollapsed = false;
         renderKanban(kanbanState);
       });
 
@@ -4792,7 +4898,7 @@ function salvarApontamento(event) {
       stop_start: payload.stop_start || "",
       stop_end: payload.stop_end || "",
       reason: payload.reason || "",
-      time_range: new Date().toLocaleTimeString("pt-BR", { hour: "2-digit", minute: "2-digit" }),
+      time_range: formatTimeWithFallback(new Date().toISOString(), "--:--"),
     };
 
     saveApontamentoLogs([entry, ...state.apontamentoLogs]);
@@ -5033,6 +5139,16 @@ document.getElementById("kanban-status-filter")?.addEventListener("change", (eve
 });
 document.getElementById("kanban-view-mode")?.addEventListener("change", (event) => {
   state.kanbanViewMode = event.target.value || "board";
+  if (state.kanbanViewMode === "workbench") {
+    state.kanbanInspectorCollapsed = false;
+  }
+  renderKanban(state.datasets.kanban);
+});
+document.getElementById("kanban-inspector-toggle")?.addEventListener("click", () => {
+  if (state.kanbanViewMode !== "board") {
+    return;
+  }
+  state.kanbanInspectorCollapsed = !state.kanbanInspectorCollapsed;
   renderKanban(state.datasets.kanban);
 });
 document.getElementById("kanban-reset-filters")?.addEventListener("click", () => {

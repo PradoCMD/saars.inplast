@@ -270,12 +270,15 @@
               </section>
 
               <aside class="glass-panel kanban-inspector">
-                <div class="panel-header">
+                <div class="panel-header kanban-inspector-header">
                   <div>
                     <h3 id="kanban-inspector-title">Detalhes do Romaneio</h3>
                     <p id="kanban-inspector-copy" class="section-copy">Selecione um romaneio no Kanban para visualizar carteira, produtos e programação.</p>
                   </div>
-                  <span id="kanban-selected-label" class="status-badge info">Sem romaneio selecionado</span>
+                  <div class="kanban-inspector-header-actions">
+                    <button id="kanban-inspector-toggle" type="button" class="btn btn-secondary btn-xs">Ocultar</button>
+                    <span id="kanban-selected-label" class="status-badge info">Sem romaneio selecionado</span>
+                  </div>
                 </div>
                 <div id="kanban-inspector" class="kanban-inspector-body"></div>
               </aside>
