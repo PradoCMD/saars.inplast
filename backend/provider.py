@@ -392,6 +392,7 @@ class MockProvider(DataProvider):
             "run_id": int(datetime.now(timezone.utc).timestamp()),
             "status": "queued",
             "queued_at": datetime.now(timezone.utc).isoformat(),
+            "message": "Recálculo do planejamento solicitado. As filas serão atualizadas quando a rodada terminar.",
         }
 
     def save_structure_override(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -845,6 +846,11 @@ class PostgresProvider(DataProvider):
             "run_id": run_id,
             "status": "queued" if run_id is not None else "error",
             "queued_at": datetime.now(timezone.utc).isoformat(),
+            "message": (
+                "Recálculo do planejamento solicitado. Aguarde a atualização das filas operacionais."
+                if run_id is not None
+                else "Não foi possível abrir uma nova rodada de MRP."
+            ),
         }
 
     def save_structure_override(self, payload: dict[str, Any]) -> dict[str, Any]:

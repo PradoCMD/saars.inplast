@@ -349,7 +349,6 @@ select
     source_code,
     initcap(replace(source_code, '_', ' ')) as source_name,
     source_area,
-    parser_name,
     last_success_at,
     is_active,
     is_required,
@@ -363,7 +362,6 @@ from (
     select
         source_code,
         source_area,
-        parser_name,
         last_success_at,
         is_active,
         is_required,

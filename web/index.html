@@ -148,10 +148,23 @@
               <input id="global-search-input" type="text" placeholder="Buscar romaneio, pedido, SKU ou cliente..." aria-label="Busca global">
             </div>
             
-            <button id="run-mrp" class="btn btn-primary">
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l-5.4 5.39" stroke-linecap="round" stroke-linejoin="round"/></svg>
-              Disparar MRP
-            </button>
+            <div class="topbar-mrp-group">
+              <button
+                id="run-mrp"
+                class="btn btn-primary"
+                type="button"
+                title="Recalcula montagem, produção e compras com base no estoque, nos romaneios e nas estruturas cadastradas."
+              >
+                <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M21.5 2v6h-6M21.34 15.57a10 10 0 1 1-.59-9.21l-5.4 5.39" stroke-linecap="round" stroke-linejoin="round"/></svg>
+                <span class="mrp-label">Recalcular MRP</span>
+              </button>
+              <span
+                class="help-tip topbar-help-tip"
+                tabindex="0"
+                data-tooltip="Recalcula as filas de montagem, produção e compras usando o saldo atual, a carteira de romaneios e as estruturas vigentes."
+                aria-label="Ajuda do recálculo de MRP"
+              >i</span>
+            </div>
             <button id="reload-all" class="btn btn-secondary">
               <svg width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path d="M3 12a9 9 0 1 0 9-9 9.75 9.75 0 0 0-6.74 2.74L3 8" stroke-linecap="round" stroke-linejoin="round"/><path d="M3 3v5h5" stroke-linecap="round" stroke-linejoin="round"/></svg>
             </button>
@@ -785,6 +798,10 @@
                   <span class="help-tip" tabindex="0" data-tooltip="Painel hora-a-hora para as esteiras, com operador-chave, metas do turno, agenda do recurso e carteira de montagem." aria-label="Ajuda das esteiras de montagem">i</span>
                 </div>
               </div>
+              <div class="module-header-actions">
+                <button type="button" id="assembly-toggle-sidebar" class="btn btn-secondary btn-xs">Recolher painel</button>
+                <button type="button" id="assembly-toggle-table" class="btn btn-secondary btn-xs">Recolher fila</button>
+              </div>
             </div>
             <div class="hourly-shell" id="assembly-hourly-shell">
               <section class="glass-panel hourly-main">
@@ -819,7 +836,7 @@
               </aside>
             </div>
             
-            <div class="glass-panel mt-4">
+            <div class="glass-panel mt-4 hourly-bottom-panel" id="assembly-bottom-panel">
               <div class="panel-header">
                 <div class="title-with-help">
                   <h3>Fila Operacional: Montagem</h3>
@@ -850,6 +867,10 @@
                   <h2>Produção | H-H Padrão</h2>
                   <span class="help-tip" tabindex="0" data-tooltip="Leitura hora-a-hora das células de produção, espelhando a lógica de intervalos, paradas e objetivos do chão de fábrica." aria-label="Ajuda da produção">i</span>
                 </div>
+              </div>
+              <div class="module-header-actions">
+                <button type="button" id="production-toggle-sidebar" class="btn btn-secondary btn-xs">Recolher painel</button>
+                <button type="button" id="production-toggle-table" class="btn btn-secondary btn-xs">Recolher fila</button>
               </div>
             </div>
             <div class="hourly-shell" id="production-hourly-shell">
@@ -885,7 +906,7 @@
               </aside>
             </div>
 
-            <div class="glass-panel mt-4">
+            <div class="glass-panel mt-4 hourly-bottom-panel" id="production-bottom-panel">
               <div class="panel-header">
                 <div class="title-with-help">
                   <h3>Fila Operacional: Extrusão</h3>

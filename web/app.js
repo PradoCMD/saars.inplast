@@ -50,10 +50,15 @@ const state = {
   kanbanViewMode: "board",
   kanbanSelecionado: null,
   kanbanInspectorCollapsed: true,
+  kanbanDetailsExpanded: false,
   programmingActionFilter: "",
   hourlySelections: {
     montagem: { resourceId: "montagem-01", focusSku: "" },
     producao: { resourceId: "producao-01", focusSku: "" },
+  },
+  hourlyPanels: {
+    montagem: { sidebarCollapsed: false, tableCollapsed: false },
+    producao: { sidebarCollapsed: false, tableCollapsed: false },
   },
   apontamentoScreen: "resumo",
   apontamentoSelecionado: "Máquina 1",
@@ -69,6 +74,8 @@ const state = {
   },
   currentUser: null,
   users: [],
+  mrpRunning: false,
+  lastOverviewSnapshotAt: null,
 };
 
 const LOCAL_ROMANEIOS_STORAGE_KEY = "pcp_local_romaneios_v2";
@@ -714,6 +721,44 @@ function getHourlySelection(moduleKey) {
   return state.hourlySelections[moduleKey];
 }
 
+function getHourlyPanelState(moduleKey) {
+  if (!state.hourlyPanels[moduleKey]) {
+    state.hourlyPanels[moduleKey] = { sidebarCollapsed: false, tableCollapsed: false };
+  }
+  return state.hourlyPanels[moduleKey];
+}
+
+function toggleHourlyPanel(moduleKey, panelKey) {
+  const panelState = getHourlyPanelState(moduleKey);
+  panelState[panelKey] = !panelState[panelKey];
+  renderHourlyModule(moduleKey);
+}
+
+function syncHourlyModuleChrome(moduleKey) {
+  const shell =
+    document.getElementById(moduleKey === "montagem" ? "assembly-hourly-shell" : "production-hourly-shell");
+  const bottomPanel =
+    document.getElementById(moduleKey === "montagem" ? "assembly-bottom-panel" : "production-bottom-panel");
+  const sidebarToggle =
+    document.getElementById(moduleKey === "montagem" ? "assembly-toggle-sidebar" : "production-toggle-sidebar");
+  const tableToggle =
+    document.getElementById(moduleKey === "montagem" ? "assembly-toggle-table" : "production-toggle-table");
+  const panelState = getHourlyPanelState(moduleKey);
+
+  shell?.classList.toggle("sidebar-collapsed", panelState.sidebarCollapsed);
+  bottomPanel?.classList.toggle("is-collapsed", panelState.tableCollapsed);
+
+  if (sidebarToggle) {
+    sidebarToggle.textContent = panelState.sidebarCollapsed ? "Mostrar painel" : "Recolher painel";
+    sidebarToggle.className = `btn ${panelState.sidebarCollapsed ? "btn-primary" : "btn-secondary"} btn-xs`;
+  }
+
+  if (tableToggle) {
+    tableToggle.textContent = panelState.tableCollapsed ? "Mostrar fila" : "Recolher fila";
+    tableToggle.className = `btn ${panelState.tableCollapsed ? "btn-primary" : "btn-secondary"} btn-xs`;
+  }
+}
+
 function getHourlyResource(moduleKey) {
   const definition = getHourlyModuleDefinition(moduleKey);
   const selection = getHourlySelection(moduleKey);
@@ -1185,6 +1230,7 @@ function renderHourlySidebar(context) {
 
 function renderHourlyModule(moduleKey) {
   const context = getHourlyModuleContext(moduleKey);
+  syncHourlyModuleChrome(moduleKey);
   renderHourlyResourceSwitcher(context);
   renderHourlyHero(context);
   renderHourlyGrid(context);
@@ -1577,6 +1623,59 @@ function setElementStatus(id, message, tone) {
   if (tone) target.classList.add(tone);
 }
 
+function updateMrpStatus(message, tone = "ready", title = "") {
+  const badge = document.getElementById("mrp-status");
+  if (!badge) return;
+  badge.textContent = message || "Pronto";
+  badge.className = `status-badge ${tone || "ready"}`.trim();
+  if (title) {
+    badge.setAttribute("title", title);
+  } else {
+    badge.removeAttribute("title");
+  }
+}
+
+function setMrpButtonBusy(isBusy) {
+  const button = document.getElementById("run-mrp");
+  if (!button) return;
+  const label = button.querySelector(".mrp-label");
+  if (!button.dataset.defaultLabel) {
+    button.dataset.defaultLabel = label ? label.textContent.trim() : "Recalcular MRP";
+  }
+  button.disabled = Boolean(isBusy);
+  button.setAttribute("aria-busy", isBusy ? "true" : "false");
+  if (label) {
+    label.textContent = isBusy ? "Recalculando..." : button.dataset.defaultLabel;
+  }
+}
+
+function sleep(ms) {
+  return new Promise((resolve) => window.setTimeout(resolve, ms));
+}
+
+async function waitForMrpSnapshot(previousSnapshot) {
+  for (let attempt = 0; attempt < 6; attempt += 1) {
+    await sleep(2000);
+    try {
+      const overview = await api("/api/pcp/overview");
+      const nextSnapshot = overview?.snapshot_at || null;
+      if (nextSnapshot && nextSnapshot !== previousSnapshot) {
+        state.lastOverviewSnapshotAt = nextSnapshot;
+        return {
+          completed: true,
+          snapshotAt: nextSnapshot,
+        };
+      }
+    } catch (error) {
+      // Ignore polling errors here; the main reload will surface them if needed.
+    }
+  }
+  return {
+    completed: false,
+    snapshotAt: previousSnapshot || null,
+  };
+}
+
 function renderAuthState() {
   const authScreen = document.getElementById("auth-screen");
   const appShell = document.getElementById("app-shell");
@@ -1869,6 +1968,7 @@ function renderOverview(data) {
       "Sem snapshot validado",
     );
   }
+  state.lastOverviewSnapshotAt = data?.snapshot_at || null;
 
   const heroSignals = document.getElementById("hero-signals");
   if (heroSignals) {
@@ -3930,6 +4030,11 @@ function syncKanbanInspectorHeader(viewMode, selectedCard) {
 function bindKanbanInspectorActions(inspector, context) {
   const { selectedCard, primaryDemand, productMap } = context;
 
+  inspector.querySelector("[data-kanban-detail-toggle]")?.addEventListener("click", () => {
+    state.kanbanDetailsExpanded = !state.kanbanDetailsExpanded;
+    renderKanban(kanbanState);
+  });
+
   inspector.querySelector("#kanban-workbench-select")?.addEventListener("change", (event) => {
     state.kanbanSelecionado = event.target.value || selectedCard.romaneio;
     renderKanban(kanbanState);
@@ -4003,6 +4108,7 @@ function buildKanbanBoardInspector(context) {
   const pendingTotal = sumBy(selectedItems, (item) => item.pendente);
   const pedidos = raw.pedido || raw.pedidos || "Sem pedido consolidado";
   const fileLabel = Array.isArray(raw.file_names) && raw.file_names.length ? raw.file_names.join(", ") : "Sem arquivo associado";
+  const detailToggleLabel = state.kanbanDetailsExpanded ? "Ocultar detalhes" : "Mostrar detalhes";
 
   return el(`
     <div class="kanban-detail-stack">
@@ -4014,43 +4120,6 @@ function buildKanbanBoardInspector(context) {
             <span>${selectedCard.empresa} · ${selectedCard.columnLabel}</span>
           </div>
           <span class="tag ${selectedCard.statusTone}">${selectedCard.statusLabel}</span>
-        </div>
-        <div class="kanban-detail-metrics">
-          <div>
-            <small>Quantidade</small>
-            <strong>${number.format(selectedCard.quantityTotal)} un</strong>
-          </div>
-          <div>
-            <small>SKU(s)</small>
-            <strong>${number.format(selectedCard.itemCount)}</strong>
-          </div>
-          <div>
-            <small>Cobertura</small>
-            <strong>${selectedCard.coveragePct}%</strong>
-          </div>
-          <div>
-            <small>Déficit</small>
-            <strong>${number.format(selectedCard.deficit)}</strong>
-          </div>
-        </div>
-        <div class="kanban-detail-meta">
-          <div>
-            <small>Pedidos vinculados</small>
-            <strong>${pedidos}</strong>
-          </div>
-          <div>
-            <small>Previsão atual</small>
-            <strong>${formatDateTimeWithFallback(selectedCard.previsao_saida_at || selectedCard.data_evento, "Sem previsão")}</strong>
-          </div>
-          <div>
-            <small>Critério / Origem</small>
-            <strong>${selectedCard.criteria}</strong>
-            <small>${raw.document_kind === "romaneio_nota" ? "Complemento via romaneio nota" : fileLabel}</small>
-          </div>
-          <div>
-            <small>Valor estimado</small>
-            <strong>${money.format(selectedCard.valueTotal || 0)}</strong>
-          </div>
         </div>
       </section>
 
@@ -4112,6 +4181,55 @@ function buildKanbanBoardInspector(context) {
             `
             : `<div class="kanban-detail-empty">Esse romaneio ainda não tem itens detalhados consolidados.</div>`
         }
+      </section>
+
+      <section class="kanban-detail-section kanban-detail-collapsible ${state.kanbanDetailsExpanded ? "expanded" : ""}">
+        <button type="button" class="kanban-collapse-toggle" data-kanban-detail-toggle>
+          <div>
+            <small>Detalhes operacionais</small>
+            <strong>Pedidos, cobertura, origem e valor</strong>
+          </div>
+          <span>${detailToggleLabel}</span>
+        </button>
+        <div class="kanban-collapse-body" ${state.kanbanDetailsExpanded ? "" : "hidden"}>
+          <div class="kanban-detail-metrics">
+            <div>
+              <small>Quantidade</small>
+              <strong>${number.format(selectedCard.quantityTotal)} un</strong>
+            </div>
+            <div>
+              <small>SKU(s)</small>
+              <strong>${number.format(selectedCard.itemCount)}</strong>
+            </div>
+            <div>
+              <small>Cobertura</small>
+              <strong>${selectedCard.coveragePct}%</strong>
+            </div>
+            <div>
+              <small>Déficit</small>
+              <strong>${number.format(selectedCard.deficit)}</strong>
+            </div>
+          </div>
+          <div class="kanban-detail-meta">
+            <div>
+              <small>Pedidos vinculados</small>
+              <strong>${pedidos}</strong>
+            </div>
+            <div>
+              <small>Previsão atual</small>
+              <strong>${formatDateTimeWithFallback(selectedCard.previsao_saida_at || selectedCard.data_evento, "Sem previsão")}</strong>
+            </div>
+            <div>
+              <small>Critério / Origem</small>
+              <strong>${selectedCard.criteria}</strong>
+              <small>${raw.document_kind === "romaneio_nota" ? "Complemento via romaneio nota" : fileLabel}</small>
+            </div>
+            <div>
+              <small>Valor estimado</small>
+              <strong>${money.format(selectedCard.valueTotal || 0)}</strong>
+            </div>
+          </div>
+        </div>
       </section>
     </div>
   `);
@@ -4876,11 +4994,50 @@ function logoutUsuario() {
 }
 
 async function dispararMrp() {
-  const response = await fetch("/api/pcp/runs/mrp", { method: "POST" });
-  const payload = await response.json();
-  const runId = payload.run_id ?? "n/d";
-  const queuedAt = formatDateTimeWithFallback(payload.queued_at, "agora");
-  document.getElementById("mrp-status").textContent = `MRP enfileirado. Run ${runId} as ${queuedAt}.`;
+  if (state.mrpRunning) {
+    return;
+  }
+
+  state.mrpRunning = true;
+  setMrpButtonBusy(true);
+  updateMrpStatus(
+    "Recalculando planejamento...",
+    "info",
+    "Atualizando filas de montagem, produção e compras com base no estoque, nos romaneios e nas estruturas.",
+  );
+
+  try {
+    const previousSnapshot = state.lastOverviewSnapshotAt;
+    const payload = await postJson("/api/pcp/runs/mrp", {});
+    const runId = payload.run_id ?? "n/d";
+    const queuedAt = formatDateTimeWithFallback(payload.queued_at, "agora");
+    const syncResult = await waitForMrpSnapshot(previousSnapshot);
+    await carregarTudo();
+
+    if (syncResult.completed) {
+      updateMrpStatus(
+        `Planejamento atualizado às ${formatDateTimeWithFallback(syncResult.snapshotAt, queuedAt)}.`,
+        "ready",
+        `Rodada ${runId} concluída e refletida no snapshot operacional.`,
+      );
+      return;
+    }
+
+    updateMrpStatus(
+      payload.message || `Recálculo solicitado às ${queuedAt}.`,
+      "info",
+      `Rodada ${runId} aberta. Os painéis serão atualizados quando o banco concluir o processamento.`,
+    );
+  } catch (error) {
+    updateMrpStatus(
+      error.message || "Falha ao recalcular o planejamento.",
+      "error",
+      "Não foi possível acionar a rotina de MRP.",
+    );
+  } finally {
+    state.mrpRunning = false;
+    setMrpButtonBusy(false);
+  }
 }
 
 async function salvarEstrutura(event) {
@@ -5115,7 +5272,7 @@ async function carregarTudo() {
   applyHorizontalScrollEnhancements();
 
   const mrpStatus = document.getElementById("mrp-status");
-  if (mrpStatus) {
+  if (mrpStatus && !state.mrpRunning) {
     if (warnings.length) {
       mrpStatus.textContent = `Carga parcial: ${warnings.length} rota(s) com falha`;
       mrpStatus.className = "status-badge warning";
@@ -5211,6 +5368,10 @@ document.getElementById("user-form-reset")?.addEventListener("click", resetUserF
 document.getElementById("login-form")?.addEventListener("submit", autenticarUsuario);
 document.getElementById("logout-button")?.addEventListener("click", logoutUsuario);
 document.getElementById("sidebar-toggle")?.addEventListener("click", () => toggleSidebar());
+document.getElementById("assembly-toggle-sidebar")?.addEventListener("click", () => toggleHourlyPanel("montagem", "sidebarCollapsed"));
+document.getElementById("assembly-toggle-table")?.addEventListener("click", () => toggleHourlyPanel("montagem", "tableCollapsed"));
+document.getElementById("production-toggle-sidebar")?.addEventListener("click", () => toggleHourlyPanel("producao", "sidebarCollapsed"));
+document.getElementById("production-toggle-table")?.addEventListener("click", () => toggleHourlyPanel("producao", "tableCollapsed"));
 document.getElementById("apontamento-operator-mode")?.addEventListener("click", () => {
   setApontamentoOperatorMode(!state.apontamentoOperatorMode);
 });
