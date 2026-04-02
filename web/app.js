@@ -16,7 +16,7 @@ const state = {
   currentView: "cockpit",
   sidebarCollapsed: false,
   kanbanStatusFilter: "todos",
-  kanbanViewMode: "split",
+  kanbanViewMode: "board",
   kanbanSelecionado: null,
   programmingActionFilter: "",
   apontamentoScreen: "resumo",
@@ -2986,16 +2986,39 @@ function renderKanbanInspector(model, data) {
   const primaryDemand = selectedItems.find((item) => item.pendente > 0) || selectedItems[0] || null;
   const manualDateValue = selectedCard.previsao_saida_at ? toDatetimeLocalValue(selectedCard.previsao_saida_at) : "";
 
+  const romaneioOptions = cards
+    .map(
+      (card) => `
+        <option value="${card.romaneio}" ${String(card.romaneio) === String(selectedCard.romaneio) ? "selected" : ""}>
+          ${formatRomaneioCode(card.romaneio)} · ${card.empresa} · ${number.format(card.quantityTotal)} un
+        </option>
+      `,
+    )
+    .join("");
+
   const inspector = el(`
     <div class="kanban-inspector-stack">
       <section class="kanban-workbench-card">
         <div class="kanban-workbench-head">
           <div>
-            <small>Consulta por romaneio</small>
+            <small>Workbench logístico</small>
             <strong>${formatRomaneioCode(selectedCard.romaneio)}</strong>
-            <span>${selectedCard.empresa} · ${number.format(selectedCard.quantityTotal)} unidades · ${selectedCard.itemCount} SKU(s)</span>
+            <span>Leitura operacional no formato da planilha: consulta por romaneio, saldo até o romaneio e necessidade geral.</span>
           </div>
           <span class="tag ${selectedCard.statusTone}">${selectedCard.statusLabel}</span>
+        </div>
+        <div class="kanban-workbench-toolbar">
+          <label class="input-group">
+            <span>Romaneio de referência</span>
+            <select id="kanban-workbench-select" class="modern-input">
+              ${romaneioOptions}
+            </select>
+          </label>
+          <div class="kanban-workbench-reference">
+            <small>Carteira selecionada</small>
+            <strong>${selectedCard.empresa}</strong>
+            <span>${number.format(selectedCard.quantityTotal)} unidades · ${selectedCard.itemCount} SKU(s)</span>
+          </div>
         </div>
         <div class="kanban-workbench-metrics">
           <div>
@@ -3139,6 +3162,11 @@ function renderKanbanInspector(model, data) {
     </div>
   `);
 
+  inspector.querySelector("#kanban-workbench-select")?.addEventListener("change", (event) => {
+    state.kanbanSelecionado = event.target.value || selectedCard.romaneio;
+    renderKanban(kanbanState);
+  });
+
   inspector.querySelector("#kanban-open-detail").addEventListener("click", async () => {
     window.location.hash = "#romaneios";
     await carregarRomaneio(selectedCard.romaneio);
@@ -3207,13 +3235,13 @@ function renderKanban(data) {
   kanbanState = data;
   const model = buildKanbanModel(data);
   const layout = document.getElementById("kanban-layout");
-  const viewMode = ["split", "board", "workbench"].includes(state.kanbanViewMode) ? state.kanbanViewMode : "split";
+  const viewMode = ["board", "workbench"].includes(state.kanbanViewMode) ? state.kanbanViewMode : "board";
   const viewField = document.getElementById("kanban-view-mode");
   if (viewField && viewField.value !== viewMode) {
     viewField.value = viewMode;
   }
   if (layout) {
-    layout.classList.remove("mode-split", "mode-board", "mode-workbench");
+    layout.classList.remove("mode-board", "mode-workbench");
     layout.classList.add(`mode-${viewMode}`);
   }
   renderKanbanSummary(model);
@@ -4069,7 +4097,7 @@ document.getElementById("kanban-status-filter")?.addEventListener("change", (eve
   renderKanban(state.datasets.kanban);
 });
 document.getElementById("kanban-view-mode")?.addEventListener("change", (event) => {
-  state.kanbanViewMode = event.target.value || "split";
+  state.kanbanViewMode = event.target.value || "board";
   renderKanban(state.datasets.kanban);
 });
 document.getElementById("kanban-reset-filters")?.addEventListener("click", () => {
