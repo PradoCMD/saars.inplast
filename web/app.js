@@ -19,6 +19,10 @@ const state = {
   kanbanViewMode: "board",
   kanbanSelecionado: null,
   programmingActionFilter: "",
+  hourlySelections: {
+    montagem: { resourceId: "montagem-01", focusSku: "" },
+    producao: { resourceId: "producao-01", focusSku: "" },
+  },
   apontamentoScreen: "resumo",
   apontamentoSelecionado: "Máquina 1",
   apontamentoFilaSelecionada: null,
@@ -52,6 +56,98 @@ const DEFAULT_ROOT_USER = {
   password: "root@123",
   active: true,
   created_at: "2026-04-01T00:00:00.000Z",
+};
+
+const HORA_HORA_INTERVALS = [
+  ["05:20", "06:00"],
+  ["06:00", "07:00"],
+  ["07:00", "08:00"],
+  ["08:00", "09:00"],
+  ["09:00", "10:00"],
+  ["10:00", "11:00"],
+  ["11:00", "12:00"],
+  ["12:00", "13:00"],
+  ["13:00", "13:40"],
+  ["13:40", "15:00"],
+  ["15:00", "16:00"],
+  ["16:00", "17:00"],
+  ["17:00", "18:00"],
+  ["18:00", "19:00"],
+  ["19:00", "20:00"],
+  ["20:00", "21:00"],
+  ["21:00", "22:00"],
+  ["22:00", "23:00"],
+].map(([start, end], index) => ({
+  id: `slot-${index + 1}`,
+  start,
+  end,
+}));
+
+const PARADAS_PLANEJADAS = [
+  { code: "P1", label: "Cafe", minutes: 10 },
+  { code: "P2", label: "Ginastica laboral", minutes: 10 },
+  { code: "P3", label: "Refeicao", minutes: 40 },
+  { code: "P4", label: "Revezamento de setores", minutes: 10 },
+  { code: "P5", label: "Treinamentos", minutes: 20 },
+  { code: "P6", label: "Reunioes", minutes: 15 },
+];
+
+const PARADAS_NAO_PLANEJADAS = [
+  { code: "N1", label: "Setup" },
+  { code: "N2", label: "Manutencao corretiva" },
+  { code: "N3", label: "Manutencao de ferramenta / molde" },
+  { code: "N4", label: "Regulagem de processo" },
+  { code: "N5", label: "Falta de material" },
+  { code: "N6", label: "Problema de qualidade" },
+  { code: "N7", label: "Retrabalho" },
+  { code: "N8", label: "Falta de energia" },
+  { code: "N9", label: "Falta de plano de producao" },
+  { code: "N10", label: "Realocacao de mao de obra" },
+];
+
+const HOURLY_MODULE_CONFIG = {
+  montagem: {
+    action: "montar",
+    datasetKey: "assembly",
+    tableId: "assembly-table",
+    heroId: "assembly-hour-hero",
+    gridId: "assembly-hour-grid",
+    resourceSwitcherId: "assembly-resource-switcher",
+    focusId: "assembly-focus-card",
+    queueId: "assembly-queue-list",
+    scheduleId: "assembly-schedule-list",
+    legendId: "assembly-legend",
+    statusId: "assembly-hourly-status",
+    title: "Montagem",
+    queueCopy: "Carregue a esteira com base na fila de acabados pendentes e nas prioridades do romaneio.",
+    resources: [
+      { id: "montagem-01", label: "Esteira 01", lineCode: "LINHA-01", workstationCode: "POSTO-A", machineLabel: "Maquina 1", operators: 2 },
+      { id: "montagem-02", label: "Esteira 02", lineCode: "LINHA-02", workstationCode: "POSTO-B", machineLabel: "Maquina 2", operators: 2 },
+    ],
+  },
+  producao: {
+    action: "produzir",
+    datasetKey: "production",
+    tableId: "production-table",
+    heroId: "production-hour-hero",
+    gridId: "production-hour-grid",
+    resourceSwitcherId: "production-resource-switcher",
+    focusId: "production-focus-card",
+    queueId: "production-queue-list",
+    scheduleId: "production-schedule-list",
+    legendId: "production-legend",
+    statusId: "production-hourly-status",
+    title: "Producao",
+    queueCopy: "Distribua a carteira intermediaria pelas celulas e use a disponibilidade real do turno como trava da programacao.",
+    resources: Array.from({ length: 6 }, (_, index) => ({
+      id: `producao-${String(index + 1).padStart(2, "0")}`,
+      label: `Extrusora ${String(index + 1).padStart(2, "0")}`,
+      lineCode: `EXTR-${String(index + 1).padStart(2, "0")}`,
+      workstationCode: `MAQ-0${index + 1}`,
+      machineLabel: `Maquina ${index + 1}`,
+      operators: 1,
+    })),
+  },
 };
 
 function formatDateTime(value) {
@@ -346,6 +442,98 @@ function resolveRomaneioQuantity(item) {
   return Number(item?.quantidade_total ?? item?.quantity_total ?? 0) || 0;
 }
 
+function refreshHorizontalScroller(shell) {
+  if (!shell) {
+    return;
+  }
+  const viewport = shell.querySelector(".x-scroll-viewport");
+  const leftButton = shell.querySelector('[data-scroll-dir="left"]');
+  const rightButton = shell.querySelector('[data-scroll-dir="right"]');
+  if (!viewport || !leftButton || !rightButton) {
+    return;
+  }
+
+  const hasOverflow = viewport.scrollWidth > viewport.clientWidth + 12;
+  const atStart = viewport.scrollLeft <= 6;
+  const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 6;
+
+  shell.classList.toggle("is-scrollable", hasOverflow);
+  leftButton.disabled = !hasOverflow || atStart;
+  rightButton.disabled = !hasOverflow || atEnd;
+}
+
+function ensureHorizontalScroller(node, shellClass = "") {
+  if (!node) {
+    return null;
+  }
+
+  const existingViewport = node.parentElement;
+  if (existingViewport?.classList.contains("x-scroll-viewport") && existingViewport.parentElement?.classList.contains("x-scroll-shell")) {
+    const existingShell = existingViewport.parentElement;
+    if (shellClass) {
+      existingShell.classList.add(shellClass);
+    }
+    node.classList.add("x-scroll-track");
+    refreshHorizontalScroller(existingShell);
+    return existingShell;
+  }
+
+  const parent = node.parentNode;
+  if (!parent) {
+    return null;
+  }
+
+  const shell = document.createElement("div");
+  shell.className = "x-scroll-shell";
+  if (shellClass) {
+    shell.classList.add(shellClass);
+  }
+
+  const leftButton = document.createElement("button");
+  leftButton.type = "button";
+  leftButton.className = "x-scroll-nav x-scroll-nav--left";
+  leftButton.dataset.scrollDir = "left";
+  leftButton.setAttribute("aria-label", "Rolar para a esquerda");
+  leftButton.textContent = "‹";
+
+  const rightButton = document.createElement("button");
+  rightButton.type = "button";
+  rightButton.className = "x-scroll-nav x-scroll-nav--right";
+  rightButton.dataset.scrollDir = "right";
+  rightButton.setAttribute("aria-label", "Rolar para a direita");
+  rightButton.textContent = "›";
+
+  const viewport = document.createElement("div");
+  viewport.className = "x-scroll-viewport";
+
+  parent.insertBefore(shell, node);
+  shell.appendChild(leftButton);
+  shell.appendChild(viewport);
+  shell.appendChild(rightButton);
+  viewport.appendChild(node);
+  node.classList.add("x-scroll-track");
+
+  const scrollStep = () => Math.max(viewport.clientWidth * 0.82, 240);
+
+  leftButton.addEventListener("click", () => {
+    viewport.scrollBy({ left: -scrollStep(), behavior: "smooth" });
+  });
+
+  rightButton.addEventListener("click", () => {
+    viewport.scrollBy({ left: scrollStep(), behavior: "smooth" });
+  });
+
+  viewport.addEventListener("scroll", () => refreshHorizontalScroller(shell), { passive: true });
+  window.requestAnimationFrame(() => refreshHorizontalScroller(shell));
+  return shell;
+}
+
+function applyHorizontalScrollEnhancements(root = document) {
+  root.querySelectorAll(".modern-table").forEach((table) => ensureHorizontalScroller(table, "x-scroll-shell--table"));
+  ensureHorizontalScroller(document.getElementById("kanban-board"), "x-scroll-shell--kanban");
+  root.querySelectorAll(".x-scroll-shell").forEach((shell) => refreshHorizontalScroller(shell));
+}
+
 function toDatetimeLocalValue(value) {
   if (!value) {
     return "";
@@ -368,6 +556,568 @@ function addHoursToIso(value, hours) {
 function machineCodeFromLabel(value) {
   const match = String(value || "").match(/(\d+)/);
   return match ? `MÁQ ${match[1]}` : String(value || "").toUpperCase();
+}
+
+function minutesFromClock(value) {
+  const [hour = "0", minute = "0"] = String(value || "0:00").split(":");
+  return (Number(hour) || 0) * 60 + (Number(minute) || 0);
+}
+
+function durationBetweenClocks(start, end) {
+  return Math.max(minutesFromClock(end) - minutesFromClock(start), 0);
+}
+
+function buildLocalIsoForClock(clockValue, baseDate = new Date()) {
+  const next = new Date(baseDate);
+  const [hour = "0", minute = "0"] = String(clockValue || "0:00").split(":");
+  next.setHours(Number(hour) || 0, Number(minute) || 0, 0, 0);
+  return next.toISOString();
+}
+
+function normalizeRomaneioLookupCode(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  const rmMatch = text.match(/RM[\s-]*0*([0-9]+)/i);
+  if (rmMatch) {
+    return rmMatch[1];
+  }
+  if (/^\d+$/.test(text)) {
+    return text.replace(/^0+/, "") || "0";
+  }
+  return text;
+}
+
+function getHourlyModuleDefinition(moduleKey) {
+  return HOURLY_MODULE_CONFIG[moduleKey];
+}
+
+function getHourlySelection(moduleKey) {
+  if (!state.hourlySelections[moduleKey]) {
+    state.hourlySelections[moduleKey] = { resourceId: "", focusSku: "" };
+  }
+  return state.hourlySelections[moduleKey];
+}
+
+function getHourlyResource(moduleKey) {
+  const definition = getHourlyModuleDefinition(moduleKey);
+  const selection = getHourlySelection(moduleKey);
+  return definition.resources.find((resource) => resource.id === selection.resourceId) || definition.resources[0];
+}
+
+function matchesHourlyResource(entry, resource) {
+  const stack = [
+    entry.assembly_line_code,
+    entry.workstation_code,
+    entry.machine_code,
+    entry.maquina,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toLowerCase();
+
+  return [
+    resource.lineCode,
+    resource.workstationCode,
+    machineCodeFromLabel(resource.machineLabel),
+    resource.label,
+  ].some((value) => stack.includes(String(value || "").toLowerCase()));
+}
+
+function getHourlyLogsForResource(resource) {
+  const codes = new Set([
+    machineCodeFromLabel(resource.machineLabel),
+    machineCodeFromLabel(resource.label),
+    String(resource.workstationCode || "").toUpperCase(),
+  ]);
+  return (state.apontamentoLogs || []).filter((entry) => codes.has(String(entry.machine_code || "").toUpperCase()));
+}
+
+function calculateStopDuration(entry) {
+  const start = minutesFromClock(entry.stop_start);
+  const end = minutesFromClock(entry.stop_end);
+  if (!start && !end) {
+    return 0;
+  }
+  return Math.max(end - start, 0);
+}
+
+function getHourlyIntervalDefaults(interval) {
+  const key = `${interval.start}-${interval.end}`;
+  const mapping = {
+    "08:00-09:00": [{ code: "P1", minutes: 10 }],
+    "12:00-13:00": [{ code: "P3", minutes: 40 }],
+    "17:00-18:00": [{ code: "P1", minutes: 10 }],
+  };
+  return mapping[key] || [];
+}
+
+function getIntervalIndexForIso(value) {
+  const parsed = parseIsoDate(value);
+  if (!parsed) {
+    return -1;
+  }
+  const minute = parsed.getHours() * 60 + parsed.getMinutes();
+  return HORA_HORA_INTERVALS.findIndex((interval) => {
+    const start = minutesFromClock(interval.start);
+    const end = minutesFromClock(interval.end);
+    return minute >= start && minute < end;
+  });
+}
+
+function getCoveredIntervalIndexes(entry) {
+  const start = parseIsoDate(entry.planned_start_at);
+  const end = parseIsoDate(entry.available_at);
+  if (!start || !end) {
+    const fallback = getIntervalIndexForIso(entry.planned_start_at);
+    return fallback >= 0 ? [fallback] : [];
+  }
+
+  const indexes = [];
+  HORA_HORA_INTERVALS.forEach((interval, index) => {
+    const slotStart = minutesFromClock(interval.start);
+    const slotEnd = minutesFromClock(interval.end);
+    const entryStart = start.getHours() * 60 + start.getMinutes();
+    const entryEnd = end.getHours() * 60 + end.getMinutes();
+    if (entryStart < slotEnd && entryEnd > slotStart) {
+      indexes.push(index);
+    }
+  });
+  return indexes.length ? indexes : [getIntervalIndexForIso(entry.planned_start_at)].filter((index) => index >= 0);
+}
+
+function getHourlyModuleContext(moduleKey) {
+  const definition = getHourlyModuleDefinition(moduleKey);
+  const selection = getHourlySelection(moduleKey);
+  const resource = getHourlyResource(moduleKey);
+  const queueItems = ((state.datasets[definition.datasetKey] || []).filter((item) =>
+    matchesSearch([item.sku, item.produto, item.product_type, item.criticidade], getGlobalSearchQuery()),
+  )).sort((left, right) => (Number(right.net_required) || 0) - (Number(left.net_required) || 0));
+
+  const programmingItems = (state.datasets.programming || [])
+    .filter((entry) => String(entry.action || "").toLowerCase() === definition.action)
+    .filter((entry) => matchesHourlyResource(entry, resource))
+    .sort((left, right) => new Date(left.planned_start_at || 0) - new Date(right.planned_start_at || 0));
+
+  if (selection.focusSku && !queueItems.some((item) => item.sku === selection.focusSku)) {
+    selection.focusSku = "";
+  }
+
+  const focusItem = queueItems.find((item) => item.sku === selection.focusSku) || queueItems[0] || null;
+  if (!selection.focusSku && focusItem) {
+    selection.focusSku = focusItem.sku;
+  }
+
+  const logs = getHourlyLogsForResource(resource);
+  const realizedPieces = sumBy(logs, (entry) => entry.pieces);
+  const scrapPieces = sumBy(logs, (entry) => entry.scrap);
+  const reworkPieces = sumBy(logs.filter((entry) => /retrabalho/i.test(String(entry.reason || ""))), (entry) => entry.pieces);
+  const plannedStopMinutes = sumBy(HORA_HORA_INTERVALS, (interval) => sumBy(getHourlyIntervalDefaults(interval), (stop) => stop.minutes));
+  const productiveMinutes = sumBy(HORA_HORA_INTERVALS, (interval) => durationBetweenClocks(interval.start, interval.end)) - plannedStopMinutes;
+  const stoppedMinutes = sumBy(logs.filter((entry) => String(entry.event_type || "").toLowerCase() === "parada"), calculateStopDuration);
+  const availability = productiveMinutes > 0 ? clamp((productiveMinutes - stoppedMinutes) / productiveMinutes, 0, 1) : 0;
+  const objectivePieces = sumBy(programmingItems, (entry) => entry.quantity_planned) || Number(focusItem?.net_required || 0);
+  const operatorsReal = Math.max(resource.operators, new Set(logs.map((entry) => entry.operator).filter(Boolean)).size || 0);
+  const queueTotal = sumBy(queueItems, (item) => item.net_required);
+
+  return {
+    definition,
+    selection,
+    resource,
+    queueItems,
+    programmingItems,
+    focusItem,
+    logs,
+    realizedPieces,
+    scrapPieces,
+    reworkPieces,
+    productiveMinutes,
+    stoppedMinutes,
+    availability,
+    objectivePieces,
+    operatorsReal,
+    queueTotal,
+    operatorKey: state.currentUser?.full_name || "Equipe do turno",
+  };
+}
+
+function renderHourlyResourceSwitcher(context) {
+  const container = document.getElementById(context.definition.resourceSwitcherId);
+  if (!container) {
+    return;
+  }
+  container.innerHTML = context.definition.resources.map((resource) => `
+    <button
+      type="button"
+      class="hourly-resource-pill ${resource.id === context.resource.id ? "active" : ""}"
+      data-hourly-module="${context.definition.datasetKey}"
+      data-resource-id="${resource.id}"
+    >
+      <small>${context.definition.title}</small>
+      <strong>${resource.label}</strong>
+      <span>${resource.lineCode} · ${resource.workstationCode}</span>
+    </button>
+  `).join("");
+
+  container.querySelectorAll("[data-resource-id]").forEach((button) => {
+    button.addEventListener("click", () => {
+      context.selection.resourceId = button.getAttribute("data-resource-id") || context.resource.id;
+      renderHourlyModule(context.definition.datasetKey === "assembly" ? "montagem" : "producao");
+    });
+  });
+}
+
+function renderHourlyHero(context) {
+  const wrapper = document.getElementById(context.definition.heroId);
+  if (!wrapper) {
+    return;
+  }
+  wrapper.innerHTML = `
+    <article class="hourly-hero-copy">
+      <small class="hourly-kicker">H-H padrão do turno</small>
+      <strong>${context.resource.label}</strong>
+      <p>${context.definition.queueCopy}</p>
+      <span>Operador-chave: ${context.operatorKey} · ${context.operatorsReal} operador(es) real(is) · ${number.format(context.queueTotal)} peças na carteira.</span>
+    </article>
+    <section class="hourly-kpi-grid">
+      <div class="hourly-kpi">
+        <small>Objetivo do recurso</small>
+        <strong>${number.format(context.objectivePieces)}</strong>
+        <span>Qtde de peças do turno corrente</span>
+      </div>
+      <div class="hourly-kpi">
+        <small>Realizado</small>
+        <strong>${number.format(context.realizedPieces)}</strong>
+        <span>Peças já apontadas nesse recurso</span>
+      </div>
+      <div class="hourly-kpi">
+        <small>Disponibilidade</small>
+        <strong>${Math.round(context.availability * 100)}%</strong>
+        <span>${context.productiveMinutes} min produtivos · ${context.stoppedMinutes} min de parada</span>
+      </div>
+      <div class="hourly-kpi">
+        <small>Retrabalho</small>
+        <strong>${number.format(context.reworkPieces)}</strong>
+        <span>Eventos com motivo de retrabalho</span>
+      </div>
+      <div class="hourly-kpi">
+        <small>Sucata</small>
+        <strong>${number.format(context.scrapPieces)}</strong>
+        <span>Perda registrada no apontamento</span>
+      </div>
+      <div class="hourly-kpi">
+        <small>Programações</small>
+        <strong>${number.format(context.programmingItems.length)}</strong>
+        <span>Slots já carregados em ${context.resource.label}</span>
+      </div>
+    </section>
+  `;
+}
+
+function buildHourlyGridRows(context) {
+  const intervalRows = HORA_HORA_INTERVALS.map((interval, index) => {
+    const entry = context.programmingItems.find((programming) => getCoveredIntervalIndexes(programming).includes(index)) || null;
+    const distributedIndexes = entry ? getCoveredIntervalIndexes(entry) : [];
+    const rowObjective = entry ? Math.round((Number(entry.quantity_planned) || 0) / Math.max(distributedIndexes.length, 1)) : 0;
+    const intervalLogs = context.logs.filter((log) => {
+      const stopStart = log.stop_start || "";
+      if (stopStart) {
+        const minute = minutesFromClock(stopStart);
+        return minute >= minutesFromClock(interval.start) && minute < minutesFromClock(interval.end);
+      }
+      const created = parseIsoDate(log.created_at);
+      if (!created) {
+        return false;
+      }
+      const minute = created.getHours() * 60 + created.getMinutes();
+      return minute >= minutesFromClock(interval.start) && minute < minutesFromClock(interval.end);
+    });
+    const defaults = getHourlyIntervalDefaults(interval);
+    return {
+      interval,
+      index,
+      entry,
+      defaults,
+      rowObjective,
+      rowRealized: sumBy(intervalLogs, (log) => log.pieces),
+      rowScrap: sumBy(intervalLogs, (log) => log.scrap),
+      rowRework: sumBy(intervalLogs.filter((log) => /retrabalho/i.test(String(log.reason || ""))), (log) => log.pieces),
+      rowStatus: entry ? "Programado" : "Livre",
+    };
+  });
+  return intervalRows;
+}
+
+function renderHourlyGrid(context) {
+  const wrapper = document.getElementById(context.definition.gridId);
+  if (!wrapper) {
+    return;
+  }
+  const rows = buildHourlyGridRows(context);
+  const firstSuggestedIndex = rows.findIndex((row) => !row.entry);
+  wrapper.innerHTML = `
+    <section class="hourly-grid-card">
+      <div class="panel-header compact">
+        <div>
+          <h3>Faixas do recurso</h3>
+          <span class="section-copy">Estrutura inspirada na aba H-H PADRÃO: intervalo, paradas, disponibilidade, operadores, produto e objetivo da faixa.</span>
+        </div>
+        <span class="status-badge info">${context.resource.lineCode}</span>
+      </div>
+      <table class="modern-table hourly-grid-table">
+        <thead>
+          <tr>
+            <th>Intervalo</th>
+            <th>Parada 1</th>
+            <th>Tempo 1</th>
+            <th>Parada 2</th>
+            <th>Tempo 2</th>
+            <th>Dispon.</th>
+            <th>Oper.</th>
+            <th>Cód. produto</th>
+            <th>Objetivo</th>
+            <th>Realizado</th>
+            <th>Retrabalho</th>
+            <th>Sucata</th>
+            <th>Status</th>
+            <th>Ação</th>
+          </tr>
+        </thead>
+        <tbody>
+          ${rows.map((row) => `
+            <tr>
+              <td>
+                <div class="hourly-interval">
+                  <strong>${row.interval.start} - ${row.interval.end}</strong>
+                  <span>${durationBetweenClocks(row.interval.start, row.interval.end)} min</span>
+                </div>
+              </td>
+              <td>${row.defaults[0]?.code || "—"}</td>
+              <td>${row.defaults[0]?.minutes || "—"}</td>
+              <td>${row.defaults[1]?.code || "—"}</td>
+              <td>${row.defaults[1]?.minutes || "—"}</td>
+              <td>${Math.round(context.availability * 100)}%</td>
+              <td>${context.operatorsReal}</td>
+              <td>${row.entry?.sku || (context.focusItem && row.index === firstSuggestedIndex ? context.focusItem.sku : "—")}</td>
+              <td>${number.format(row.rowObjective || (context.focusItem && row.index === firstSuggestedIndex ? Number(context.focusItem.net_required || 0) : 0))}</td>
+              <td>${number.format(row.rowRealized)}</td>
+              <td>${number.format(row.rowRework)}</td>
+              <td>${number.format(row.rowScrap)}</td>
+              <td><span class="hourly-status-chip ${row.entry ? "ready" : "idle"}">${row.rowStatus}</span></td>
+              <td>
+                <div class="kanban-inline-actions">
+                  <button type="button" class="btn btn-secondary btn-xs" data-hourly-prefill="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-slot-index="${row.index}">
+                    ${row.entry ? "Ajustar" : "Pre-programar"}
+                  </button>
+                </div>
+              </td>
+            </tr>
+          `).join("")}
+        </tbody>
+      </table>
+    </section>
+  `;
+
+  wrapper.querySelectorAll("[data-hourly-prefill]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const moduleKey = button.getAttribute("data-hourly-prefill");
+      const slotIndex = Number(button.getAttribute("data-slot-index"));
+      prefillHourlySlot(moduleKey, slotIndex);
+    });
+  });
+}
+
+function renderHourlySidebar(context) {
+  const focus = document.getElementById(context.definition.focusId);
+  const queue = document.getElementById(context.definition.queueId);
+  const schedule = document.getElementById(context.definition.scheduleId);
+  const legend = document.getElementById(context.definition.legendId);
+  if (!focus || !queue || !schedule || !legend) {
+    return;
+  }
+
+  if (!context.focusItem) {
+    focus.innerHTML = `<div class="hourly-focus-empty">Sem item priorizado para ${context.resource.label}. Assim que a fila carregar, este recurso poderá programar a próxima atividade.</div>`;
+  } else {
+    focus.innerHTML = `
+      <small>Item líder do recurso</small>
+      <strong>${context.focusItem.sku} · ${context.focusItem.produto}</strong>
+      <span>${formatProductType(context.focusItem.product_type)} · criticidade ${String(context.focusItem.criticidade || "").toLowerCase()}</span>
+      <div class="hourly-focus-meta">
+        <div>
+          <small>Necessidade</small>
+          <strong>${number.format(context.focusItem.net_required || 0)}</strong>
+        </div>
+        <div>
+          <small>Estoque atual</small>
+          <strong>${number.format(context.focusItem.stock_available || 0)}</strong>
+        </div>
+      </div>
+      <div class="hourly-focus-actions">
+        <button type="button" class="btn btn-primary btn-sm" id="${context.definition.focusId}-quick-save">Programar líder agora</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="${context.definition.focusId}-open-form">Abrir Programação</button>
+      </div>
+    `;
+    focus.querySelector(`#${context.definition.focusId}-quick-save`)?.addEventListener("click", () => saveHourlyLeader(context.definition.datasetKey === "assembly" ? "montagem" : "producao"));
+    focus.querySelector(`#${context.definition.focusId}-open-form`)?.addEventListener("click", () => prefillHourlySlot(context.definition.datasetKey === "assembly" ? "montagem" : "producao"));
+  }
+
+  queue.innerHTML = context.queueItems.slice(0, 6).map((item) => `
+    <article class="hourly-queue-card ${item.sku === context.focusItem?.sku ? "active" : ""}" data-hourly-focus="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-sku="${item.sku}">
+      <small>Fila priorizada</small>
+      <strong>${item.sku} · ${item.produto}</strong>
+      <span>${formatProductType(item.product_type)} · ${number.format(item.net_required || 0)} peças pendentes</span>
+      <div class="hourly-queue-meta">
+        <div>
+          <small>Estoque</small>
+          <strong>${number.format(item.stock_available || 0)}</strong>
+        </div>
+        <div>
+          <small>Custo estimado</small>
+          <strong>${money.format(item.estimated_total_cost || 0)}</strong>
+        </div>
+      </div>
+      <div class="hourly-queue-actions">
+        <button type="button" class="btn btn-secondary btn-xs" data-hourly-program="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-sku="${item.sku}">Pre-programar</button>
+      </div>
+    </article>
+  `).join("") || `<div class="hourly-focus-empty">Sem itens críticos nesta carteira com os filtros atuais.</div>`;
+
+  queue.querySelectorAll("[data-hourly-focus]").forEach((card) => {
+    card.addEventListener("click", () => {
+      const moduleKey = card.getAttribute("data-hourly-focus");
+      getHourlySelection(moduleKey).focusSku = card.getAttribute("data-sku") || "";
+      renderHourlyModule(moduleKey);
+    });
+  });
+  queue.querySelectorAll("[data-hourly-program]").forEach((button) => {
+    button.addEventListener("click", (event) => {
+      event.stopPropagation();
+      const moduleKey = button.getAttribute("data-hourly-program");
+      getHourlySelection(moduleKey).focusSku = button.getAttribute("data-sku") || "";
+      prefillHourlySlot(moduleKey);
+    });
+  });
+
+  schedule.innerHTML = `
+    <div class="panel-header compact">
+      <div>
+        <h3>Agenda do recurso</h3>
+        <span class="section-copy">Programações já lançadas para ${context.resource.label}.</span>
+      </div>
+      <span class="status-badge info">${number.format(context.programmingItems.length)}</span>
+    </div>
+    ${context.programmingItems.length ? context.programmingItems.map((entry) => `
+      <article class="hourly-schedule-card" data-hourly-entry="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-entry-sku="${entry.sku}">
+        <small>${entry.workstation_code || entry.assembly_line_code || context.resource.lineCode}</small>
+        <strong>${entry.sku} · ${entry.produto}</strong>
+        <span>${formatDateTimeWithFallback(entry.planned_start_at, "Sem início")} → ${formatDateTimeWithFallback(entry.available_at, "Sem disponibilidade")}</span>
+        <div class="hourly-schedule-meta">
+          <div>
+            <small>Quantidade</small>
+            <strong>${number.format(entry.quantity_planned || 0)}</strong>
+          </div>
+          <div>
+            <small>Referência</small>
+            <strong>${entry.romaneio_reference || "Sem RM"}</strong>
+          </div>
+        </div>
+      </article>
+    `).join("") : `<div class="hourly-focus-empty">Sem programação gravada neste recurso. Use o item líder para gerar o primeiro slot.</div>`}
+  `;
+  schedule.querySelectorAll("[data-hourly-entry]").forEach((card) => {
+    card.addEventListener("click", () => {
+      const moduleKey = card.getAttribute("data-hourly-entry");
+      getHourlySelection(moduleKey).focusSku = card.getAttribute("data-entry-sku") || "";
+      prefillHourlySlot(moduleKey);
+    });
+  });
+
+  legend.innerHTML = `
+    <div class="panel-header compact">
+      <div>
+        <h3>Legenda H-H</h3>
+        <span class="section-copy">Códigos da H-H PADRÃO usados para paradas planejadas e causas não planejadas.</span>
+      </div>
+    </div>
+    <div class="hourly-legend-grid">
+      ${PARADAS_PLANEJADAS.map((item) => `
+        <article class="hourly-legend-card">
+          <small>${item.code}</small>
+          <strong>${item.label}</strong>
+          <span>${item.minutes} min padrão</span>
+        </article>
+      `).join("")}
+      ${PARADAS_NAO_PLANEJADAS.slice(0, 4).map((item) => `
+        <article class="hourly-legend-card">
+          <small>${item.code}</small>
+          <strong>${item.label}</strong>
+          <span>Parada não planejada</span>
+        </article>
+      `).join("")}
+    </div>
+  `;
+}
+
+function renderHourlyModule(moduleKey) {
+  const context = getHourlyModuleContext(moduleKey);
+  renderHourlyResourceSwitcher(context);
+  renderHourlyHero(context);
+  renderHourlyGrid(context);
+  renderHourlySidebar(context);
+  applyHorizontalScrollEnhancements();
+}
+
+async function saveHourlyLeader(moduleKey) {
+  const context = getHourlyModuleContext(moduleKey);
+  if (!context.focusItem) {
+    setElementStatus(context.definition.statusId, "Nenhum item líder disponível para programar neste recurso.", "error");
+    return;
+  }
+  const slot = HORA_HORA_INTERVALS.find((interval, index) => {
+    return !context.programmingItems.some((entry) => getCoveredIntervalIndexes(entry).includes(index));
+  }) || HORA_HORA_INTERVALS[0];
+
+  const payload = buildProgrammingSuggestion(
+    { ...context.focusItem, action: context.definition.action },
+    context.definition.action,
+    {
+      planned_start_at: buildLocalIsoForClock(slot.start),
+      available_at: buildLocalIsoForClock(slot.end),
+      assembly_line_code: context.resource.lineCode,
+      workstation_code: context.resource.workstationCode,
+      notes: `Programado via H-H PADRÃO em ${context.resource.label}.`,
+    },
+  );
+
+  try {
+    await postJson("/api/pcp/programming-entries", payload);
+    setElementStatus(context.definition.statusId, `Programação criada em ${context.resource.label} para ${context.focusItem.sku}.`, "success");
+    await carregarTudo();
+  } catch (error) {
+    setElementStatus(context.definition.statusId, error.message, "error");
+  }
+}
+
+function prefillHourlySlot(moduleKey, slotIndex = 0) {
+  const context = getHourlyModuleContext(moduleKey);
+  if (!context.focusItem) {
+    setElementStatus(context.definition.statusId, "Selecione um item da carteira antes de programar.", "error");
+    return;
+  }
+  const slot = HORA_HORA_INTERVALS[slotIndex] || HORA_HORA_INTERVALS[0];
+  prefillProgrammingForm(
+    { ...context.focusItem, action: context.definition.action },
+    {
+      planned_start_at: buildLocalIsoForClock(slot.start),
+      available_at: buildLocalIsoForClock(slot.end),
+      assembly_line_code: context.resource.lineCode,
+      workstation_code: context.resource.workstationCode,
+      notes: `Pré-programado a partir do H-H PADRÃO em ${context.resource.label}.`,
+      switchTab: true,
+    },
+  );
 }
 
 function loadApontamentoLogs() {
@@ -2917,28 +3667,16 @@ function renderKanbanSummary(model) {
   wrapper.appendChild(priorityBox);
 }
 
-function renderKanbanInspector(model, data) {
-  const wrapper = document.getElementById("kanban-inspector");
-  const label = document.getElementById("kanban-selected-label");
-  if (!wrapper || !label) {
-    return;
-  }
-
-  wrapper.innerHTML = "";
+function resolveKanbanInspectorContext(model, data) {
   const cards = flattenKanbanCards(model);
   if (!cards.length) {
-    label.textContent = "Sem seleção";
-    label.className = "status-badge info";
-    wrapper.appendChild(emptyState("Nenhum romaneio atende aos filtros atuais do workbench logístico."));
-    return;
+    return null;
   }
 
   const selectedCard =
     cards.find((card) => String(card.romaneio) === String(state.kanbanSelecionado)) ||
     cards[0];
   state.kanbanSelecionado = selectedCard.romaneio;
-  label.textContent = formatRomaneioCode(selectedCard.romaneio);
-  label.className = `status-badge ${selectedCard.statusTone}`;
 
   const productMap = Object.fromEntries((Array.isArray(data.products) ? data.products : []).map((item) => [item.sku, item]));
   const selectedIndex = cards.findIndex((card) => String(card.romaneio) === String(selectedCard.romaneio));
@@ -2949,22 +3687,25 @@ function renderKanbanInspector(model, data) {
     });
   });
 
-  const selectedItems = (selectedCard.items || []).map((item) => {
-    const product = productMap[item.sku] || {};
-    const estoqueAtual = Number(product.estoque_atual ?? item.quantidade_atendida_estoque ?? 0) || 0;
-    const demanda = Number(item.quantidade) || 0;
-    const pendente = Number(item.quantidade_pendente ?? Math.max(demanda - estoqueAtual, 0)) || 0;
-    return {
-      sku: item.sku || "-",
-      produto: item.produto || item.descricao || item.sku || "-",
-      estoqueAtual,
-      demanda,
-      pendente,
-      saldoApos: estoqueAtual - demanda,
-      atendimento: product.acao || item.modo_atendimento || item.impacto || "Analisar",
-      disponibilidade: item.previsao_disponibilidade_at,
-    };
-  }).sort((left, right) => right.pendente - left.pendente);
+  const selectedItems = (selectedCard.items || [])
+    .map((item) => {
+      const product = productMap[item.sku] || {};
+      const estoqueAtual = Number(product.estoque_atual ?? item.quantidade_atendida_estoque ?? 0) || 0;
+      const demanda = Number(item.quantidade) || 0;
+      const pendente = Number(item.quantidade_pendente ?? Math.max(demanda - estoqueAtual, 0)) || 0;
+      return {
+        sku: item.sku || "-",
+        produto: item.produto || item.descricao || item.sku || "-",
+        estoqueAtual,
+        demanda,
+        pendente,
+        saldoApos: estoqueAtual - demanda,
+        atendimento: product.acao || item.modo_atendimento || item.impacto || "Analisar",
+        disponibilidade: item.previsao_disponibilidade_at,
+        tipo: product.tipo || item.tipo_produto || "",
+      };
+    })
+    .sort((left, right) => right.pendente - left.pendente);
 
   const untilRows = selectedItems
     .map((item) => ({
@@ -2985,7 +3726,6 @@ function renderKanbanInspector(model, data) {
 
   const primaryDemand = selectedItems.find((item) => item.pendente > 0) || selectedItems[0] || null;
   const manualDateValue = selectedCard.previsao_saida_at ? toDatetimeLocalValue(selectedCard.previsao_saida_at) : "";
-
   const romaneioOptions = cards
     .map(
       (card) => `
@@ -2996,7 +3736,245 @@ function renderKanbanInspector(model, data) {
     )
     .join("");
 
-  const inspector = el(`
+  return {
+    cards,
+    selectedCard,
+    selectedItems,
+    untilRows,
+    generalRows,
+    primaryDemand,
+    manualDateValue,
+    romaneioOptions,
+    productMap,
+  };
+}
+
+function syncKanbanInspectorHeader(viewMode, selectedCard) {
+  const title = document.getElementById("kanban-inspector-title");
+  const copy = document.getElementById("kanban-inspector-copy");
+  const label = document.getElementById("kanban-selected-label");
+
+  if (!title || !copy || !label) {
+    return;
+  }
+
+  if (!selectedCard) {
+    title.textContent = viewMode === "workbench" ? "Workbench Logístico" : "Detalhes do Romaneio";
+    copy.textContent =
+      viewMode === "workbench"
+        ? "Selecione um romaneio de referência para consultar cobertura, saldo até o romaneio e necessidade geral."
+        : "Selecione um romaneio no Kanban para visualizar carteira, produtos e programação.";
+    label.textContent = "Sem romaneio selecionado";
+    label.className = "status-badge info";
+    return;
+  }
+
+  if (viewMode === "workbench") {
+    title.textContent = "Workbench Logístico";
+    copy.textContent = "Espelha as visões da planilha: consulta por romaneio, até o romaneio e necessidade geral.";
+  } else {
+    title.textContent = "Detalhes do Romaneio";
+    copy.textContent = "Leitura operacional do romaneio selecionado, com produtos, cobertura, pendências e ações rápidas.";
+  }
+
+  label.textContent = formatRomaneioCode(selectedCard.romaneio);
+  label.className = `status-badge ${selectedCard.statusTone}`;
+}
+
+function bindKanbanInspectorActions(inspector, context) {
+  const { selectedCard, primaryDemand, productMap } = context;
+
+  inspector.querySelector("#kanban-workbench-select")?.addEventListener("change", (event) => {
+    state.kanbanSelecionado = event.target.value || selectedCard.romaneio;
+    renderKanban(kanbanState);
+  });
+
+  inspector.querySelector("#kanban-open-detail")?.addEventListener("click", async () => {
+    window.location.hash = "#romaneios";
+    await carregarRomaneio(selectedCard.romaneio);
+  });
+
+  inspector.querySelector("#kanban-program-item")?.addEventListener("click", () => {
+    if (!primaryDemand) {
+      setElementStatus("kanban-inspector-status", "Esse romaneio ainda não tem item pendente para programar.", "error");
+      return;
+    }
+    const baseAction = /produzir/i.test(primaryDemand.atendimento) ? "produzir" : "montar";
+    prefillProgrammingForm(
+      {
+        sku: primaryDemand.sku,
+        produto: primaryDemand.produto,
+        action: baseAction,
+        product_type: (productMap[primaryDemand.sku] || {}).tipo || (baseAction === "produzir" ? "intermediario" : "acabado"),
+        quantity_planned: primaryDemand.pendente || primaryDemand.demanda,
+        romaneio: selectedCard.romaneio,
+        notes: `Atendimento puxado do kanban logístico para ${formatRomaneioCode(selectedCard.romaneio)}.`,
+      },
+      {
+        assembly_line_code: baseAction === "montar" ? "LINHA-01" : "EXTR-01",
+        workstation_code: baseAction === "montar" ? "POSTO-A" : "MAQ-01",
+        switchTab: true,
+      },
+    );
+  });
+
+  inspector.querySelector("#kanban-save-date")?.addEventListener("click", async () => {
+    const field = inspector.querySelector("#kanban-manual-date");
+    const value = field?.value ? new Date(field.value).toISOString() : null;
+    try {
+      await postJson("/api/pcp/romaneios-kanban/update-date", {
+        romaneio: selectedCard.romaneio,
+        empresa: selectedCard.raw.empresa || "",
+        previsao_saida_at: value,
+        reason: "pcp_manual",
+      });
+      setElementStatus("kanban-inspector-status", "Previsão manual salva no romaneio.", "success");
+      await carregarTudo();
+    } catch (error) {
+      setElementStatus("kanban-inspector-status", error.message, "error");
+    }
+  });
+
+  inspector.querySelector("#kanban-clear-date")?.addEventListener("click", async () => {
+    try {
+      await postJson("/api/pcp/romaneios-kanban/update-date", {
+        romaneio: selectedCard.romaneio,
+        empresa: selectedCard.raw.empresa || "",
+        previsao_saida_at: null,
+        reason: "sem_previsao",
+      });
+      setElementStatus("kanban-inspector-status", "Romaneio voltou para a coluna sem previsão.", "success");
+      await carregarTudo();
+    } catch (error) {
+      setElementStatus("kanban-inspector-status", error.message, "error");
+    }
+  });
+}
+
+function buildKanbanBoardInspector(context) {
+  const { selectedCard, selectedItems, manualDateValue } = context;
+  const raw = selectedCard.raw || {};
+  const pendingTotal = sumBy(selectedItems, (item) => item.pendente);
+  const pedidos = raw.pedido || raw.pedidos || "Sem pedido consolidado";
+  const fileLabel = Array.isArray(raw.file_names) && raw.file_names.length ? raw.file_names.join(", ") : "Sem arquivo associado";
+
+  return el(`
+    <div class="kanban-detail-stack">
+      <section class="kanban-detail-hero">
+        <div class="kanban-detail-hero-head">
+          <div>
+            <small>Romaneio selecionado</small>
+            <strong>${formatRomaneioCode(selectedCard.romaneio)}</strong>
+            <span>${selectedCard.empresa} · ${selectedCard.columnLabel}</span>
+          </div>
+          <span class="tag ${selectedCard.statusTone}">${selectedCard.statusLabel}</span>
+        </div>
+        <div class="kanban-detail-metrics">
+          <div>
+            <small>Quantidade</small>
+            <strong>${number.format(selectedCard.quantityTotal)} un</strong>
+          </div>
+          <div>
+            <small>SKU(s)</small>
+            <strong>${number.format(selectedCard.itemCount)}</strong>
+          </div>
+          <div>
+            <small>Cobertura</small>
+            <strong>${selectedCard.coveragePct}%</strong>
+          </div>
+          <div>
+            <small>Déficit</small>
+            <strong>${number.format(selectedCard.deficit)}</strong>
+          </div>
+        </div>
+        <div class="kanban-detail-meta">
+          <div>
+            <small>Pedidos vinculados</small>
+            <strong>${pedidos}</strong>
+          </div>
+          <div>
+            <small>Previsão atual</small>
+            <strong>${formatDateTimeWithFallback(selectedCard.previsao_saida_at || selectedCard.data_evento, "Sem previsão")}</strong>
+          </div>
+          <div>
+            <small>Critério / Origem</small>
+            <strong>${selectedCard.criteria}</strong>
+            <small>${raw.document_kind === "romaneio_nota" ? "Complemento via romaneio nota" : fileLabel}</small>
+          </div>
+          <div>
+            <small>Valor estimado</small>
+            <strong>${money.format(selectedCard.valueTotal || 0)}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section class="kanban-detail-section">
+        <div class="kanban-detail-actions">
+          <label class="input-group">
+            <span>Data manual de saída</span>
+            <input id="kanban-manual-date" type="datetime-local" class="modern-input" value="${manualDateValue}" />
+          </label>
+          <div class="kanban-detail-actions-row">
+            <button type="button" id="kanban-save-date" class="btn btn-primary">Salvar data</button>
+            <button type="button" id="kanban-clear-date" class="btn btn-secondary">Sem previsão</button>
+            <button type="button" id="kanban-open-detail" class="btn btn-secondary">Abrir romaneio</button>
+            <button type="button" id="kanban-program-item" class="btn btn-secondary">Programar item crítico</button>
+          </div>
+          <span id="kanban-inspector-status" class="status-msg"></span>
+        </div>
+      </section>
+
+      <section class="kanban-detail-section kanban-detail-table">
+        <div class="kanban-product-summary">
+          <div>
+            <small>Produtos do romaneio</small>
+            <strong>${selectedItems.length} SKU(s) listados</strong>
+          </div>
+          <span>${number.format(pendingTotal)} un pendentes de cobertura imediata</span>
+        </div>
+        ${
+          selectedItems.length
+            ? `
+              <table class="modern-table dense-table">
+                <thead>
+                  <tr>
+                    <th>SKU</th>
+                    <th>Produto</th>
+                    <th>RM</th>
+                    <th>Estoque</th>
+                    <th>Pendente</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  ${selectedItems
+                    .map(
+                      (item) => `
+                        <tr>
+                          <td><b>${item.sku}</b><br /><span class="muted">${formatProductType(item.tipo)}</span></td>
+                          <td>${item.produto}</td>
+                          <td>${number.format(item.demanda)}</td>
+                          <td>${number.format(item.estoqueAtual)}</td>
+                          <td><span class="tag ${item.pendente > 0 ? "high" : "ok"}">${number.format(item.pendente)}</span></td>
+                          <td>${item.atendimento}</td>
+                        </tr>
+                      `,
+                    )
+                    .join("")}
+                </tbody>
+              </table>
+            `
+            : `<div class="kanban-detail-empty">Esse romaneio ainda não tem itens detalhados consolidados.</div>`
+        }
+      </section>
+    </div>
+  `);
+}
+
+function buildKanbanWorkbenchInspector(context) {
+  const { selectedCard, selectedItems, untilRows, generalRows, manualDateValue, romaneioOptions } = context;
+
+  return el(`
     <div class="kanban-inspector-stack">
       <section class="kanban-workbench-card">
         <div class="kanban-workbench-head">
@@ -3161,73 +4139,25 @@ function renderKanbanInspector(model, data) {
       </section>
     </div>
   `);
+}
 
-  inspector.querySelector("#kanban-workbench-select")?.addEventListener("change", (event) => {
-    state.kanbanSelecionado = event.target.value || selectedCard.romaneio;
-    renderKanban(kanbanState);
-  });
+function renderKanbanInspector(model, data, viewMode) {
+  const wrapper = document.getElementById("kanban-inspector");
+  if (!wrapper) {
+    return;
+  }
 
-  inspector.querySelector("#kanban-open-detail").addEventListener("click", async () => {
-    window.location.hash = "#romaneios";
-    await carregarRomaneio(selectedCard.romaneio);
-  });
+  wrapper.innerHTML = "";
+  const context = resolveKanbanInspectorContext(model, data);
+  if (!context) {
+    syncKanbanInspectorHeader(viewMode, null);
+    wrapper.appendChild(emptyState("Nenhum romaneio atende aos filtros atuais da carteira logística."));
+    return;
+  }
 
-  inspector.querySelector("#kanban-program-item").addEventListener("click", () => {
-    if (!primaryDemand) {
-      setElementStatus("kanban-inspector-status", "Esse romaneio ainda não tem item pendente para programar.", "error");
-      return;
-    }
-    const baseAction = /produzir/i.test(primaryDemand.atendimento) ? "produzir" : "montar";
-    prefillProgrammingForm(
-      {
-        sku: primaryDemand.sku,
-        produto: primaryDemand.produto,
-        action: baseAction,
-        product_type: (productMap[primaryDemand.sku] || {}).tipo || (baseAction === "produzir" ? "intermediario" : "acabado"),
-        quantity_planned: primaryDemand.pendente || primaryDemand.demanda,
-        romaneio: selectedCard.romaneio,
-        notes: `Atendimento puxado do workbench logístico para ${formatRomaneioCode(selectedCard.romaneio)}.`,
-      },
-      {
-        assembly_line_code: baseAction === "montar" ? "LINHA-01" : "EXTR-01",
-        workstation_code: baseAction === "montar" ? "POSTO-A" : "MAQ-01",
-        switchTab: true,
-      },
-    );
-  });
-
-  inspector.querySelector("#kanban-save-date").addEventListener("click", async () => {
-    const field = inspector.querySelector("#kanban-manual-date");
-    const value = field?.value ? new Date(field.value).toISOString() : null;
-    try {
-      await postJson("/api/pcp/romaneios-kanban/update-date", {
-        romaneio: selectedCard.romaneio,
-        empresa: selectedCard.raw.empresa || "",
-        previsao_saida_at: value,
-        reason: "pcp_manual",
-      });
-      setElementStatus("kanban-inspector-status", "Previsão manual salva no romaneio.", "success");
-      await carregarTudo();
-    } catch (error) {
-      setElementStatus("kanban-inspector-status", error.message, "error");
-    }
-  });
-
-  inspector.querySelector("#kanban-clear-date").addEventListener("click", async () => {
-    try {
-      await postJson("/api/pcp/romaneios-kanban/update-date", {
-        romaneio: selectedCard.romaneio,
-        empresa: selectedCard.raw.empresa || "",
-        previsao_saida_at: null,
-        reason: "sem_previsao",
-      });
-      setElementStatus("kanban-inspector-status", "Romaneio voltou para a coluna sem previsão.", "success");
-      await carregarTudo();
-    } catch (error) {
-      setElementStatus("kanban-inspector-status", error.message, "error");
-    }
-  });
-
+  syncKanbanInspectorHeader(viewMode, context.selectedCard);
+  const inspector = viewMode === "workbench" ? buildKanbanWorkbenchInspector(context) : buildKanbanBoardInspector(context);
+  bindKanbanInspectorActions(inspector, context);
   wrapper.appendChild(inspector);
 }
 
@@ -3245,7 +4175,7 @@ function renderKanban(data) {
     layout.classList.add(`mode-${viewMode}`);
   }
   renderKanbanSummary(model);
-  renderKanbanInspector(model, data);
+  renderKanbanInspector(model, data, viewMode);
 
   const wrapper = document.getElementById("kanban-board"); // Updated ID
   if (!wrapper) return;
@@ -3253,6 +4183,7 @@ function renderKanban(data) {
 
   if (!model.columns.length) {
     wrapper.appendChild(emptyState("Nenhum romaneio ativo para a matriz logística."));
+    applyHorizontalScrollEnhancements();
     return;
   }
 
@@ -3372,6 +4303,8 @@ function renderKanban(data) {
        });
     }
   });
+
+  applyHorizontalScrollEnhancements();
 }
 
 async function carregarRomaneio(code) {
@@ -3665,10 +4598,11 @@ function rerenderOperationalViews() {
   renderApontamento();
   renderEstoqueAtual(state.datasets.painel);
   renderMrpTable("assembly-table", state.datasets.assembly);
-  renderFactorySimulation(state.datasets.assembly, "assembly-lanes", 2);
+  renderHourlyModule("montagem");
   renderMrpTable("production-table", state.datasets.production);
-  renderFactorySimulation(state.datasets.production, "production-lanes", 6);
+  renderHourlyModule("producao");
   renderUsersModule();
+  applyHorizontalScrollEnhancements();
 }
 
 async function syncSources(sourceCodes = []) {
@@ -4012,9 +4946,9 @@ async function carregarTudo() {
   renderProgramming(state.datasets.programming);
   renderApontamento();
   renderMrpTable("assembly-table", state.datasets.assembly);
-  renderFactorySimulation(state.datasets.assembly, "assembly-lanes", 2);
+  renderHourlyModule("montagem");
   renderMrpTable("production-table", state.datasets.production);
-  renderFactorySimulation(state.datasets.production, "production-lanes", 6);
+  renderHourlyModule("producao");
   renderPurchases(purchases.items);
   renderRecycling(recycling.items);
   renderCosts(costs.items);
@@ -4029,6 +4963,7 @@ async function carregarTudo() {
     painel: painel.items,
     alerts: alerts.items,
   });
+  applyHorizontalScrollEnhancements();
 
   const mrpStatus = document.getElementById("mrp-status");
   if (mrpStatus) {
@@ -4122,6 +5057,9 @@ document.getElementById("sync-all-sources")?.addEventListener("click", () => {
   syncSources().catch((error) => {
     setElementStatus("sources-status", error.message, "error");
   });
+});
+window.addEventListener("resize", () => {
+  applyHorizontalScrollEnhancements();
 });
 configurarRomaneioIntake();
 ensureUsersStorage();

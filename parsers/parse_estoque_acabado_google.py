@@ -6,6 +6,8 @@ from __future__ import annotations
 import datetime as dt
 import html
 import re
+import subprocess
+import urllib.error
 import urllib.request
 from collections import Counter
 from typing import Any
@@ -57,8 +59,20 @@ def build_sheet_url(published_url: str, gid: str) -> str:
 
 def fetch_text(url: str) -> str:
     request = urllib.request.Request(url, headers={"User-Agent": "Mozilla/5.0"})
-    with urllib.request.urlopen(request, timeout=30) as response:
-        return response.read().decode("utf-8")
+    try:
+        with urllib.request.urlopen(request, timeout=30) as response:
+            return response.read().decode("utf-8")
+    except urllib.error.URLError:
+        completed = subprocess.run(
+            ["curl", "-sL", url],
+            capture_output=True,
+            text=True,
+            timeout=30,
+            check=False,
+        )
+        if completed.returncode == 0 and completed.stdout.strip():
+            return completed.stdout
+        raise
 
 
 def extract_rows(document: str) -> list[list[str]]:

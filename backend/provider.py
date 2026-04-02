@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import re
 from abc import ABC, abstractmethod
 from datetime import date, datetime, timezone
 from decimal import Decimal
@@ -29,6 +30,8 @@ DEFAULT_APP_USER = {
     "created_at": "2026-04-01T00:00:00.000Z",
     "updated_at": "2026-04-01T00:00:00.000Z",
 }
+
+ROMANEIO_REFERENCE_DATES_PATH = Path(__file__).resolve().parent.parent / "data" / "romaneio_reference_dates.json"
 
 
 def _normalize_bool(value: Any) -> bool:
@@ -73,6 +76,57 @@ def save_app_users(users_path: Path, users: list[dict[str, Any]]) -> list[dict[s
     users_path.parent.mkdir(parents=True, exist_ok=True)
     users_path.write_text(json.dumps({"items": sanitized}, ensure_ascii=False, indent=2), encoding="utf-8")
     return sanitized
+
+
+def _normalize_romaneio_lookup_code(value: Any) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    match = re.search(r"RM[\s-]*0*([0-9]+)", text, re.IGNORECASE)
+    if match:
+        return match.group(1)
+    if text.isdigit():
+        return text.lstrip("0") or "0"
+    return text
+
+
+def load_romaneio_reference_dates(path: Path = ROMANEIO_REFERENCE_DATES_PATH) -> dict[str, dict[str, Any]]:
+    if not path.exists():
+        return {}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    items = payload.get("items", payload) if isinstance(payload, dict) else payload
+    mapping: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not item:
+            continue
+        code = _normalize_romaneio_lookup_code(item.get("romaneio"))
+        if code:
+            mapping[code] = dict(item)
+    return mapping
+
+
+def apply_romaneio_reference_dates(item: dict[str, Any], references: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    if not item:
+        return item
+    code = _normalize_romaneio_lookup_code(item.get("romaneio"))
+    reference = references.get(code)
+    if not reference:
+        return item
+
+    current_status = str(item.get("previsao_saida_status") or "").strip().lower()
+    if current_status == "pcp_manual":
+        return item
+
+    merged = dict(item)
+    merged["romaneio_titulo_referencia"] = reference.get("title") or merged.get("romaneio_titulo_referencia")
+    if reference.get("previsao_saida_at"):
+        merged["previsao_saida_at"] = reference["previsao_saida_at"]
+        merged["previsao_saida_status"] = "planilha_referencia"
+        merged["criterio_previsao"] = "planilha_referencia"
+        merged["previsao_saida_observacao"] = (
+            f"Data herdada da planilha de programação ({reference.get('title') or code})."
+        )
+    return merged
 
 
 class DataProvider(ABC):
@@ -217,13 +271,20 @@ class MockProvider(DataProvider):
         return {"items": filtered}
 
     def romaneios(self) -> dict[str, Any]:
-        return self._read_json("romaneios.json")
+        payload = self._read_json("romaneios.json")
+        references = load_romaneio_reference_dates()
+        return {
+            "items": [apply_romaneio_reference_dates(item, references) for item in payload.get("items", [])]
+        }
 
     def romaneio_detail(self, romaneio_code: str) -> dict[str, Any] | None:
         path = self.data_dir / f"romaneio_{romaneio_code}.json"
         if not path.exists():
             return None
-        return json.loads(path.read_text(encoding="utf-8"))
+        payload = json.loads(path.read_text(encoding="utf-8"))
+        references = load_romaneio_reference_dates()
+        payload["header"] = apply_romaneio_reference_dates(payload.get("header", {}), references)
+        return payload
 
     def romaneios_kanban(self) -> dict[str, Any]:
         romaneios_payload = self.romaneios()
@@ -639,7 +700,9 @@ class PostgresProvider(DataProvider):
         return {"items": items}
 
     def romaneios(self) -> dict[str, Any]:
-        return {"items": self._fetchall(queries.ROMANEIOS_LIST_SQL)}
+        references = load_romaneio_reference_dates()
+        items = self._fetchall(queries.ROMANEIOS_LIST_SQL)
+        return {"items": [apply_romaneio_reference_dates(item, references) for item in items]}
 
     def romaneio_detail(self, romaneio_code: str) -> dict[str, Any] | None:
         header_sql = queries.ROMANEIO_HEADER_SQL.format(romaneios_list_sql=queries.ROMANEIOS_LIST_SQL)
@@ -656,6 +719,7 @@ class PostgresProvider(DataProvider):
         else:
             observacao = "Romaneio ainda possui itens sem previsao confiavel de disponibilidade."
         header["previsao_saida_observacao"] = observacao
+        header = apply_romaneio_reference_dates(header, load_romaneio_reference_dates())
         return {
             "header": header,
             "items": self._fetchall(queries.ROMANEIO_ITEMS_SQL, (romaneio_code,)),
@@ -664,12 +728,13 @@ class PostgresProvider(DataProvider):
 
     def romaneios_kanban(self) -> dict[str, Any]:
         painel_items = self._fetchall(queries.PANEL_ENRICHED_SQL)
+        references = load_romaneio_reference_dates()
         romaneios = self._fetchall(
             queries.ROMANEIOS_KANBAN_SQL.format(romaneios_list_sql=queries.ROMANEIOS_LIST_SQL)
         )
         return {
             "products": painel_items,
-            "romaneios": romaneios
+            "romaneios": [apply_romaneio_reference_dates(item, references) for item in romaneios]
         }
 
     def assembly(self) -> dict[str, Any]:

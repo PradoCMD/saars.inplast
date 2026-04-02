@@ -272,8 +272,8 @@
               <aside class="glass-panel kanban-inspector">
                 <div class="panel-header">
                   <div>
-                    <h3>Workbench Logístico</h3>
-                    <p class="section-copy">Espelha as visões de consulta, saldo até o romaneio e necessidade geral.</p>
+                    <h3 id="kanban-inspector-title">Detalhes do Romaneio</h3>
+                    <p id="kanban-inspector-copy" class="section-copy">Selecione um romaneio no Kanban para visualizar carteira, produtos e programação.</p>
                   </div>
                   <span id="kanban-selected-label" class="status-badge info">Sem romaneio selecionado</span>
                 </div>
@@ -761,17 +761,37 @@
           <div id="montagem" class="view-module full-height">
             <div class="module-header">
               <div class="header-titles">
-                <h2>Esteiras de Montagem (Simulação Horária)</h2>
-                <p>Grid interativo distribuindo cargas nas 2 esteiras do pavilhão de montagem.</p>
+                <h2>Esteiras de Montagem | H-H Padrão</h2>
+                <p>Painel hora-a-hora para as 2 esteiras, com operador-chave, metas do turno, agenda do recurso e carteira de montagem.</p>
               </div>
             </div>
-            <div class="factory-simulator">
-              <div class="timeline-ruler">
-                <!-- 06:00 to 22:00 injected via JS -->
-              </div>
-              <div class="machine-lanes" id="assembly-lanes">
-                <!-- 2 lanes injected via JS -->
-              </div>
+            <div class="hourly-shell" id="assembly-hourly-shell">
+              <section class="glass-panel hourly-main">
+                <div class="hourly-topbar">
+                  <div>
+                    <small class="hourly-kicker">H-H PADRÃO</small>
+                    <h3>Operação de montagem por faixa horária</h3>
+                    <p class="section-copy">Acompanhe intervalos, paradas planejadas, operadores reais, produto da faixa e objetivo do recurso selecionado.</p>
+                  </div>
+                  <div id="assembly-resource-switcher" class="hourly-resource-switcher"></div>
+                </div>
+                <div id="assembly-hour-hero" class="hourly-hero"></div>
+                <div id="assembly-hour-grid" class="hourly-grid-shell"></div>
+              </section>
+
+              <aside class="glass-panel hourly-sidebar">
+                <div class="panel-header compact">
+                  <div>
+                    <h3>Carteira da Esteira</h3>
+                    <span class="section-copy">Selecione um item para liderar o turno e programar o próximo slot sem sair do módulo.</span>
+                  </div>
+                </div>
+                <div id="assembly-focus-card" class="hourly-focus-card"></div>
+                <div id="assembly-queue-list" class="hourly-queue-list"></div>
+                <div id="assembly-schedule-list" class="hourly-schedule-list"></div>
+                <div id="assembly-legend" class="hourly-legend"></div>
+                <span id="assembly-hourly-status" class="status-msg"></span>
+              </aside>
             </div>
             
             <div class="glass-panel mt-4">
@@ -799,17 +819,37 @@
           <div id="producao" class="view-module full-height">
             <div class="module-header">
               <div class="header-titles">
-                <h2>Extrusoras de Produção (Simulação Horária)</h2>
-                <p>Monitoramento e alocação de cargas operacionais nas 6 extrusoras principais.</p>
+                <h2>Produção | H-H Padrão</h2>
+                <p>Leitura hora-a-hora das 6 células de produção, espelhando a lógica de intervalos, paradas e objetivos do chão de fábrica.</p>
               </div>
             </div>
-            <div class="factory-simulator">
-              <div class="timeline-ruler">
-                <!-- 06:00 to 22:00 injected via JS -->
-              </div>
-              <div class="machine-lanes" id="production-lanes">
-                <!-- 6 lanes injected via JS -->
-              </div>
+            <div class="hourly-shell" id="production-hourly-shell">
+              <section class="glass-panel hourly-main">
+                <div class="hourly-topbar">
+                  <div>
+                    <small class="hourly-kicker">H-H PADRÃO</small>
+                    <h3>Execução produtiva por célula</h3>
+                    <p class="section-copy">Visualize o turno por faixa horária, distribua a carteira crítica e enxergue a disponibilidade real antes do apontamento.</p>
+                  </div>
+                  <div id="production-resource-switcher" class="hourly-resource-switcher"></div>
+                </div>
+                <div id="production-hour-hero" class="hourly-hero"></div>
+                <div id="production-hour-grid" class="hourly-grid-shell"></div>
+              </section>
+
+              <aside class="glass-panel hourly-sidebar">
+                <div class="panel-header compact">
+                  <div>
+                    <h3>Carteira da Célula</h3>
+                    <span class="section-copy">Escolha o item líder, confira o recurso e grave a próxima programação da fila produtiva.</span>
+                  </div>
+                </div>
+                <div id="production-focus-card" class="hourly-focus-card"></div>
+                <div id="production-queue-list" class="hourly-queue-list"></div>
+                <div id="production-schedule-list" class="hourly-schedule-list"></div>
+                <div id="production-legend" class="hourly-legend"></div>
+                <span id="production-hourly-status" class="status-msg"></span>
+              </aside>
             </div>
 
             <div class="glass-panel mt-4">

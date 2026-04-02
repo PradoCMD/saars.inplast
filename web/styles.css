@@ -996,6 +996,61 @@
       border-collapse: collapse;
       text-align: left;
   }
+  .x-scroll-shell {
+      position: relative;
+      width: 100%;
+      min-width: 0;
+  }
+  .x-scroll-viewport {
+      overflow-x: auto;
+      overflow-y: hidden;
+      scrollbar-width: thin;
+      scrollbar-color: rgba(80, 120, 255, 0.55) transparent;
+      scroll-behavior: smooth;
+      padding-bottom: 4px;
+  }
+  .x-scroll-track {
+      min-width: max-content;
+  }
+  .x-scroll-shell .modern-table {
+      min-width: 100%;
+  }
+  .x-scroll-nav {
+      position: absolute;
+      top: 50%;
+      transform: translateY(-50%);
+      width: 42px;
+      height: 42px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.08);
+      background: rgba(11, 16, 23, 0.86);
+      color: var(--text-primary);
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      backdrop-filter: blur(18px);
+      box-shadow: 0 12px 24px rgba(0, 0, 0, 0.28);
+      cursor: pointer;
+      z-index: 3;
+      transition: var(--transition);
+  }
+  .x-scroll-nav:hover {
+      border-color: rgba(59, 130, 246, 0.35);
+      background: rgba(20, 29, 42, 0.95);
+  }
+  .x-scroll-nav:disabled {
+      opacity: 0;
+      pointer-events: none;
+  }
+  .x-scroll-nav--left {
+      left: -12px;
+  }
+  .x-scroll-nav--right {
+      right: -12px;
+  }
+  .x-scroll-shell--kanban .x-scroll-nav {
+      top: 42%;
+  }
   .modern-table th {
       color: var(--text-secondary);
       font-size: 0.75rem;
@@ -1626,11 +1681,7 @@
   }
 
   .kanban-layout.mode-board {
-      grid-template-columns: minmax(0, 1fr);
-  }
-
-  .kanban-layout.mode-board .kanban-inspector {
-      display: none;
+      grid-template-columns: minmax(0, 1.28fr) minmax(360px, 0.92fr);
   }
 
   .kanban-layout.mode-workbench {
@@ -1645,6 +1696,7 @@
       display: flex;
       flex-direction: column;
       gap: 18px;
+      min-width: 0;
   }
 
   .kanban-inspector {
@@ -1654,6 +1706,7 @@
       overflow: hidden;
       display: flex;
       flex-direction: column;
+      min-width: 0;
   }
 
   .kanban-inspector-body {
@@ -1759,6 +1812,116 @@
 
   .kanban-layout.mode-workbench .kanban-table-card .modern-table {
       font-size: 0.9rem;
+  }
+
+  .kanban-layout.mode-board .kanban-inspector {
+      display: flex;
+  }
+
+  .kanban-detail-stack {
+      display: flex;
+      flex-direction: column;
+      gap: 16px;
+  }
+
+  .kanban-detail-hero,
+  .kanban-detail-section {
+      background: rgba(255, 255, 255, 0.03);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 18px;
+      padding: 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 14px;
+  }
+
+  .kanban-detail-hero-head {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 12px;
+  }
+
+  .kanban-detail-hero-head strong {
+      font-size: 1.15rem;
+  }
+
+  .kanban-detail-hero-head span,
+  .kanban-detail-hero-head small,
+  .kanban-detail-meta small,
+  .kanban-product-summary span {
+      color: var(--text-secondary);
+  }
+
+  .kanban-detail-metrics {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 12px;
+  }
+
+  .kanban-detail-metrics div {
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      border-radius: 14px;
+      padding: 12px 14px;
+      background: rgba(255, 255, 255, 0.02);
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+  }
+
+  .kanban-detail-metrics small {
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.05em;
+      font-size: 0.7rem;
+  }
+
+  .kanban-detail-metrics strong {
+      font-size: 1rem;
+  }
+
+  .kanban-detail-meta {
+      display: grid;
+      gap: 10px;
+  }
+
+  .kanban-detail-meta div {
+      display: grid;
+      gap: 4px;
+  }
+
+  .kanban-detail-actions {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+  }
+
+  .kanban-detail-actions-row {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+  }
+
+  .kanban-product-summary {
+      display: flex;
+      justify-content: space-between;
+      align-items: center;
+      gap: 12px;
+  }
+
+  .kanban-product-summary strong {
+      font-size: 0.95rem;
+  }
+
+  .kanban-detail-table .modern-table {
+      min-width: 860px;
+  }
+
+  .kanban-detail-empty {
+      border: 1px dashed rgba(255, 255, 255, 0.1);
+      border-radius: 16px;
+      padding: 16px;
+      color: var(--text-secondary);
   }
 
   .dense-table td,
@@ -1909,6 +2072,302 @@
   .sim-block,
   .aponta-machine-card {
       cursor: pointer;
+  }
+
+  .hourly-shell {
+      display: grid;
+      grid-template-columns: minmax(0, 1.28fr) minmax(320px, 0.92fr);
+      gap: 24px;
+      align-items: start;
+  }
+
+  .hourly-main,
+  .hourly-sidebar {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+      min-height: 100%;
+  }
+
+  .hourly-topbar {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 18px;
+  }
+
+  .hourly-kicker {
+      display: inline-flex;
+      align-items: center;
+      gap: 8px;
+      color: var(--accent-primary);
+      font-size: 0.72rem;
+      letter-spacing: 0.08em;
+      text-transform: uppercase;
+  }
+
+  .hourly-topbar h3 {
+      margin-top: 8px;
+      font-size: 1.18rem;
+  }
+
+  .hourly-resource-switcher {
+      display: flex;
+      flex-wrap: wrap;
+      justify-content: flex-end;
+      gap: 10px;
+      min-width: 260px;
+  }
+
+  .hourly-resource-pill {
+      display: inline-flex;
+      flex-direction: column;
+      gap: 3px;
+      min-width: 118px;
+      padding: 12px 14px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(255, 255, 255, 0.03);
+      color: var(--text-primary);
+      transition: var(--transition);
+      cursor: pointer;
+      text-align: left;
+  }
+
+  .hourly-resource-pill:hover {
+      border-color: rgba(80, 120, 255, 0.38);
+      transform: translateY(-1px);
+  }
+
+  .hourly-resource-pill.active {
+      border-color: rgba(80, 120, 255, 0.72);
+      background: linear-gradient(135deg, rgba(80,120,255,0.18), rgba(255,255,255,0.04));
+      box-shadow: 0 0 0 1px rgba(80,120,255,0.18);
+  }
+
+  .hourly-resource-pill small,
+  .hourly-focus-card small,
+  .hourly-queue-card small,
+  .hourly-schedule-card small,
+  .hourly-legend-card small {
+      color: var(--text-secondary);
+      font-size: 0.72rem;
+      letter-spacing: 0.06em;
+      text-transform: uppercase;
+  }
+
+  .hourly-resource-pill strong,
+  .hourly-focus-card strong,
+  .hourly-queue-card strong,
+  .hourly-schedule-card strong,
+  .hourly-legend-card strong {
+      font-size: 0.96rem;
+      line-height: 1.35;
+  }
+
+  .hourly-resource-pill span,
+  .hourly-focus-card span,
+  .hourly-queue-card span,
+  .hourly-schedule-card span,
+  .hourly-legend-card span {
+      color: var(--text-secondary);
+      line-height: 1.45;
+  }
+
+  .hourly-hero {
+      display: grid;
+      grid-template-columns: minmax(240px, 1.1fr) minmax(0, 1.4fr);
+      gap: 18px;
+  }
+
+  .hourly-hero-copy,
+  .hourly-kpi-grid,
+  .hourly-grid-card,
+  .hourly-focus-card,
+  .hourly-queue-card,
+  .hourly-schedule-card,
+  .hourly-legend-card {
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      background: rgba(255, 255, 255, 0.03);
+  }
+
+  .hourly-hero-copy {
+      padding: 22px;
+      display: flex;
+      flex-direction: column;
+      gap: 10px;
+      background:
+        radial-gradient(circle at top right, rgba(80,120,255,0.14), transparent 42%),
+        rgba(255, 255, 255, 0.03);
+  }
+
+  .hourly-hero-copy p {
+      color: var(--text-secondary);
+      line-height: 1.6;
+      max-width: 44ch;
+  }
+
+  .hourly-kpi-grid {
+      padding: 16px;
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+  }
+
+  .hourly-kpi {
+      padding: 14px 16px;
+      border-radius: 18px;
+      background: rgba(2, 6, 12, 0.42);
+      border: 1px solid rgba(255, 255, 255, 0.05);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+  }
+
+  .hourly-kpi strong {
+      font-size: 1.08rem;
+      line-height: 1.2;
+  }
+
+  .hourly-kpi span,
+  .hourly-kpi small {
+      color: var(--text-secondary);
+      line-height: 1.45;
+  }
+
+  .hourly-grid-shell {
+      min-width: 0;
+  }
+
+  .hourly-grid-card {
+      padding: 16px 18px 18px;
+      overflow: hidden;
+  }
+
+  .hourly-grid-card .panel-header {
+      margin-bottom: 14px;
+  }
+
+  .hourly-grid-card .modern-table {
+      min-width: 1280px;
+  }
+
+  .hourly-grid-card .modern-table td {
+      padding: 12px 14px;
+      font-size: 0.82rem;
+      vertical-align: top;
+  }
+
+  .hourly-grid-card .modern-table th {
+      padding: 11px 14px;
+      white-space: nowrap;
+  }
+
+  .hourly-interval {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 120px;
+  }
+
+  .hourly-interval strong {
+      font-size: 0.92rem;
+  }
+
+  .hourly-interval span {
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+  }
+
+  .hourly-status-chip {
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      border-radius: 999px;
+      padding: 6px 10px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      font-size: 0.72rem;
+      font-weight: 700;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      width: fit-content;
+  }
+
+  .hourly-status-chip.ready { color: var(--status-ok); }
+  .hourly-status-chip.pending { color: var(--status-warning); }
+  .hourly-status-chip.idle { color: var(--text-secondary); }
+
+  .hourly-focus-card,
+  .hourly-queue-card,
+  .hourly-schedule-card,
+  .hourly-legend-card {
+      padding: 16px 18px;
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+  }
+
+  .hourly-focus-card {
+      background:
+        linear-gradient(145deg, rgba(80,120,255,0.14), rgba(255,255,255,0.04)),
+        rgba(255,255,255,0.03);
+  }
+
+  .hourly-focus-meta,
+  .hourly-queue-meta,
+  .hourly-schedule-meta {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
+  }
+
+  .hourly-focus-actions,
+  .hourly-queue-actions {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      margin-top: 4px;
+  }
+
+  .hourly-focus-empty {
+      padding: 20px;
+      border-radius: 18px;
+      border: 1px dashed rgba(255,255,255,0.12);
+      color: var(--text-secondary);
+      text-align: center;
+      line-height: 1.5;
+  }
+
+  .hourly-queue-list,
+  .hourly-schedule-list,
+  .hourly-legend {
+      display: flex;
+      flex-direction: column;
+      gap: 12px;
+  }
+
+  .hourly-queue-card {
+      cursor: pointer;
+      transition: var(--transition);
+  }
+
+  .hourly-queue-card:hover,
+  .hourly-schedule-card:hover {
+      border-color: rgba(80, 120, 255, 0.34);
+      transform: translateY(-1px);
+  }
+
+  .hourly-queue-card.active {
+      border-color: rgba(80, 120, 255, 0.72);
+      box-shadow: 0 0 0 1px rgba(80, 120, 255, 0.18);
+  }
+
+  .hourly-legend-grid {
+      display: grid;
+      grid-template-columns: repeat(2, minmax(0, 1fr));
+      gap: 10px;
   }
 
   .interactive-row:hover {
@@ -2192,6 +2651,13 @@
       .kanban-layout,
       .programming-shell,
       .programming-board,
+      .hourly-shell,
+      .hourly-hero,
+      .hourly-kpi-grid,
+      .hourly-focus-meta,
+      .hourly-queue-meta,
+      .hourly-schedule-meta,
+      .hourly-legend-grid,
       .aponta-operator-panel,
       .aponta-stage-metrics,
       .aponta-action-row,
@@ -2220,6 +2686,14 @@
 
       .input-mini {
           width: 100%;
+      }
+
+      .x-scroll-nav--left {
+          left: -4px;
+      }
+
+      .x-scroll-nav--right {
+          right: -4px;
       }
 
       .hero-signals {
