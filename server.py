@@ -12,7 +12,7 @@ from urllib.parse import parse_qs, urlparse
 
 from backend import Settings, build_provider
 from backend.romaneio_pdf import SOURCE_CODE as ROMANEIO_PDF_SOURCE_CODE
-from backend.romaneio_pdf import build_romaneio_event, parse_romaneio_pdf_bytes
+from backend.romaneio_pdf import build_romaneio_event, normalize_romaneio_identity, parse_romaneio_pdf_bytes
 
 
 ROOT = Path(__file__).resolve().parent
@@ -41,18 +41,220 @@ def json_default(value):
         return float(value)
     raise TypeError(f"Tipo nao serializavel: {type(value)!r}")
 
+
+def _to_float(value) -> float:
+    try:
+        return float(value or 0)
+    except (TypeError, ValueError):
+        return 0.0
+
+
+def _to_int(value) -> int:
+    try:
+        return int(value or 0)
+    except (TypeError, ValueError):
+        return 0
+
+
+def _pedido_key(pedido: dict) -> str:
+    numero_unico = str(pedido.get("numero_unico") or "").strip()
+    if numero_unico:
+        return numero_unico
+    return "|".join(
+        [
+            str(pedido.get("ped_mercos") or "").strip(),
+            str(pedido.get("codigo_parceiro") or "").strip(),
+            str(pedido.get("parceiro") or "").strip(),
+        ]
+    )
+
+
+def _item_key(item: dict) -> str:
+    sku = str(item.get("sku") or "").strip()
+    unidade = str(item.get("unidade") or "").strip().upper()
+    descricao = str(item.get("descricao") or item.get("produto") or "").strip()
+    return "|".join([sku, unidade, descricao])
+
+
+def _merge_parsed_records(records: list[dict]) -> dict:
+    if not records:
+        return {}
+
+    base = records[0]
+    merged_pedidos: dict[str, dict] = {}
+    pedido_order: list[str] = []
+    merged_itens: dict[str, dict] = {}
+    item_order: list[str] = []
+    file_names: list[str] = []
+    document_kinds: set[str] = set()
+
+    for parsed in records:
+        document_kinds.add(str(parsed.get("document_kind") or "romaneio"))
+        for file_name in parsed.get("files") or ([] if not parsed.get("file") else [parsed.get("file")]):
+            if file_name and file_name not in file_names:
+                file_names.append(file_name)
+
+        for pedido in parsed.get("pedidos") or []:
+            key = _pedido_key(pedido)
+            if not key:
+                continue
+            normalized = {
+                "numero_unico": str(pedido.get("numero_unico") or "").strip(),
+                "ped_mercos": str(pedido.get("ped_mercos") or "").strip(),
+                "codigo_parceiro": str(pedido.get("codigo_parceiro") or "").strip(),
+                "parceiro": str(pedido.get("parceiro") or "").strip(),
+                "valor_total": round(_to_float(pedido.get("valor_total")), 2),
+            }
+            if key not in merged_pedidos:
+                merged_pedidos[key] = normalized
+                pedido_order.append(key)
+            else:
+                current = merged_pedidos[key]
+                for field in ("numero_unico", "ped_mercos", "codigo_parceiro", "parceiro"):
+                    if not current.get(field) and normalized.get(field):
+                        current[field] = normalized[field]
+                current["valor_total"] = max(_to_float(current.get("valor_total")), normalized["valor_total"])
+
+        for item in parsed.get("itens") or []:
+            key = _item_key(item)
+            if not key:
+                continue
+            normalized_item = {
+                "sku": str(item.get("sku") or "").strip(),
+                "descricao": str(item.get("descricao") or item.get("produto") or "").strip(),
+                "produto": str(item.get("produto") or item.get("descricao") or item.get("sku") or "").strip(),
+                "unidade": str(item.get("unidade") or "UN").strip().upper() or "UN",
+                "tipo_produto": str(item.get("tipo_produto") or "PRODUTO ACABADO").strip() or "PRODUTO ACABADO",
+                "quantidade": _to_float(item.get("quantidade")),
+                "quantidade_neg": _to_float(item.get("quantidade_neg") if item.get("quantidade_neg") is not None else item.get("quantidade")),
+                "quantidade_vol": _to_float(item.get("quantidade_vol")),
+                "quantity_total": _to_float(item.get("quantity_total") if item.get("quantity_total") is not None else item.get("quantidade")),
+            }
+            if key not in merged_itens:
+                merged_itens[key] = normalized_item
+                item_order.append(key)
+            else:
+                current_item = merged_itens[key]
+                for field in ("descricao", "produto", "unidade", "tipo_produto"):
+                    if not current_item.get(field) and normalized_item.get(field):
+                        current_item[field] = normalized_item[field]
+                for field in ("quantidade", "quantidade_neg", "quantidade_vol", "quantity_total"):
+                    current_item[field] = _to_float(current_item.get(field)) + normalized_item[field]
+
+    pedidos = [merged_pedidos[key] for key in pedido_order]
+    itens = []
+    for key in item_order:
+        item = merged_itens[key]
+        item["quantidade"] = round(_to_float(item.get("quantidade")), 6)
+        item["quantidade_neg"] = round(_to_float(item.get("quantidade_neg")), 6)
+        item["quantidade_vol"] = round(_to_float(item.get("quantidade_vol")), 6)
+        item["quantity_total"] = round(
+            _to_float(item.get("quantity_total")) or _to_float(item.get("quantidade")) or _to_float(item.get("quantidade_neg")),
+            6,
+        )
+        if item["quantidade"] == 0:
+            item["quantidade"] = item["quantity_total"]
+        if item["quantidade_neg"] == 0:
+            item["quantidade_neg"] = item["quantity_total"]
+        itens.append(item)
+
+    total_from_pedidos = round(sum(_to_float(pedido.get("valor_total")) for pedido in pedidos), 2)
+    total_fallback = round(sum(_to_float(parsed.get("total_geral")) for parsed in records), 2)
+
+    return {
+        "ordem_carga": str(base.get("ordem_carga") or base.get("romaneio_identity") or "").strip(),
+        "romaneio_identity": normalize_romaneio_identity(
+            base.get("romaneio_identity") or base.get("ordem_carga") or base.get("file") or ""
+        ),
+        "document_kind": next(iter(document_kinds)) if len(document_kinds) == 1 else "merged",
+        "empresa": str(base.get("empresa") or "").strip(),
+        "nome_empresa": str(base.get("nome_empresa") or "").strip(),
+        "pedidos": pedidos,
+        "montante": len(pedidos) or sum(_to_int(parsed.get("montante")) for parsed in records),
+        "total_geral": total_from_pedidos or total_fallback,
+        "itens": itens,
+        "file": file_names[0] if file_names else str(base.get("file") or "").strip(),
+        "files": file_names,
+        "text_length": sum(_to_int(parsed.get("text_length")) for parsed in records),
+    }
+
+
+def _build_parsed_from_existing_detail(romaneio_code: str) -> dict | None:
+    detail = PROVIDER.romaneio_detail(romaneio_code)
+    if not detail:
+        return None
+    header = detail.get("header") or {}
+    items = []
+    for item in detail.get("items") or []:
+        quantity = _to_float(item.get("quantidade") or item.get("quantity_total"))
+        items.append(
+            {
+                "sku": str(item.get("sku") or "").strip(),
+                "descricao": str(item.get("produto") or item.get("sku") or "").strip(),
+                "produto": str(item.get("produto") or item.get("sku") or "").strip(),
+                "unidade": "UN",
+                "tipo_produto": "PRODUTO ACABADO",
+                "quantidade": quantity,
+                "quantidade_neg": quantity,
+                "quantidade_vol": 0.0,
+                "quantity_total": quantity,
+            }
+        )
+    if not items:
+        return None
+    return {
+        "ordem_carga": str(header.get("romaneio") or romaneio_code).strip(),
+        "romaneio_identity": normalize_romaneio_identity(header.get("romaneio") or romaneio_code),
+        "document_kind": "existing",
+        "empresa": str(header.get("empresa") or "").strip(),
+        "nome_empresa": str(header.get("empresa") or "").strip(),
+        "pedidos": [],
+        "montante": 0,
+        "total_geral": 0.0,
+        "itens": items,
+        "file": "",
+        "files": [],
+        "text_length": 0,
+    }
+
+
+def _consolidate_parsed_romaneios(records: list[dict]) -> list[dict]:
+    grouped: dict[str, list[dict]] = {}
+    for parsed in records:
+        identity = normalize_romaneio_identity(parsed.get("romaneio_identity") or parsed.get("ordem_carga") or parsed.get("file") or "")
+        key = identity or str(parsed.get("file") or len(grouped))
+        grouped.setdefault(key, []).append(parsed)
+
+    consolidated: list[dict] = []
+    for group in grouped.values():
+        merged = _merge_parsed_records(group)
+        if merged.get("document_kind") == "romaneio_nota" and len(group) == 1:
+            existing = _build_parsed_from_existing_detail(merged.get("romaneio_identity") or merged.get("ordem_carga") or "")
+            if existing:
+                merged = _merge_parsed_records([existing, merged])
+                merged["document_kind"] = "merged"
+        consolidated.append(merged)
+    return consolidated
+
 def sync_parsed_romaneios(records: list[dict]) -> dict:
     results: list[dict] = []
     errors: list[dict] = []
     successful_records: list[dict] = []
+    processed_files: list[str] = []
 
-    for parsed in records:
+    consolidated_records = _consolidate_parsed_romaneios(records)
+
+    for parsed in consolidated_records:
         try:
             payload, meta = build_romaneio_event(parsed)
             ingest = PROVIDER.ingest_romaneio_event(ROMANEIO_PDF_SOURCE_CODE, payload, meta)
             ingest_status = str((ingest or {}).get("status") or "").lower()
+            file_names = parsed.get("files") or ([] if not parsed.get("file") else [parsed.get("file")])
             if ingest_status in {"processed", "duplicate_ignored", "noop", "success", "saved"}:
                 successful_records.append(parsed)
+                for file_name in file_names:
+                    if file_name and file_name not in processed_files:
+                        processed_files.append(file_name)
             else:
                 errors.append(
                     {
@@ -65,6 +267,7 @@ def sync_parsed_romaneios(records: list[dict]) -> dict:
                 {
                     "romaneio": parsed.get("ordem_carga"),
                     "file_name": parsed.get("file"),
+                    "file_names": file_names,
                     "item_count": len(parsed.get("itens", [])),
                     "ingest": ingest,
                 }
@@ -90,6 +293,7 @@ def sync_parsed_romaneios(records: list[dict]) -> dict:
         "count": len(results),
         "kanban_count": kanban_count,
         "results": results,
+        "processed_files": processed_files,
         "errors": errors,
     }
 

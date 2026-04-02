@@ -16,6 +16,7 @@ const state = {
   currentView: "cockpit",
   sidebarCollapsed: false,
   kanbanStatusFilter: "todos",
+  kanbanViewMode: "split",
   kanbanSelecionado: null,
   programmingActionFilter: "",
   apontamentoScreen: "resumo",
@@ -316,6 +317,35 @@ function normalizeRomaneioIdentity(value) {
   return explicitMatch ? explicitMatch[1] : text.replace(/[^A-Z0-9]/g, "");
 }
 
+function inferRomaneioDocumentKind(value) {
+  const text = String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toUpperCase();
+  return /ROMANEIO\s+NOTA/.test(text) ? "romaneio_nota" : "romaneio";
+}
+
+function isComplementaryRomaneioUpload(left, right) {
+  const leftIdentity = left?.romaneio_identity || normalizeRomaneioIdentity(left?.romaneio || left?.pdf_name || "");
+  const rightIdentity = right?.romaneio_identity || normalizeRomaneioIdentity(right?.romaneio || right?.pdf_name || "");
+  if (!leftIdentity || !rightIdentity || leftIdentity !== rightIdentity) {
+    return false;
+  }
+  const kinds = new Set([left?.document_kind || "romaneio", right?.document_kind || "romaneio"]);
+  return kinds.has("romaneio") && kinds.has("romaneio_nota");
+}
+
+function resolveRomaneioQuantity(item) {
+  const direct = Number(item?.quantidade_total ?? item?.quantity_total);
+  if (Number.isFinite(direct) && direct > 0) {
+    return direct;
+  }
+  if (Array.isArray(item?.items)) {
+    return sumBy(item.items, (line) => Number(line?.quantity_total ?? line?.quantidade ?? 0));
+  }
+  return Number(item?.quantidade_total ?? item?.quantity_total ?? 0) || 0;
+}
+
 function toDatetimeLocalValue(value) {
   if (!value) {
     return "";
@@ -578,10 +608,11 @@ function normalizeLocalRomaneio(item) {
     ...item,
     selection_code: item.local_id,
     romaneio_identity: item.romaneio_identity || normalizeRomaneioIdentity(item.romaneio || item.pdf_name || ""),
+    document_kind: item.document_kind || inferRomaneioDocumentKind(item.pdf_name || item.romaneio),
     source_type: item.source_type || "manual",
     previsao_saida_status: item.previsao_saida_status || (item.source_type === "pdf" ? "arquivo_local" : "manual"),
     status_evento: item.status_evento || (item.source_type === "pdf" ? "pdf_local" : "manual_local"),
-    quantidade_total: Number(item.quantidade_total) || 0,
+    quantidade_total: resolveRomaneioQuantity(item),
     itens: Number(item.itens) || 0,
   };
 }
@@ -595,6 +626,8 @@ function buildRomaneiosCollection() {
     ...item,
     selection_code: String(item.romaneio),
     romaneio_identity: normalizeRomaneioIdentity(item.romaneio),
+    document_kind: item.document_kind || "romaneio",
+    quantidade_total: resolveRomaneioQuantity(item),
     source_type: "api",
   }));
 
@@ -645,9 +678,20 @@ function replaceLocalRomaneios(entriesToUpsert, identitiesToRemove = []) {
       .map((item) => normalizeRomaneioIdentity(item))
       .filter(Boolean),
   );
+  const upsertKeys = new Set(
+    entriesToUpsert.map((item) => {
+      const identity = item.romaneio_identity || normalizeRomaneioIdentity(item.romaneio || item.pdf_name || "");
+      const kind = item.document_kind || inferRomaneioDocumentKind(item.pdf_name || item.romaneio);
+      return `${identity}|${kind}`;
+    }),
+  );
   const nextItems = state.romaneiosLocais.filter((item) => {
     const identity = item.romaneio_identity || normalizeRomaneioIdentity(item.romaneio || item.pdf_name || "");
-    return !removeSet.has(identity);
+    const kind = item.document_kind || inferRomaneioDocumentKind(item.pdf_name || item.romaneio);
+    if (!removeSet.has(identity)) {
+      return true;
+    }
+    return !upsertKeys.has(`${identity}|${kind}`);
   });
   saveLocalRomaneios([...entriesToUpsert, ...nextItems]);
 }
@@ -810,6 +854,7 @@ function createPdfRomaneioEntry(file) {
     source_type: "pdf",
     romaneio,
     romaneio_identity: normalizeRomaneioIdentity(romaneio),
+    document_kind: inferRomaneioDocumentKind(file.name),
     empresa: "INPLAST",
     pedido: "",
     quantidade_total: 0,
@@ -831,6 +876,7 @@ function createManualRomaneioEntry(payload) {
     source_type: "manual",
     romaneio,
     romaneio_identity: normalizeRomaneioIdentity(romaneio),
+    document_kind: "manual",
     empresa: payload.empresa || "INPLAST",
     pedido: payload.pedido || "",
     quantidade_total: Number(payload.quantidade_total) || 0,
@@ -1363,6 +1409,9 @@ function renderStagedRomaneios() {
             ${item.pdf_name ? `${item.pdf_name} · ${formatFileSize(item.pdf_size)}` : `${item.empresa || "INPLAST"}${item.pedido ? ` · Pedido ${item.pedido}` : ""}`}
           </div>
           <div class="staged-meta">
+            ${number.format(resolveRomaneioQuantity(item))} unidades · ${item.itens || 0} itens
+          </div>
+          <div class="staged-meta">
             ${item.previsao_saida_at ? `Saída ${formatDateTime(item.previsao_saida_at)}` : "Sem previsão definida"} · ${formatDateTimeWithFallback(item.created_at, "Agora")}
           </div>
           <div class="dropzone-actions">
@@ -1391,8 +1440,8 @@ function renderRomaneios() {
       const isLocal = item.source_type !== "api";
       const isSelected = state.romaneioSelecionado === item.selection_code;
       const secondaryLine = isLocal
-        ? `${item.pdf_name || "Romaneio digitado"}${item.pedido ? ` | Pedido ${item.pedido}` : ""}`
-        : `${number.format(item.quantidade_total)} unidades | Saida ${formatDateTime(item.previsao_saida_at)}`;
+        ? `${number.format(resolveRomaneioQuantity(item))} unidades | ${item.pdf_name || "Romaneio digitado"}${item.pedido ? ` | Pedido ${item.pedido}` : ""}`
+        : `${number.format(resolveRomaneioQuantity(item))} unidades | Saida ${formatDateTime(item.previsao_saida_at)}`;
       const row = el(`
         <article class="romaneio-row ${isLocal ? "local" : ""} ${isSelected ? "selected" : ""}">
           <div>
@@ -3157,6 +3206,16 @@ function renderKanbanInspector(model, data) {
 function renderKanban(data) {
   kanbanState = data;
   const model = buildKanbanModel(data);
+  const layout = document.getElementById("kanban-layout");
+  const viewMode = ["split", "board", "workbench"].includes(state.kanbanViewMode) ? state.kanbanViewMode : "split";
+  const viewField = document.getElementById("kanban-view-mode");
+  if (viewField && viewField.value !== viewMode) {
+    viewField.value = viewMode;
+  }
+  if (layout) {
+    layout.classList.remove("mode-split", "mode-board", "mode-workbench");
+    layout.classList.add(`mode-${viewMode}`);
+  }
   renderKanbanSummary(model);
   renderKanbanInspector(model, data);
 
@@ -3374,6 +3433,9 @@ function confirmRomaneioReplacement(entry) {
   if (!existing) {
     return true;
   }
+  if (isComplementaryRomaneioUpload(existing, entry) || entry.document_kind === "romaneio_nota") {
+    return true;
+  }
   return window.confirm(
     `Deseja substituir o romaneio ${formatRomaneioCode(identity)} pelo novo arquivo/cadastro? Isso atualizará apenas os itens desse romaneio ou romaneio nota.`,
   );
@@ -3407,7 +3469,10 @@ async function uploadRomaneioPdfFiles(fileEntries) {
     );
 
     const response = await postJson("/api/pcp/romaneios/upload", { files: filesPayload });
-    const successfulFiles = new Set((response.results || []).map((item) => item.file_name).filter(Boolean));
+    const successfulFiles = new Set(
+      (response.processed_files || (response.results || []).flatMap((item) => item.file_names || (item.file_name ? [item.file_name] : [])))
+        .filter(Boolean),
+    );
     const failedFiles = new Map((response.errors || []).map((item) => [item.file_name, item.error]));
 
     const nextLocalItems = state.romaneiosLocais
@@ -3450,16 +3515,18 @@ function handleRomaneioPdfFiles(fileList) {
 
   files.forEach((file) => {
     const entry = createPdfRomaneioEntry(file);
-    const batchIndex = approvedEntries.findIndex((item) => item.romaneio_identity === entry.romaneio_identity);
-    if (batchIndex >= 0) {
+    const sameKindIndex = approvedEntries.findIndex(
+      (item) => item.romaneio_identity === entry.romaneio_identity && item.document_kind === entry.document_kind,
+    );
+    if (sameKindIndex >= 0) {
       const confirmed = window.confirm(
-        `Foram selecionados dois PDFs para ${formatRomaneioCode(entry.romaneio_identity)}. Deseja manter o arquivo mais recente e substituir o anterior da seleção?`,
+        `Foram selecionados dois PDFs do mesmo tipo para ${formatRomaneioCode(entry.romaneio_identity)}. Deseja manter o arquivo mais recente e substituir o anterior da seleção?`,
       );
       if (!confirmed) {
         return;
       }
-      approvedEntries.splice(batchIndex, 1);
-      approvedFiles.splice(batchIndex, 1);
+      approvedEntries.splice(sameKindIndex, 1);
+      approvedFiles.splice(sameKindIndex, 1);
     }
     if (!confirmRomaneioReplacement(entry)) {
       return;
@@ -3999,6 +4066,10 @@ document.getElementById("stock-type-filter")?.addEventListener("change", (event)
 });
 document.getElementById("kanban-status-filter")?.addEventListener("change", (event) => {
   state.kanbanStatusFilter = event.target.value || "todos";
+  renderKanban(state.datasets.kanban);
+});
+document.getElementById("kanban-view-mode")?.addEventListener("change", (event) => {
+  state.kanbanViewMode = event.target.value || "split";
   renderKanban(state.datasets.kanban);
 });
 document.getElementById("kanban-reset-filters")?.addEventListener("click", () => {

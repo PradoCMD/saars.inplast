@@ -247,6 +247,11 @@
                 <p>Gerencie a carteira logística com a mesma lógica da planilha: consulta por romaneio, até o romaneio e necessidade geral.</p>
               </div>
               <div class="filter-controls kanban-toolbar">
+                <select id="kanban-view-mode" class="input-mini">
+                  <option value="split">Kanban + Workbench</option>
+                  <option value="board">Somente Kanban</option>
+                  <option value="workbench">Somente Workbench</option>
+                </select>
                 <select id="kanban-status-filter" class="input-mini">
                   <option value="todos">Todos os status</option>
                   <option value="sem_previsao">Sem previsão</option>
@@ -258,14 +263,15 @@
               </div>
             </div>
 
-            <div class="kanban-layout">
+            <div id="kanban-summary" class="summary-pills"></div>
+
+            <div id="kanban-layout" class="kanban-layout mode-split">
               <section class="kanban-main">
-                <div id="kanban-summary" class="summary-pills"></div>
                 <div id="kanban-board" class="kanban-board"></div>
               </section>
 
               <aside class="glass-panel kanban-inspector">
-                <div class="panel-header sticky">
+                <div class="panel-header">
                   <div>
                     <h3>Workbench Logístico</h3>
                     <p class="section-copy">Espelha as visões de consulta, saldo até o romaneio e necessidade geral.</p>
@@ -346,7 +352,7 @@
 
             <div class="grid-layout-2 romaneios-workspace">
               <div class="glass-panel scroll-y">
-                <div class="panel-header sticky">
+                <div class="panel-header">
                   <h3>Romaneios Recebidos</h3>
                   <div class="filter-controls">
                     <input id="romaneios-filter-input" type="text" placeholder="Filtrar romaneio, pedido ou arquivo..." class="input-mini">
@@ -355,7 +361,7 @@
                 <div id="romaneios-list" class="list-container interactive-list"></div>
               </div>
 
-              <div class="glass-panel sticky">
+              <div class="glass-panel">
                 <div class="panel-header">
                   <h3>Detalhes do Romaneio</h3>
                 </div>
@@ -389,7 +395,7 @@
             </div>
 
             <section class="glass-panel">
-              <div class="panel-header sticky">
+              <div class="panel-header">
                 <div>
                   <h3>Saldo Atual Consolidado</h3>
                   <p class="section-copy">Somente leitura do estoque atual, com apoio de saldo e pressão da carteira para facilitar a conferência.</p>
@@ -465,7 +471,7 @@
             </div>
             
             <div class="glass-panel scroll-y">
-              <div class="panel-header sticky">
+              <div class="panel-header">
                 <h3>Componentes por Estrutura</h3>
                 <div id="structure-summary" class="inline-stats"></div>
               </div>
@@ -581,7 +587,7 @@
               </div>
 
               <div class="glass-panel programming-board-panel">
-                <div class="panel-header sticky">
+                <div class="panel-header">
                   <div>
                     <h3>Carteira programada</h3>
                     <p class="section-copy">Fila consolidada das programações gravadas e seus próximos slots operacionais.</p>
@@ -666,7 +672,7 @@
 
             <div class="grid-layout-2 aponta-workspace">
               <div class="glass-panel scroll-y">
-                <div class="panel-header sticky">
+                <div class="panel-header">
                   <h3>Acompanhamento Hora a Hora</h3>
                   <span class="status-badge ready">Setor de Injeção</span>
                 </div>

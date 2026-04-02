@@ -26,6 +26,11 @@ def normalize_romaneio_identity(value: Any) -> str:
     return match.group(1) if match else ""
 
 
+def infer_document_kind(value: Any) -> str:
+    text = clean_text(value).upper()
+    return "romaneio_nota" if re.search(r"ROMANEIO\s+NOTA", text, re.I) else "romaneio"
+
+
 def parse_num(value: Any) -> float:
     if not value:
         return 0.0
@@ -138,6 +143,7 @@ def parse_romaneio_pdf_bytes(file_bytes: bytes, filename: str) -> dict[str, Any]
     return {
         "ordem_carga": ordem_carga,
         "romaneio_identity": normalize_romaneio_identity(ordem_carga or filename),
+        "document_kind": infer_document_kind(f"{filename}\n{text}"),
         "empresa": codigo_empresa,
         "nome_empresa": nome_empresa,
         "pedidos": pedidos,
@@ -145,6 +151,7 @@ def parse_romaneio_pdf_bytes(file_bytes: bytes, filename: str) -> dict[str, Any]
         "total_geral": round(total_geral, 2),
         "itens": itens,
         "file": filename,
+        "files": [filename],
         "text_length": len(text),
     }
 
@@ -180,6 +187,8 @@ def build_romaneio_event(parsed: dict[str, Any]) -> tuple[dict[str, Any], dict[s
         "source": "pdf_parser",
         "workflow_name": WORKFLOW_NAME,
         "file_name": parsed["file"],
+        "file_names": parsed.get("files") or [parsed["file"]],
+        "document_kind": parsed.get("document_kind") or "romaneio",
         "items_source": "pdf_itens_caminhao" if parsed["itens"] else "none",
         "items_count": len(parsed["itens"]),
         "pedidos_count": len(parsed["pedidos"]),
