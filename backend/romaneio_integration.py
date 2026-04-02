@@ -19,6 +19,16 @@ ROMANEIO_CODE_KEYS = (
     "numeroRomaneio",
 )
 
+FILE_NAME_KEYS = (
+    "file_name",
+    "file",
+    "filename",
+    "pdf_name",
+    "nome_arquivo",
+    "arquivo",
+    "document_name",
+)
+
 COMPANY_CODE_KEYS = (
     "empresa",
     "codigo_empresa",
@@ -146,11 +156,20 @@ def normalize_webhook_romaneios(payload: Any) -> list[dict[str, Any]]:
         if not isinstance(container, dict):
             continue
 
+        file_name = clean_text(
+            find_first_value(record, FILE_NAME_KEYS)
+            or find_first_value(container, FILE_NAME_KEYS)
+            or f"webhook-romaneio.json"
+        )
         romaneio_code = normalize_romaneio_identity(
-            find_first_value(record, ROMANEIO_CODE_KEYS) or find_first_value(container, ROMANEIO_CODE_KEYS)
+            find_first_value(record, ROMANEIO_CODE_KEYS)
+            or find_first_value(container, ROMANEIO_CODE_KEYS)
+            or file_name
         )
         if not romaneio_code:
-            raise RuntimeError("O webhook de romaneios precisa informar o código do romaneio ou da ordem de carga.")
+            raise RuntimeError(
+                "O webhook de romaneios precisa informar o código do romaneio/ordem ou um nome de arquivo como 'ROMANEIO 556.pdf'."
+            )
 
         pedidos_raw = container.get("tabela_pedidos") or container.get("pedidos") or []
         itens_raw = container.get("tabela_itens_do_caminhao") or container.get("itens") or []
@@ -178,8 +197,8 @@ def normalize_webhook_romaneios(payload: Any) -> list[dict[str, Any]]:
                 "montante": int(parse_number(container.get("montante_total_quantidade") or container.get("montante"))) or len(pedidos),
                 "total_geral": total_geral,
                 "itens": itens,
-                "file": clean_text(record.get("file_name") or record.get("file") or f"webhook-romaneio-{romaneio_code}.json"),
-                "files": [clean_text(record.get("file_name") or record.get("file") or f"webhook-romaneio-{romaneio_code}.json")],
+                "file": clean_text(file_name or f"webhook-romaneio-{romaneio_code}.json"),
+                "files": [clean_text(file_name or f"webhook-romaneio-{romaneio_code}.json")],
                 "text_length": len(json.dumps(container, ensure_ascii=False)),
                 "source_origin": "n8n_webhook",
             }

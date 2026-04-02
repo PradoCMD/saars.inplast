@@ -28,7 +28,7 @@ def normalize_romaneio_identity(value: Any) -> str:
 
 def infer_document_kind(value: Any) -> str:
     text = clean_text(value).upper()
-    return "romaneio_nota" if re.search(r"ROMANEIO\s+NOTA", text, re.I) else "romaneio"
+    return "romaneio_nota" if ("ROMANEIO" in text and "NOTA" in text) else "romaneio"
 
 
 def parse_num(value: Any) -> float:

@@ -36,6 +36,10 @@ grant select on all tables in schema ops, raw, core, mart to pcp_integration;
 
 grant insert, update on ops.ingestion_run to pcp_integration;
 grant insert, update on ops.webhook_event to pcp_integration;
+grant insert, update on ops.app_user to pcp_integration;
+grant insert, update on ops.app_integration to pcp_integration;
+grant insert, update on ops.stock_movement to pcp_integration;
+grant insert, update on ops.app_state_document to pcp_integration;
 
 grant insert on raw.landing_payload to pcp_integration;
 

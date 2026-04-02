@@ -1,0 +1,4800 @@
+{
+  "generated_at": "2026-04-02T00:00:00-03:00",
+  "source_workbook": "Hora a Hora - Injeção 01.xlsm",
+  "source_sheet": "Nova folha de trabalho padrão",
+  "resource_catalog": [
+    {
+      "code": "INJ-01",
+      "label": "Injetora 01",
+      "aliases": [
+        "INJ-01",
+        "EXTR-01",
+        "PROD-01",
+        "MAQ-01"
+      ]
+    },
+    {
+      "code": "INJ-02",
+      "label": "Injetora 02",
+      "aliases": [
+        "INJ-02",
+        "EXTR-02",
+        "PROD-02",
+        "MAQ-02"
+      ]
+    },
+    {
+      "code": "INJ-03",
+      "label": "Injetora 03",
+      "aliases": [
+        "INJ-03",
+        "EXTR-03",
+        "PROD-03",
+        "MAQ-03"
+      ]
+    },
+    {
+      "code": "INJ-04",
+      "label": "Injetora 04",
+      "aliases": [
+        "INJ-04",
+        "EXTR-04",
+        "PROD-04",
+        "MAQ-04"
+      ]
+    },
+    {
+      "code": "INJ-05",
+      "label": "Injetora 05",
+      "aliases": [
+        "INJ-05",
+        "EXTR-05",
+        "PROD-05",
+        "MAQ-05"
+      ]
+    },
+    {
+      "code": "INJ-06",
+      "label": "Injetora 06",
+      "aliases": [
+        "INJ-06",
+        "EXTR-06",
+        "PROD-06",
+        "MAQ-06"
+      ]
+    }
+  ],
+  "items": [
+    {
+      "sku": "4100003",
+      "descricao": "ABA HIDRO",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Semi",
+      "molde": "MDI - 1 11",
+      "cavidades": 1,
+      "peso_kg": 0.146,
+      "media_ciclo": 21.0,
+      "pecas_hora": 171.42857142857142,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 21.0,
+          "pieces_per_hour": 171.42857142857142
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 21.0,
+          "pieces_per_hour": 171.42857142857142
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 21.0,
+          "pieces_per_hour": 171.42857142857142
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 21.0,
+          "pieces_per_hour": 171.42857142857142
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 171.42857142857142
+        }
+      ]
+    },
+    {
+      "sku": "4100053",
+      "descricao": "ARRUELA FIXAÇÃO TRAVA HIDRO PISO",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "",
+      "cavidades": 8,
+      "peso_kg": 0.0004,
+      "media_ciclo": 25.0,
+      "pecas_hora": 1152.0,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 25.0,
+          "pieces_per_hour": 1152.0
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 1152.0
+        }
+      ]
+    },
+    {
+      "sku": "5500001",
+      "descricao": "BALDE 12 LTS",
+      "material_prima": "PP PT + PEBD",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 14",
+      "cavidades": 1,
+      "peso_kg": 0.44,
+      "media_ciclo": 30.5,
+      "pecas_hora": 118.0327868852459,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 35.0,
+          "pieces_per_hour": 118.0327868852459
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 118.0327868852459
+        }
+      ]
+    },
+    {
+      "sku": "5500002",
+      "descricao": "BANDEJA DE PINTURA",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 60",
+      "cavidades": 1,
+      "peso_kg": 0.212,
+      "media_ciclo": 30.04,
+      "pecas_hora": 119.84021304926765,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 119.84021304926765
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 30.04,
+          "pieces_per_hour": 119.84021304926765
+        }
+      ]
+    },
+    {
+      "sku": "4700001",
+      "descricao": "CENTRO 01 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 19",
+      "cavidades": 2,
+      "peso_kg": 0.106,
+      "media_ciclo": 28.0,
+      "pecas_hora": 257.14285714285717,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 26.11,
+          "pieces_per_hour": 257.14285714285717
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 28.0,
+          "pieces_per_hour": 257.14285714285717
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 32.2,
+          "pieces_per_hour": 257.14285714285717
+        }
+      ]
+    },
+    {
+      "sku": "4100033",
+      "descricao": "CHAVE ESTRIADA",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "NP",
+      "cavidades": 2,
+      "peso_kg": 0.014,
+      "media_ciclo": 31.8,
+      "pecas_hora": 226.41509433962264,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 226.41509433962264
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 31.8,
+          "pieces_per_hour": 226.41509433962264
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 31.8,
+          "pieces_per_hour": 226.41509433962264
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 31.8,
+          "pieces_per_hour": 226.41509433962264
+        }
+      ]
+    },
+    {
+      "sku": "4100031",
+      "descricao": "CHAVE TRIANGULAR",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 38",
+      "cavidades": 2,
+      "peso_kg": 0.014,
+      "media_ciclo": 29.15,
+      "pecas_hora": 246.9982847341338,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 246.9982847341338
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 246.9982847341338
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 29.01,
+          "pieces_per_hour": 246.9982847341338
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 29.29,
+          "pieces_per_hour": 246.9982847341338
+        }
+      ]
+    },
+    {
+      "sku": "8000012",
+      "descricao": "CP AGRUPADA BARRAMENTO",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI 1 - 43",
+      "cavidades": 1,
+      "peso_kg": 1.43,
+      "media_ciclo": 60.0,
+      "pecas_hora": 60.0,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 60.0,
+          "pieces_per_hour": 60.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 60.0
+        }
+      ]
+    },
+    {
+      "sku": "1234",
+      "descricao": "CP CAIXA DE PASSAGEM GRANDE",
+      "material_prima": "PSBRANCO",
+      "tipo_injecao": "Auto",
+      "molde": "",
+      "cavidades": 1,
+      "peso_kg": 0.486,
+      "media_ciclo": 29.0,
+      "pecas_hora": 124.13793103448276,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        }
+      ]
+    },
+    {
+      "sku": "123456",
+      "descricao": "CP CAIXA DE PASSAGEM PEQ",
+      "material_prima": "PSBRANCO",
+      "tipo_injecao": "Auto",
+      "molde": "",
+      "cavidades": 2,
+      "peso_kg": 0.166,
+      "media_ciclo": 29.0,
+      "pecas_hora": 248.27586206896552,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 248.27586206896552
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 248.27586206896552
+        }
+      ]
+    },
+    {
+      "sku": "8200019",
+      "descricao": "CP CENTRO 01 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 8,
+      "peso_kg": 0.0617,
+      "media_ciclo": 35.0,
+      "pecas_hora": 822.8571428571429,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 35.0,
+          "pieces_per_hour": 822.8571428571429
+        }
+      ]
+    },
+    {
+      "sku": "8200005",
+      "descricao": "CP CENTRO 03 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "Semi",
+      "molde": "MDI - 1 17",
+      "cavidades": 2,
+      "peso_kg": 0.16,
+      "media_ciclo": 47.0,
+      "pecas_hora": 153.19148936170214,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 42.86,
+          "pieces_per_hour": 153.19148936170214
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 47.0,
+          "pieces_per_hour": 153.19148936170214
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 47.45,
+          "pieces_per_hour": 153.19148936170214
+        }
+      ]
+    },
+    {
+      "sku": "8200020",
+      "descricao": "CP CENTRO 03 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 4,
+      "peso_kg": 0.175,
+      "media_ciclo": 60.0,
+      "pecas_hora": 240.0,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 60.0,
+          "pieces_per_hour": 240.0
+        }
+      ]
+    },
+    {
+      "sku": "8200021",
+      "descricao": "CP CENTRO 06 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 2,
+      "peso_kg": 0.31,
+      "media_ciclo": 50.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 50.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "8200012",
+      "descricao": "CP CENTRO 12 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 1,
+      "peso_kg": 0.565,
+      "media_ciclo": 42.0,
+      "pecas_hora": 85.71428571428571,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 42.0,
+          "pieces_per_hour": 85.71428571428571
+        }
+      ]
+    },
+    {
+      "sku": "8200017",
+      "descricao": "CP CX PASSAGEM GRANDE PP",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI-1 52",
+      "cavidades": 1,
+      "peso_kg": 0.4,
+      "media_ciclo": 50.0,
+      "pecas_hora": 72.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 72.0
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 50.0,
+          "pieces_per_hour": 72.0
+        }
+      ]
+    },
+    {
+      "sku": "8200017",
+      "descricao": "CP CX PASSAGEM GRANDE PP",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI-1 52",
+      "cavidades": 1,
+      "peso_kg": 0.4,
+      "media_ciclo": 50.0,
+      "pecas_hora": 72.0,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 72.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 72.0
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 50.0,
+          "pieces_per_hour": 72.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 72.0
+        }
+      ]
+    },
+    {
+      "sku": "8200006",
+      "descricao": "CP CX PASSAGEM GRANDE PS",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "Auto",
+      "molde": "MDI- 1 52",
+      "cavidades": 1,
+      "peso_kg": 0.486,
+      "media_ciclo": 28.8,
+      "pecas_hora": 125.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": false,
+          "cycle_seconds": 28.8,
+          "pieces_per_hour": 125.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 125.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 125.0
+        }
+      ]
+    },
+    {
+      "sku": "8200013",
+      "descricao": "CP CX PASSAGEM PEQUENA PP",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI-1 50",
+      "cavidades": 2,
+      "peso_kg": 0.13,
+      "media_ciclo": 40.0,
+      "pecas_hora": 180.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 180.0
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 40.0,
+          "pieces_per_hour": 180.0
+        }
+      ]
+    },
+    {
+      "sku": "8200009",
+      "descricao": "CP CX PASSAGEM PEQUENA PS",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "Auto",
+      "molde": "MDI-1 50",
+      "cavidades": 2,
+      "peso_kg": 0.16,
+      "media_ciclo": 33.0,
+      "pecas_hora": 218.1818181818182,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 40.0,
+          "pieces_per_hour": 218.1818181818182
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 218.1818181818182
+        }
+      ]
+    },
+    {
+      "sku": "8100001",
+      "descricao": "CP DISJ MONO 03 EQUATORIAL",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Semi",
+      "molde": "MDI - 1 07",
+      "cavidades": 2,
+      "peso_kg": 0.19,
+      "media_ciclo": 46.14,
+      "pecas_hora": 156.04681404421325,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 48.9,
+          "pieces_per_hour": 156.04681404421325
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 156.04681404421325
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 43.38,
+          "pieces_per_hour": 156.04681404421325
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 156.04681404421325
+        }
+      ]
+    },
+    {
+      "sku": "8100002",
+      "descricao": "CP DISJ MONO CEAL",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Semi",
+      "molde": "MDI - 1 07",
+      "cavidades": 2,
+      "peso_kg": 0.185,
+      "media_ciclo": 50.015,
+      "pecas_hora": 143.95681295611317,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 48.6,
+          "pieces_per_hour": 143.95681295611317
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 143.95681295611317
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 51.43,
+          "pieces_per_hour": 143.95681295611317
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 143.95681295611317
+        }
+      ]
+    },
+    {
+      "sku": "8100003",
+      "descricao": "CP DISJ POLI 01 EQUATORIAL",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Semi",
+      "molde": "MDM - 1 12",
+      "cavidades": 1,
+      "peso_kg": 0.415,
+      "media_ciclo": 54.51,
+      "pecas_hora": 66.04292790313704,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 66.04292790313704
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 54.51,
+          "pieces_per_hour": 66.04292790313704
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 66.04292790313704
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 54.51,
+          "pieces_per_hour": 66.04292790313704
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 66.04292790313704
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 66.04292790313704
+        }
+      ]
+    },
+    {
+      "sku": "8100004",
+      "descricao": "CP DISJ POLI CEAL",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Semi",
+      "molde": "MDM - 1 12",
+      "cavidades": 1,
+      "peso_kg": 0.38,
+      "media_ciclo": 85.745,
+      "pecas_hora": 41.984955390984894,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 129.49,
+          "pieces_per_hour": 41.984955390984894
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 41.984955390984894
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 41.984955390984894
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 42.0,
+          "pieces_per_hour": 41.984955390984894
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 41.984955390984894
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 41.984955390984894
+        }
+      ]
+    },
+    {
+      "sku": "8700005",
+      "descricao": "CP HASTE TERRA G",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 15",
+      "cavidades": 1,
+      "peso_kg": 0.3,
+      "media_ciclo": 38.0,
+      "pecas_hora": 94.73684210526316,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 44.0,
+          "pieces_per_hour": 94.73684210526316
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 32.0,
+          "pieces_per_hour": 94.73684210526316
+        }
+      ]
+    },
+    {
+      "sku": "8700006",
+      "descricao": "CP HASTE TERRA PEQ",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 49",
+      "cavidades": 1,
+      "peso_kg": 0.084,
+      "media_ciclo": 19.0,
+      "pecas_hora": 189.47368421052633,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 17.0,
+          "pieces_per_hour": 189.47368421052633
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": false,
+          "cycle_seconds": 22.2,
+          "pieces_per_hour": 189.47368421052633
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 19.0,
+          "pieces_per_hour": 189.47368421052633
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 22.2,
+          "pieces_per_hour": 189.47368421052633
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 19.0,
+          "pieces_per_hour": 189.47368421052633
+        }
+      ]
+    },
+    {
+      "sku": "8000001",
+      "descricao": "CP MONO 03 EQUATORIAL",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Semi",
+      "molde": "MDM - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.48,
+      "media_ciclo": 44.63,
+      "pecas_hora": 80.66323101053104,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 44.63,
+          "pieces_per_hour": 80.66323101053104
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 80.66323101053104
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 80.66323101053104
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 44.63,
+          "pieces_per_hour": 80.66323101053104
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 80.66323101053104
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 80.66323101053104
+        }
+      ]
+    },
+    {
+      "sku": "8000003",
+      "descricao": "CP MONO CEAL",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Semi",
+      "molde": "MDM - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.39,
+      "media_ciclo": 56.83,
+      "pecas_hora": 63.34682386063699,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 63.34682386063699
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": false,
+          "cycle_seconds": 51.71,
+          "pieces_per_hour": 63.34682386063699
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 63.34682386063699
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 61.95,
+          "pieces_per_hour": 63.34682386063699
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 63.34682386063699
+        }
+      ]
+    },
+    {
+      "sku": "8000004",
+      "descricao": "CP MONO ENEL",
+      "material_prima": "PC CINZA CLARO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 02",
+      "cavidades": 1,
+      "peso_kg": 0.455,
+      "media_ciclo": 45.5,
+      "pecas_hora": 79.12087912087912,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 45.5,
+          "pieces_per_hour": 79.12087912087912
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 45.5,
+          "pieces_per_hour": 79.12087912087912
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 45.5,
+          "pieces_per_hour": 79.12087912087912
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 45.5,
+          "pieces_per_hour": 79.12087912087912
+        }
+      ]
+    },
+    {
+      "sku": "8000005",
+      "descricao": "CP MONO ENERGISA",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 24",
+      "cavidades": 1,
+      "peso_kg": 0.954,
+      "media_ciclo": 42.5,
+      "pecas_hora": 84.70588235294117,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 45.0,
+          "pieces_per_hour": 84.70588235294117
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 40.0,
+          "pieces_per_hour": 84.70588235294117
+        }
+      ]
+    },
+    {
+      "sku": "8000006",
+      "descricao": "CP MONO EQUATORIAL",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 30",
+      "cavidades": 1,
+      "peso_kg": 0.695,
+      "media_ciclo": 29.0,
+      "pecas_hora": 124.13793103448276,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        }
+      ]
+    },
+    {
+      "sku": "12345678",
+      "descricao": "CP MONO EQUATORIAL V0",
+      "material_prima": "PC PRETO V0",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 30",
+      "cavidades": 1,
+      "peso_kg": 0.69,
+      "media_ciclo": 27.5,
+      "pecas_hora": 130.9090909090909,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 28.0,
+          "pieces_per_hour": 130.9090909090909
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 27.0,
+          "pieces_per_hour": 130.9090909090909
+        }
+      ]
+    },
+    {
+      "sku": "8000002",
+      "descricao": "CP MONO SULGIPE",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Semi",
+      "molde": "MDI - 1 02",
+      "cavidades": 1,
+      "peso_kg": 0.455,
+      "media_ciclo": 34.9,
+      "pecas_hora": 103.15186246418338,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 103.15186246418338
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 103.15186246418338
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 34.9,
+          "pieces_per_hour": 103.15186246418338
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 103.15186246418338
+        }
+      ]
+    },
+    {
+      "sku": "8000007",
+      "descricao": "CP POLI 01 EQUATORIAL",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Semi",
+      "molde": "MDM - 1 02",
+      "cavidades": 1,
+      "peso_kg": 0.89,
+      "media_ciclo": 76.91,
+      "pecas_hora": 46.807957352749966,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 76.91,
+          "pieces_per_hour": 46.807957352749966
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 46.807957352749966
+        }
+      ]
+    },
+    {
+      "sku": "8000008",
+      "descricao": "CP POLI CEAL",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Semi",
+      "molde": "MDM - 1 02",
+      "cavidades": 1,
+      "peso_kg": 0.8,
+      "media_ciclo": 82.5,
+      "pecas_hora": 43.63636363636363,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 82.5,
+          "pieces_per_hour": 43.63636363636363
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 43.63636363636363
+        }
+      ]
+    },
+    {
+      "sku": "8000014",
+      "descricao": "CP POLI ENEL",
+      "material_prima": "PC CINZA CLARO",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 1,
+      "peso_kg": 1.285,
+      "media_ciclo": 60.0,
+      "pecas_hora": 60.0,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 60.0,
+          "pieces_per_hour": 60.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": false,
+          "cycle_seconds": 60.0,
+          "pieces_per_hour": 60.0
+        }
+      ]
+    },
+    {
+      "sku": "8000010",
+      "descricao": "CP POLI ENERGISA",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 35",
+      "cavidades": 1,
+      "peso_kg": 1.95,
+      "media_ciclo": 70.0,
+      "pecas_hora": 51.42857142857143,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 70.0,
+          "pieces_per_hour": 51.42857142857143
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 51.42857142857143
+        }
+      ]
+    },
+    {
+      "sku": "8000013",
+      "descricao": "CP POLI EQUATORIAL 08",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 54",
+      "cavidades": 1,
+      "peso_kg": 1.05,
+      "media_ciclo": 45.0,
+      "pecas_hora": 80.0,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 80.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 45.0,
+          "pieces_per_hour": 80.0
+        }
+      ]
+    },
+    {
+      "sku": "8000011",
+      "descricao": "CP POLI NEO 05",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI 1 - 43",
+      "cavidades": 1,
+      "peso_kg": 1.43,
+      "media_ciclo": 50.0,
+      "pecas_hora": 72.0,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 50.0,
+          "pieces_per_hour": 72.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 72.0
+        }
+      ]
+    },
+    {
+      "sku": "5400001",
+      "descricao": "CUBA HIDRO",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 10",
+      "cavidades": 1,
+      "peso_kg": 0.575,
+      "media_ciclo": 40.93,
+      "pecas_hora": 87.95504519912045,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 42.86,
+          "pieces_per_hour": 87.95504519912045
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 39.0,
+          "pieces_per_hour": 87.95504519912045
+        }
+      ]
+    },
+    {
+      "sku": "5400002",
+      "descricao": "CUBA HIDRO PD NOVO",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 37",
+      "cavidades": 1,
+      "peso_kg": 1.1,
+      "media_ciclo": 57.66,
+      "pecas_hora": 62.434963579604585,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 62.06,
+          "pieces_per_hour": 62.434963579604585
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 53.26,
+          "pieces_per_hour": 62.434963579604585
+        }
+      ]
+    },
+    {
+      "sku": "5400003",
+      "descricao": "CUBA HIDRO PISO",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "",
+      "cavidades": 1,
+      "peso_kg": 0.724,
+      "media_ciclo": 72.0,
+      "pecas_hora": 50.0,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 50.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 72.0,
+          "pieces_per_hour": 50.0
+        }
+      ]
+    },
+    {
+      "sku": "19300012",
+      "descricao": "CURVA P/ CAIXA DE MEDIÇÃO 1.1/2\"",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 1,
+      "peso_kg": 0.072,
+      "media_ciclo": 35.0,
+      "pecas_hora": 102.85714285714286,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 35.0,
+          "pieces_per_hour": 102.85714285714286
+        }
+      ]
+    },
+    {
+      "sku": "4800003",
+      "descricao": "CX OCTAGONAL AM",
+      "material_prima": "PP VG + PIG",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 13",
+      "cavidades": 2,
+      "peso_kg": 0.11,
+      "media_ciclo": 37.8,
+      "pecas_hora": 190.47619047619048,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 37.8,
+          "pieces_per_hour": 190.47619047619048
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 190.47619047619048
+        }
+      ]
+    },
+    {
+      "sku": "4800001",
+      "descricao": "CX 4X2 AM",
+      "material_prima": "PP VG + PIG",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 12",
+      "cavidades": 8,
+      "peso_kg": 0.044,
+      "media_ciclo": 29.0,
+      "pecas_hora": 993.1034482758621,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 993.1034482758621
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 993.1034482758621
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 993.1034482758621
+        }
+      ]
+    },
+    {
+      "sku": "4800002",
+      "descricao": "CX 4X2 PT",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 12",
+      "cavidades": 8,
+      "peso_kg": 0.039,
+      "media_ciclo": 31.0,
+      "pecas_hora": 929.0322580645161,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 31.0,
+          "pieces_per_hour": 929.0322580645161
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 31.0,
+          "pieces_per_hour": 929.0322580645161
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 27.3,
+          "pieces_per_hour": 929.0322580645161
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 929.0322580645161
+        }
+      ]
+    },
+    {
+      "sku": "4800004",
+      "descricao": "CX OCTAGONAL PT",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 13",
+      "cavidades": 2,
+      "peso_kg": 0.11,
+      "media_ciclo": 29.5,
+      "pecas_hora": 244.0677966101695,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 29.5,
+          "pieces_per_hour": 244.0677966101695
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 29.5,
+          "pieces_per_hour": 244.0677966101695
+        }
+      ]
+    },
+    {
+      "sku": "4100043",
+      "descricao": "DIVISÓRIA MED AGRUPADA",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 46",
+      "cavidades": 1,
+      "peso_kg": 0.15,
+      "media_ciclo": 29.985,
+      "pecas_hora": 120.06003001500751,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 120.06003001500751
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 31.85,
+          "pieces_per_hour": 120.06003001500751
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 28.12,
+          "pieces_per_hour": 120.06003001500751
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 120.06003001500751
+        }
+      ]
+    },
+    {
+      "sku": "4100029",
+      "descricao": "FUNDINHO",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 47",
+      "cavidades": 8,
+      "peso_kg": 0.0003,
+      "media_ciclo": 23.41,
+      "pecas_hora": 1230.243485689876,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 1230.243485689876
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 1230.243485689876
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 23.41,
+          "pieces_per_hour": 1230.243485689876
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 1230.243485689876
+        }
+      ]
+    },
+    {
+      "sku": "4100001",
+      "descricao": "FUZIMEC",
+      "material_prima": "PC CINZA CLARO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 04",
+      "cavidades": 4,
+      "peso_kg": 0.003,
+      "media_ciclo": 24.665,
+      "pecas_hora": 583.8232312994121,
+      "preferred_resource": "INJ-06",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 583.8232312994121
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 583.8232312994121
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 29.63,
+          "pieces_per_hour": 583.8232312994121
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 19.7,
+          "pieces_per_hour": 583.8232312994121
+        }
+      ]
+    },
+    {
+      "sku": "4100018",
+      "descricao": "LACRE ENEL",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 06",
+      "cavidades": 3,
+      "peso_kg": 0.002,
+      "media_ciclo": 25.74,
+      "pecas_hora": 419.58041958041963,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 419.58041958041963
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 25.74,
+          "pieces_per_hour": 419.58041958041963
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 25.74,
+          "pieces_per_hour": 419.58041958041963
+        }
+      ]
+    },
+    {
+      "sku": "4100023",
+      "descricao": "LACRE ENERGISA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 28",
+      "cavidades": 8,
+      "peso_kg": 0.002,
+      "media_ciclo": 22.0,
+      "pecas_hora": 1309.090909090909,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 22.0,
+          "pieces_per_hour": 1309.090909090909
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 20.0,
+          "pieces_per_hour": 1309.090909090909
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 22.0,
+          "pieces_per_hour": 1309.090909090909
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 22.0,
+          "pieces_per_hour": 1309.090909090909
+        }
+      ]
+    },
+    {
+      "sku": "4100020",
+      "descricao": "LACRE EQUATORIAL",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 31",
+      "cavidades": 8,
+      "peso_kg": 0.0023,
+      "media_ciclo": 18.75,
+      "pecas_hora": 1536.0,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 18.0,
+          "pieces_per_hour": 1536.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 20.0,
+          "pieces_per_hour": 1536.0
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 19.5,
+          "pieces_per_hour": 1536.0
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 18.0,
+          "pieces_per_hour": 1536.0
+        }
+      ]
+    },
+    {
+      "sku": "4100008",
+      "descricao": "LACRE HIDRO",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 20",
+      "cavidades": 8,
+      "peso_kg": 0.0025,
+      "media_ciclo": 14.0,
+      "pecas_hora": 2057.1428571428573,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 13.7,
+          "pieces_per_hour": 2057.1428571428573
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 14.0,
+          "pieces_per_hour": 2057.1428571428573
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 2057.1428571428573
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 14.0,
+          "pieces_per_hour": 2057.1428571428573
+        }
+      ]
+    },
+    {
+      "sku": "4100009",
+      "descricao": "LACRE MONO/POLI",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 29",
+      "cavidades": 4,
+      "peso_kg": 0.003,
+      "media_ciclo": 19.0,
+      "pecas_hora": 757.8947368421053,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 14.47,
+          "pieces_per_hour": 757.8947368421053
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 23.73,
+          "pieces_per_hour": 757.8947368421053
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 19.0,
+          "pieces_per_hour": 757.8947368421053
+        }
+      ]
+    },
+    {
+      "sku": "4100012",
+      "descricao": "MOLDURA NEO",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 51",
+      "cavidades": 2,
+      "peso_kg": 0.03,
+      "media_ciclo": 20.625,
+      "pecas_hora": 349.09090909090907,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 20.35,
+          "pieces_per_hour": 349.09090909090907
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 20.0,
+          "pieces_per_hour": 349.09090909090907
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 30.0,
+          "pieces_per_hour": 349.09090909090907
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 20.9,
+          "pieces_per_hour": 349.09090909090907
+        }
+      ]
+    },
+    {
+      "sku": "4100051",
+      "descricao": "PINO CAIXA HIDRO PISO",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "",
+      "cavidades": 4,
+      "peso_kg": 0.004,
+      "media_ciclo": 21.68,
+      "pecas_hora": 664.2066420664207,
+      "preferred_resource": "INJ-06",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 664.2066420664207
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 664.2066420664207
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 664.2066420664207
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 21.68,
+          "pieces_per_hour": 664.2066420664207
+        }
+      ]
+    },
+    {
+      "sku": "4100019",
+      "descricao": "PINO LACRE ENEL",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 39",
+      "cavidades": 16,
+      "peso_kg": 0.0002,
+      "media_ciclo": 25.0,
+      "pecas_hora": 2304.0,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 25.0,
+          "pieces_per_hour": 2304.0
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 2304.0
+        }
+      ]
+    },
+    {
+      "sku": "102",
+      "descricao": "PLACA DE DOCES",
+      "material_prima": "PP COLORIDO",
+      "tipo_injecao": "Semi",
+      "molde": "TER - 1 01",
+      "cavidades": 1,
+      "peso_kg": 0.2,
+      "media_ciclo": 80.0,
+      "pecas_hora": 45.0,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 80.0,
+          "pieces_per_hour": 45.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 45.0
+        }
+      ]
+    },
+    {
+      "sku": "101",
+      "descricao": "PLACA DE DOCES (COM FUROS)",
+      "material_prima": "PP COLORIDO",
+      "tipo_injecao": "Semi",
+      "molde": "TER - 1 01",
+      "cavidades": 1,
+      "peso_kg": 1.27,
+      "media_ciclo": 156.0,
+      "pecas_hora": 23.076923076923077,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 132.0,
+          "pieces_per_hour": 23.076923076923077
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": false,
+          "cycle_seconds": 180.0,
+          "pieces_per_hour": 23.076923076923077
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 23.076923076923077
+        }
+      ]
+    },
+    {
+      "sku": "4100025",
+      "descricao": "PLACA DISJ POLI",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 22",
+      "cavidades": 1,
+      "peso_kg": 0.099,
+      "media_ciclo": 32.54,
+      "pecas_hora": 110.63306699446835,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 28.66,
+          "pieces_per_hour": 110.63306699446835
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 32.54,
+          "pieces_per_hour": 110.63306699446835
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 33.47,
+          "pieces_per_hour": 110.63306699446835
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 110.63306699446835
+        }
+      ]
+    },
+    {
+      "sku": "4100024",
+      "descricao": "PLACA MED POLI",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 03",
+      "cavidades": 1,
+      "peso_kg": 0.245,
+      "media_ciclo": 33.64,
+      "pecas_hora": 107.0154577883472,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 107.0154577883472
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 33.64,
+          "pieces_per_hour": 107.0154577883472
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 33.64,
+          "pieces_per_hour": 107.0154577883472
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 107.0154577883472
+        }
+      ]
+    },
+    {
+      "sku": "4100048",
+      "descricao": "TP ALOJ AGRUPADA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 33",
+      "cavidades": 2,
+      "peso_kg": 0.01,
+      "media_ciclo": 17.81,
+      "pecas_hora": 404.2672655811342,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 17.81,
+          "pieces_per_hour": 404.2672655811342
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 17.81,
+          "pieces_per_hour": 404.2672655811342
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 22.64,
+          "pieces_per_hour": 404.2672655811342
+        }
+      ]
+    },
+    {
+      "sku": "8200011",
+      "descricao": "SOBRETAMPA CENTRO 06 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 2,
+      "peso_kg": 0.0725,
+      "media_ciclo": 50.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 50.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "8200014",
+      "descricao": "SOBRETAMPA CENTRO 12 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 2,
+      "peso_kg": 0.175,
+      "media_ciclo": 50.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 50.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "4100035",
+      "descricao": "SOBRETAMPA POLI NEO 05",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 45",
+      "cavidades": 1,
+      "peso_kg": 0.125,
+      "media_ciclo": 25.5,
+      "pecas_hora": 141.1764705882353,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 25.5,
+          "pieces_per_hour": 141.1764705882353
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 24.5,
+          "pieces_per_hour": 141.1764705882353
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 26.5,
+          "pieces_per_hour": 141.1764705882353
+        }
+      ]
+    },
+    {
+      "sku": "4100004",
+      "descricao": "SUP DISJ DIN",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 17",
+      "cavidades": 4,
+      "peso_kg": 0.01,
+      "media_ciclo": 26.71,
+      "pecas_hora": 539.1239236241108,
+      "preferred_resource": "INJ-06",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 29.33,
+          "pieces_per_hour": 539.1239236241108
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 539.1239236241108
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 26.71,
+          "pieces_per_hour": 539.1239236241108
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 25.0,
+          "pieces_per_hour": 539.1239236241108
+        }
+      ]
+    },
+    {
+      "sku": "4100014",
+      "descricao": "SUP DISJ DUL",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 04",
+      "cavidades": 3,
+      "peso_kg": 0.015,
+      "media_ciclo": 45.76,
+      "pecas_hora": 236.01398601398603,
+      "preferred_resource": "INJ-06",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 236.01398601398603
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 45.76,
+          "pieces_per_hour": 236.01398601398603
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 45.87,
+          "pieces_per_hour": 236.01398601398603
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 236.01398601398603
+        }
+      ]
+    },
+    {
+      "sku": "4100017",
+      "descricao": "SUP DISJ MONO ENERGISA",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 27",
+      "cavidades": 2,
+      "peso_kg": 0.02,
+      "media_ciclo": 20.67,
+      "pecas_hora": 348.3309143686502,
+      "preferred_resource": "INJ-06",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 348.3309143686502
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 20.67,
+          "pieces_per_hour": 348.3309143686502
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 22.0,
+          "pieces_per_hour": 348.3309143686502
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 17.9,
+          "pieces_per_hour": 348.3309143686502
+        }
+      ]
+    },
+    {
+      "sku": "4100021",
+      "descricao": "SUP DISJ MONO EQUATORIAL",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 34",
+      "cavidades": 1,
+      "peso_kg": 0.106,
+      "media_ciclo": 20.0,
+      "pecas_hora": 180.0,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 20.0,
+          "pieces_per_hour": 180.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 20.0,
+          "pieces_per_hour": 180.0
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 20.0,
+          "pieces_per_hour": 180.0
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 20.0,
+          "pieces_per_hour": 180.0
+        }
+      ]
+    },
+    {
+      "sku": "4100034",
+      "descricao": "SUP DISJ POLI CH GV",
+      "material_prima": "CH GV 0,65 MM",
+      "tipo_injecao": "Semi",
+      "molde": "NP",
+      "cavidades": 0,
+      "peso_kg": 0.018,
+      "media_ciclo": 0.0,
+      "pecas_hora": 0.0,
+      "preferred_resource": "",
+      "resource_options": []
+    },
+    {
+      "sku": "4100049",
+      "descricao": "SUP DISJ POLI ENEL",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 4,
+      "peso_kg": 0.09,
+      "media_ciclo": 50.0,
+      "pecas_hora": 288.0,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 50.0,
+          "pieces_per_hour": 288.0
+        }
+      ]
+    },
+    {
+      "sku": "4100032",
+      "descricao": "SUP DISJ POLI ENERGISA",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 42",
+      "cavidades": 2,
+      "peso_kg": 0.075,
+      "media_ciclo": 23.31,
+      "pecas_hora": 308.8803088803089,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 308.8803088803089
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 23.31,
+          "pieces_per_hour": 308.8803088803089
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 23.31,
+          "pieces_per_hour": 308.8803088803089
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 25.0,
+          "pieces_per_hour": 308.8803088803089
+        }
+      ]
+    },
+    {
+      "sku": "4100036",
+      "descricao": "SUP DISJ POLI NEO 05",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 46",
+      "cavidades": 1,
+      "peso_kg": 0.186,
+      "media_ciclo": 24.165,
+      "pecas_hora": 148.975791433892,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 24.0,
+          "pieces_per_hour": 148.975791433892
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 148.975791433892
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 24.0,
+          "pieces_per_hour": 148.975791433892
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 24.33,
+          "pieces_per_hour": 148.975791433892
+        }
+      ]
+    },
+    {
+      "sku": "4100044",
+      "descricao": "SUPORTE DISJUNTOR G",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 47",
+      "cavidades": 1,
+      "peso_kg": 0.0855,
+      "media_ciclo": 28.13,
+      "pecas_hora": 127.97724848915749,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 127.97724848915749
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 28.13,
+          "pieces_per_hour": 127.97724848915749
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 28.13,
+          "pieces_per_hour": 127.97724848915749
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 28.13,
+          "pieces_per_hour": 127.97724848915749
+        }
+      ]
+    },
+    {
+      "sku": "4100045",
+      "descricao": "SUPORTE DISJUNTOR P",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 47",
+      "cavidades": 2,
+      "peso_kg": 0.0297,
+      "media_ciclo": 29.62,
+      "pecas_hora": 243.07900067521945,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 243.07900067521945
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 29.62,
+          "pieces_per_hour": 243.07900067521945
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 29.62,
+          "pieces_per_hour": 243.07900067521945
+        }
+      ]
+    },
+    {
+      "sku": "4100046",
+      "descricao": "SUPORTE DO BARRAMENTO",
+      "material_prima": "PC CINZA",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 48",
+      "cavidades": 2,
+      "peso_kg": 0.036,
+      "media_ciclo": 22.36,
+      "pecas_hora": 322.0035778175313,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 322.0035778175313
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 22.36,
+          "pieces_per_hour": 322.0035778175313
+        }
+      ]
+    },
+    {
+      "sku": "4100052",
+      "descricao": "TAMPA BASE HIDRO PISO",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "",
+      "cavidades": 4,
+      "peso_kg": 0.004,
+      "media_ciclo": 21.68,
+      "pecas_hora": 664.2066420664207,
+      "preferred_resource": "INJ-06",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 664.2066420664207
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 664.2066420664207
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 664.2066420664207
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 21.68,
+          "pieces_per_hour": 664.2066420664207
+        }
+      ]
+    },
+    {
+      "sku": "5600008",
+      "descricao": "TAMPA MONO EQUATORIAL 06",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 29",
+      "cavidades": 1,
+      "peso_kg": 0.26,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 25.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 25.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "7800017",
+      "descricao": "TAMPA/BASE HIDRO PISO",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "",
+      "cavidades": 2,
+      "peso_kg": 0.538,
+      "media_ciclo": 72.0,
+      "pecas_hora": 100.0,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 100.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 72.0,
+          "pieces_per_hour": 100.0
+        }
+      ]
+    },
+    {
+      "sku": "4100006",
+      "descricao": "TP ALOJ DISJ MONO",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 03",
+      "cavidades": 2,
+      "peso_kg": 0.015,
+      "media_ciclo": 27.15,
+      "pecas_hora": 265.1933701657459,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 20.3,
+          "pieces_per_hour": 265.1933701657459
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 34.0,
+          "pieces_per_hour": 265.1933701657459
+        }
+      ]
+    },
+    {
+      "sku": "4100047",
+      "descricao": "TP ALOJ DISJ MONO ENEL",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 03",
+      "cavidades": 2,
+      "peso_kg": 0.015,
+      "media_ciclo": 27.15,
+      "pecas_hora": 265.1933701657459,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 20.3,
+          "pieces_per_hour": 265.1933701657459
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 34.0,
+          "pieces_per_hour": 265.1933701657459
+        }
+      ]
+    },
+    {
+      "sku": "4100007",
+      "descricao": "TP ALOJ DISJ POLI",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 27",
+      "cavidades": 2,
+      "peso_kg": 0.018,
+      "media_ciclo": 50.715,
+      "pecas_hora": 141.96983141082518,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 141.96983141082518
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 28.7,
+          "pieces_per_hour": 141.96983141082518
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 72.73,
+          "pieces_per_hour": 141.96983141082518
+        }
+      ]
+    },
+    {
+      "sku": "4100010",
+      "descricao": "TP ALOJ MONO ENERGISA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 25",
+      "cavidades": 4,
+      "peso_kg": 0.018,
+      "media_ciclo": 27.64,
+      "pecas_hora": 520.9840810419681,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 27.64,
+          "pieces_per_hour": 520.9840810419681
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 32.54,
+          "pieces_per_hour": 520.9840810419681
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 27.64,
+          "pieces_per_hour": 520.9840810419681
+        }
+      ]
+    },
+    {
+      "sku": "4100005",
+      "descricao": "SOBRETAMPA MONO 06/07",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 33",
+      "cavidades": 2,
+      "peso_kg": 0.073,
+      "media_ciclo": 24.65,
+      "pecas_hora": 292.08924949290065,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 22.9,
+          "pieces_per_hour": 292.08924949290065
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 30.0,
+          "pieces_per_hour": 292.08924949290065
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 21.0,
+          "pieces_per_hour": 292.08924949290065
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 26.4,
+          "pieces_per_hour": 292.08924949290065
+        }
+      ]
+    },
+    {
+      "sku": "4100011",
+      "descricao": "TP ALOJ POLI ENERGISA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 41",
+      "cavidades": 2,
+      "peso_kg": 0.036,
+      "media_ciclo": 20.79,
+      "pecas_hora": 346.32034632034635,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 17.77,
+          "pieces_per_hour": 346.32034632034635
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 19.0,
+          "pieces_per_hour": 346.32034632034635
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 23.0,
+          "pieces_per_hour": 346.32034632034635
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 22.58,
+          "pieces_per_hour": 346.32034632034635
+        }
+      ]
+    },
+    {
+      "sku": "12345",
+      "descricao": "TP CAIXA DE PASSAGEM GRANDE",
+      "material_prima": "PSBRANCO",
+      "tipo_injecao": "Auto",
+      "molde": "",
+      "cavidades": 1,
+      "peso_kg": 0.312,
+      "media_ciclo": 29.0,
+      "pecas_hora": 124.13793103448276,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        }
+      ]
+    },
+    {
+      "sku": "1234567",
+      "descricao": "TP CAIXA DE PASSAGEM PEQ",
+      "material_prima": "PSBRANCO",
+      "tipo_injecao": "Auto",
+      "molde": "",
+      "cavidades": 2,
+      "peso_kg": 0.102,
+      "media_ciclo": 29.0,
+      "pecas_hora": 248.27586206896552,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 248.27586206896552
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 248.27586206896552
+        }
+      ]
+    },
+    {
+      "sku": "8200001",
+      "descricao": "TP CENTRO 01 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 8,
+      "peso_kg": 0.0188,
+      "media_ciclo": 40.0,
+      "pecas_hora": 720.0,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 40.0,
+          "pieces_per_hour": 720.0
+        }
+      ]
+    },
+    {
+      "sku": "8200002",
+      "descricao": "TP CENTRO 03 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 18",
+      "cavidades": 2,
+      "peso_kg": 0.07,
+      "media_ciclo": 30.0,
+      "pecas_hora": 240.0,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 27.86,
+          "pieces_per_hour": 240.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 30.0,
+          "pieces_per_hour": 240.0
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 36.75,
+          "pieces_per_hour": 240.0
+        }
+      ]
+    },
+    {
+      "sku": "8200016",
+      "descricao": "TP CENTRO 03 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 4,
+      "peso_kg": 0.0733,
+      "media_ciclo": 50.0,
+      "pecas_hora": 288.0,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 50.0,
+          "pieces_per_hour": 288.0
+        }
+      ]
+    },
+    {
+      "sku": "8200010",
+      "descricao": "TP CENTRO 06 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 2,
+      "peso_kg": 0.085,
+      "media_ciclo": 50.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 50.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "8200013",
+      "descricao": "TP CENTRO 12 DISJ",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 1,
+      "peso_kg": 0.2775,
+      "media_ciclo": 50.0,
+      "pecas_hora": 72.0,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 50.0,
+          "pieces_per_hour": 72.0
+        }
+      ]
+    },
+    {
+      "sku": "8200018",
+      "descricao": "TP CX PASSAGEM GRANDE PP",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 53",
+      "cavidades": 1,
+      "peso_kg": 0.25,
+      "media_ciclo": 35.0,
+      "pecas_hora": 102.85714285714286,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 35.0,
+          "pieces_per_hour": 102.85714285714286
+        }
+      ]
+    },
+    {
+      "sku": "8200007",
+      "descricao": "TP CX PASSAGEM GRANDE PS",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 53",
+      "cavidades": 1,
+      "peso_kg": 0.312,
+      "media_ciclo": 29.0,
+      "pecas_hora": 124.13793103448276,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": false,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 124.13793103448276
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 124.13793103448276
+        }
+      ]
+    },
+    {
+      "sku": "8200015",
+      "descricao": "TP CX PASSAGEM PEQUENA PP",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 51",
+      "cavidades": 2,
+      "peso_kg": 0.085,
+      "media_ciclo": 35.0,
+      "pecas_hora": 205.71428571428572,
+      "preferred_resource": "",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 35.0,
+          "pieces_per_hour": 205.71428571428572
+        }
+      ]
+    },
+    {
+      "sku": "8200008",
+      "descricao": "TP CX PASSAGEM PEQUENA PS",
+      "material_prima": "PS VG + PIG",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 51",
+      "cavidades": 2,
+      "peso_kg": 0.1,
+      "media_ciclo": 28.0,
+      "pecas_hora": 257.14285714285717,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 28.0,
+          "pieces_per_hour": 257.14285714285717
+        }
+      ]
+    },
+    {
+      "sku": "7900001",
+      "descricao": "TP DISJ MONO",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 08",
+      "cavidades": 2,
+      "peso_kg": 0.19,
+      "media_ciclo": 37.129999999999995,
+      "pecas_hora": 193.91327767304068,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 37.26,
+          "pieces_per_hour": 193.91327767304068
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 37.0,
+          "pieces_per_hour": 193.91327767304068
+        }
+      ]
+    },
+    {
+      "sku": "7900003",
+      "descricao": "TP DISJ POLI",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 06",
+      "cavidades": 1,
+      "peso_kg": 0.28,
+      "media_ciclo": 59.805,
+      "pecas_hora": 60.19563581640331,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 63.01,
+          "pieces_per_hour": 60.19563581640331
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 56.6,
+          "pieces_per_hour": 60.19563581640331
+        }
+      ]
+    },
+    {
+      "sku": "7800002",
+      "descricao": "TP EMBASA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.355,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 24.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "8700007",
+      "descricao": "TP HASTE TERRA G",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 16",
+      "cavidades": 1,
+      "peso_kg": 0.1,
+      "media_ciclo": 23.7,
+      "pecas_hora": 151.8987341772152,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 24.11,
+          "pieces_per_hour": 151.8987341772152
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 23.7,
+          "pieces_per_hour": 151.8987341772152
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 151.8987341772152
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 23.2,
+          "pieces_per_hour": 151.8987341772152
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 151.8987341772152
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 151.8987341772152
+        }
+      ]
+    },
+    {
+      "sku": "8700008",
+      "descricao": "TP HASTE TERRA PEQ",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 68",
+      "cavidades": 1,
+      "peso_kg": 0.055,
+      "media_ciclo": 17.35,
+      "pecas_hora": 207.49279538904898,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 17.0,
+          "pieces_per_hour": 207.49279538904898
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 19.28,
+          "pieces_per_hour": 207.49279538904898
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 17.7,
+          "pieces_per_hour": 207.49279538904898
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 17.0,
+          "pieces_per_hour": 207.49279538904898
+        }
+      ]
+    },
+    {
+      "sku": "7800009",
+      "descricao": "TP HID AGESPISA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.355,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 24.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "7800004",
+      "descricao": "TP HID CAERN",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.355,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 24.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "7800006",
+      "descricao": "TP HID CAGEPA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.355,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 24.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "7800003",
+      "descricao": "TP HID CASAL",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.355,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 24.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "7800005",
+      "descricao": "TP HID COMPESA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.355,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 24.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "7800001",
+      "descricao": "TP HID DESO",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.355,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 24.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "7800016",
+      "descricao": "TP HID DESO PD NOVO",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Semi",
+      "molde": "MDI - 1 36",
+      "cavidades": 1,
+      "peso_kg": 0.462,
+      "media_ciclo": 45.515,
+      "pecas_hora": 79.09480391079863,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 79.09480391079863
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 40.9,
+          "pieces_per_hour": 79.09480391079863
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 50.13,
+          "pieces_per_hour": 79.09480391079863
+        }
+      ]
+    },
+    {
+      "sku": "7800010",
+      "descricao": "TP HID ECONOMICA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.328,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 25.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "7800008",
+      "descricao": "TP HID S/LOGO",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.355,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 24.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "7800007",
+      "descricao": "TP HID SAAE",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 09",
+      "cavidades": 1,
+      "peso_kg": 0.355,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 24.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "5600013",
+      "descricao": "TP KIT INTER",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 15",
+      "cavidades": 1,
+      "peso_kg": 0.18,
+      "media_ciclo": 58.9,
+      "pecas_hora": 61.12054329371817,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 58.9,
+          "pieces_per_hour": 61.12054329371817
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 61.12054329371817
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 61.12054329371817
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 61.12054329371817
+        }
+      ]
+    },
+    {
+      "sku": "112345678",
+      "descricao": "TP MONO 07 CONCESSIONARIA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 29",
+      "cavidades": 1,
+      "peso_kg": 0.246,
+      "media_ciclo": 29.0,
+      "pecas_hora": 124.13793103448276,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        }
+      ]
+    },
+    {
+      "sku": "5600002",
+      "descricao": "TP MED MONO 03",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Semi",
+      "molde": "MDM - 1 16",
+      "cavidades": 1,
+      "peso_kg": 0.34,
+      "media_ciclo": 41.105000000000004,
+      "pecas_hora": 87.58058630336942,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 45.0,
+          "pieces_per_hour": 87.58058630336942
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 37.21,
+          "pieces_per_hour": 87.58058630336942
+        }
+      ]
+    },
+    {
+      "sku": "5600004",
+      "descricao": "TP MONO CEAL/CEMAR",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 15",
+      "cavidades": 1,
+      "peso_kg": 0.355,
+      "media_ciclo": 50.17,
+      "pecas_hora": 71.75602949970101,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 56.68,
+          "pieces_per_hour": 71.75602949970101
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 43.66,
+          "pieces_per_hour": 71.75602949970101
+        }
+      ]
+    },
+    {
+      "sku": "5600006",
+      "descricao": "TP MONO ENERGISA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 23",
+      "cavidades": 1,
+      "peso_kg": 0.43,
+      "media_ciclo": 29.0,
+      "pecas_hora": 124.13793103448276,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        },
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 124.13793103448276
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 29.0,
+          "pieces_per_hour": 124.13793103448276
+        }
+      ]
+    },
+    {
+      "sku": "5600018",
+      "descricao": "TP MONO NEO 07",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 29",
+      "cavidades": 1,
+      "peso_kg": 0.26,
+      "media_ciclo": 25.0,
+      "pecas_hora": 144.0,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 25.0,
+          "pieces_per_hour": 144.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 25.0,
+          "pieces_per_hour": 144.0
+        }
+      ]
+    },
+    {
+      "sku": "5600010",
+      "descricao": "TP POLI 01 EQUATORIAL",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 04",
+      "cavidades": 1,
+      "peso_kg": 0.725,
+      "media_ciclo": 54.45,
+      "pecas_hora": 66.11570247933884,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 54.9,
+          "pieces_per_hour": 66.11570247933884
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 54.0,
+          "pieces_per_hour": 66.11570247933884
+        }
+      ]
+    },
+    {
+      "sku": "5600027",
+      "descricao": "TP POLI 06",
+      "material_prima": "PC CRISTAL VG",
+      "tipo_injecao": "Semi",
+      "molde": "MDI 1 - 44",
+      "cavidades": 1,
+      "peso_kg": 0.5,
+      "media_ciclo": 42.25,
+      "pecas_hora": 85.20710059171597,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 42.25,
+          "pieces_per_hour": 85.20710059171597
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 85.20710059171597
+        }
+      ]
+    },
+    {
+      "sku": "5600012",
+      "descricao": "TP POLI CEAL/CEMAR",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDM - 1 04",
+      "cavidades": 1,
+      "peso_kg": 0.74,
+      "media_ciclo": 51.0,
+      "pecas_hora": 70.58823529411765,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 51.0,
+          "pieces_per_hour": 70.58823529411765
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 70.58823529411765
+        }
+      ]
+    },
+    {
+      "sku": "5600028",
+      "descricao": "TP POLI ENEL",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "",
+      "molde": "",
+      "cavidades": 1,
+      "peso_kg": 0.9,
+      "media_ciclo": 50.0,
+      "pecas_hora": 72.0,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 72.0
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": false,
+          "cycle_seconds": 50.0,
+          "pieces_per_hour": 72.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 72.0
+        }
+      ]
+    },
+    {
+      "sku": "5600016",
+      "descricao": "TP POLI ENERGISA",
+      "material_prima": "PC CRISTAL VG",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 40",
+      "cavidades": 1,
+      "peso_kg": 0.83,
+      "media_ciclo": 40.0,
+      "pecas_hora": 90.0,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 45.0,
+          "pieces_per_hour": 90.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 35.0,
+          "pieces_per_hour": 90.0
+        }
+      ]
+    },
+    {
+      "sku": "5600031",
+      "descricao": "TP POLI EQUATORIAL 08",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 55",
+      "cavidades": 1,
+      "peso_kg": 0.33,
+      "media_ciclo": 45.0,
+      "pecas_hora": 80.0,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 80.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 45.0,
+          "pieces_per_hour": 80.0
+        }
+      ]
+    },
+    {
+      "sku": "5600024",
+      "descricao": "TP POLI LISA BARRAMENTO",
+      "material_prima": "PC CRISTAL VG",
+      "tipo_injecao": "Semi",
+      "molde": "MDI 1 - 44",
+      "cavidades": 1,
+      "peso_kg": 0.562,
+      "media_ciclo": 42.25,
+      "pecas_hora": 85.20710059171597,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 42.25,
+          "pieces_per_hour": 85.20710059171597
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 42.25,
+          "pieces_per_hour": 85.20710059171597
+        }
+      ]
+    },
+    {
+      "sku": "5600021",
+      "descricao": "TP POLI NEO 05",
+      "material_prima": "PC CRISTAL VG",
+      "tipo_injecao": "Semi",
+      "molde": "MDI 1 - 44",
+      "cavidades": 1,
+      "peso_kg": 0.51,
+      "media_ciclo": 35.175,
+      "pecas_hora": 102.3454157782516,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 42.35,
+          "pieces_per_hour": 102.3454157782516
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 28.0,
+          "pieces_per_hour": 102.3454157782516
+        }
+      ]
+    },
+    {
+      "sku": "5600023",
+      "descricao": "TP POLI PARA DISJUNTOR",
+      "material_prima": "PC CRISTAL VG",
+      "tipo_injecao": "Semi",
+      "molde": "MDI 1 - 44",
+      "cavidades": 1,
+      "peso_kg": 0.616,
+      "media_ciclo": 42.25,
+      "pecas_hora": 85.20710059171597,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 42.25,
+          "pieces_per_hour": 85.20710059171597
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 85.20710059171597
+        }
+      ]
+    },
+    {
+      "sku": "5600022",
+      "descricao": "TP POLI PARA MEDIDOR",
+      "material_prima": "PC CRISTAL VG",
+      "tipo_injecao": "Semi",
+      "molde": "MDI 1 - 44",
+      "cavidades": 1,
+      "peso_kg": 0.607,
+      "media_ciclo": 42.35,
+      "pecas_hora": 85.00590318772137,
+      "preferred_resource": "INJ-02",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 42.35,
+          "pieces_per_hour": 85.00590318772137
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 42.35,
+          "pieces_per_hour": 85.00590318772137
+        }
+      ]
+    },
+    {
+      "sku": "5600001",
+      "descricao": "TP SULGIPE/ENEL",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 01",
+      "cavidades": 1,
+      "peso_kg": 0.43,
+      "media_ciclo": 42.55,
+      "pecas_hora": 84.6063454759107,
+      "preferred_resource": "INJ-03",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 84.6063454759107
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 42.55,
+          "pieces_per_hour": 84.6063454759107
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 84.6063454759107
+        }
+      ]
+    },
+    {
+      "sku": "4100050",
+      "descricao": "TRAVA DA TAMPA HIDRO PISO",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "",
+      "cavidades": 2,
+      "peso_kg": 0.01,
+      "media_ciclo": 29.15,
+      "pecas_hora": 246.9982847341338,
+      "preferred_resource": "INJ-04",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 246.9982847341338
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 246.9982847341338
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 29.01,
+          "pieces_per_hour": 246.9982847341338
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 29.29,
+          "pieces_per_hour": 246.9982847341338
+        }
+      ]
+    },
+    {
+      "sku": "4100039",
+      "descricao": "TRAVA VIDRO NEOENERGIA",
+      "material_prima": "PC CRISTAL",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 47",
+      "cavidades": 4,
+      "peso_kg": 0.002,
+      "media_ciclo": 23.37,
+      "pecas_hora": 616.1745827984595,
+      "preferred_resource": "INJ-06",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 23.37,
+          "pieces_per_hour": 616.1745827984595
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 23.37,
+          "pieces_per_hour": 616.1745827984595
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 616.1745827984595
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 22.0,
+          "pieces_per_hour": 616.1745827984595
+        }
+      ]
+    },
+    {
+      "sku": "4100016",
+      "descricao": "TRILHO ENERGISA",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 26",
+      "cavidades": 2,
+      "peso_kg": 0.023,
+      "media_ciclo": 22.244999999999997,
+      "pecas_hora": 323.66824005394477,
+      "preferred_resource": "INJ-06",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 22.99,
+          "pieces_per_hour": 323.66824005394477
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 26.0,
+          "pieces_per_hour": 323.66824005394477
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 21.5,
+          "pieces_per_hour": 323.66824005394477
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 19.0,
+          "pieces_per_hour": 323.66824005394477
+        }
+      ]
+    },
+    {
+      "sku": "4100022",
+      "descricao": "TRILHO EQUATORIAL",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 32",
+      "cavidades": 2,
+      "peso_kg": 0.0125,
+      "media_ciclo": 12.75,
+      "pecas_hora": 564.7058823529412,
+      "preferred_resource": "INJ-06",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 564.7058823529412
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 564.7058823529412
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 13.5,
+          "pieces_per_hour": 564.7058823529412
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 12.0,
+          "pieces_per_hour": 564.7058823529412
+        }
+      ]
+    },
+    {
+      "sku": "4100002",
+      "descricao": "TRILHO MONO",
+      "material_prima": "PC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 06",
+      "cavidades": 4,
+      "peso_kg": 0.01,
+      "media_ciclo": 40.31,
+      "pecas_hora": 357.23145621433883,
+      "preferred_resource": "INJ-06",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 357.23145621433883
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": true,
+          "cycle_seconds": 40.31,
+          "pieces_per_hour": 357.23145621433883
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 41.72,
+          "pieces_per_hour": 357.23145621433883
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 19.0,
+          "pieces_per_hour": 357.23145621433883
+        }
+      ]
+    },
+    {
+      "sku": "4100064",
+      "descricao": "UNIÃO P/ CAIXA DE MEDIÇÃO 1\"",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "",
+      "molde": "MDI - 1 49",
+      "cavidades": 8,
+      "peso_kg": 0.02,
+      "media_ciclo": 16.8,
+      "pecas_hora": 1714.2857142857142,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 1714.2857142857142
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 16.8,
+          "pieces_per_hour": 1714.2857142857142
+        }
+      ]
+    },
+    {
+      "sku": "4100063",
+      "descricao": "UNIÃO P/ CAIXA DE MEDIÇÃO 1.1/2\"",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "",
+      "molde": "MDI - 1 49",
+      "cavidades": 8,
+      "peso_kg": 0.025,
+      "media_ciclo": 16.8,
+      "pecas_hora": 1714.2857142857142,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 1714.2857142857142
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 16.8,
+          "pieces_per_hour": 1714.2857142857142
+        }
+      ]
+    },
+    {
+      "sku": "4100065",
+      "descricao": "UNIÃO P/ CAIXA DE MEDIÇÃO 2\"",
+      "material_prima": "PP PRETO",
+      "tipo_injecao": "",
+      "molde": "MDI - 1 49",
+      "cavidades": 8,
+      "peso_kg": 0.03,
+      "media_ciclo": 45.0,
+      "pecas_hora": 640.0,
+      "preferred_resource": "INJ-05",
+      "resource_options": [
+        {
+          "code": "INJ-02",
+          "label": "Injetora 02",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 640.0
+        },
+        {
+          "code": "INJ-05",
+          "label": "Injetora 05",
+          "can_run": true,
+          "cycle_seconds": 45.0,
+          "pieces_per_hour": 640.0
+        }
+      ]
+    },
+    {
+      "sku": "4100013",
+      "descricao": "VEDACAO NEO",
+      "material_prima": "PVC PRETO",
+      "tipo_injecao": "Semi",
+      "molde": "MDM - 1 53",
+      "cavidades": 2,
+      "peso_kg": 0.008,
+      "media_ciclo": 15.0,
+      "pecas_hora": 480.0,
+      "preferred_resource": "INJ-01",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 15.0,
+          "pieces_per_hour": 480.0
+        },
+        {
+          "code": "INJ-03",
+          "label": "Injetora 03",
+          "can_run": false,
+          "cycle_seconds": 15.0,
+          "pieces_per_hour": 480.0
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 15.0,
+          "pieces_per_hour": 480.0
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 15.0,
+          "pieces_per_hour": 480.0
+        }
+      ]
+    },
+    {
+      "sku": "4100038",
+      "descricao": "VEDACAO POLI NEO 05",
+      "material_prima": "PVC PRETO",
+      "tipo_injecao": "Auto",
+      "molde": "MDI - 1 22",
+      "cavidades": 2,
+      "peso_kg": 0.0103,
+      "media_ciclo": 23.79,
+      "pecas_hora": 302.64817150063055,
+      "preferred_resource": "INJ-06",
+      "resource_options": [
+        {
+          "code": "INJ-01",
+          "label": "Injetora 01",
+          "can_run": true,
+          "cycle_seconds": 26.28,
+          "pieces_per_hour": 302.64817150063055
+        },
+        {
+          "code": "INJ-04",
+          "label": "Injetora 04",
+          "can_run": true,
+          "cycle_seconds": 0.0,
+          "pieces_per_hour": 302.64817150063055
+        },
+        {
+          "code": "INJ-06",
+          "label": "Injetora 06",
+          "can_run": true,
+          "cycle_seconds": 21.3,
+          "pieces_per_hour": 302.64817150063055
+        }
+      ]
+    }
+  ]
+}

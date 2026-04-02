@@ -86,6 +86,16 @@ PCP_DATABASE_URL=postgresql://pcp_app:CHANGE_ME_PCP_APP@pcp-postgres:5432/inplas
 PCP_ACTIONS_DATABASE_URL=postgresql://pcp_integration:CHANGE_ME_PCP_INTEGRATION@pcp-postgres:5432/inplast_pcp
 ```
 
+Com essa topologia, o Postgres dedicado do proprio servico passa a concentrar:
+
+- usuarios e autenticacao do app
+- integracoes e webhooks operacionais
+- entrada e saida do almoxarifado
+- datas de referencia dos romaneios
+- regras de producao importadas das planilhas H-H
+
+Os YAMLs tambem sobem um servico `pcp-db-migrate`, que reaplica o schema e as permissoes em todo deploy para acomodar evolucao de tabela sem exigir limpeza manual do volume do banco.
+
 ## Repositorio recomendado
 
 O caminho mais simples e usar este diretorio como raiz de um repositorio dedicado do modulo PCP.

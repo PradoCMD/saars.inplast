@@ -482,6 +482,323 @@ union all
 select * from romaneio_eta_alert
 """
 
+APP_RUNTIME_HEALTHCHECK_SQL = """
+select
+    to_regclass('ops.app_user') is not null as has_app_user,
+    to_regclass('ops.app_integration') is not null as has_app_integration,
+    to_regclass('ops.stock_movement') is not null as has_stock_movement,
+    to_regclass('ops.app_state_document') is not null as has_app_state_document
+"""
+
+APP_USERS_COUNT_SQL = """
+select count(*) as total
+from ops.app_user
+"""
+
+APP_USERS_SELECT_SQL = """
+select
+    user_key as id,
+    username,
+    full_name,
+    role,
+    password,
+    is_active as active,
+    created_at,
+    updated_at
+from ops.app_user
+order by
+    case when username = 'root' then 0 else 1 end,
+    lower(full_name),
+    lower(username)
+"""
+
+APP_USER_UPSERT_SQL = """
+insert into ops.app_user (
+    user_key,
+    username,
+    full_name,
+    role,
+    password,
+    is_active,
+    meta_json,
+    created_at,
+    updated_at
+)
+values (
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s::jsonb,
+    %s::timestamptz,
+    %s::timestamptz
+)
+on conflict (username) do update set
+    user_key = excluded.user_key,
+    full_name = excluded.full_name,
+    role = excluded.role,
+    password = excluded.password,
+    is_active = excluded.is_active,
+    meta_json = excluded.meta_json,
+    updated_at = excluded.updated_at
+returning
+    user_key as id,
+    username,
+    full_name,
+    role,
+    password,
+    is_active as active,
+    created_at,
+    updated_at
+"""
+
+APP_USER_AUTH_SQL = """
+select
+    user_key as id,
+    username,
+    full_name,
+    role,
+    password,
+    is_active as active,
+    created_at,
+    updated_at
+from ops.app_user
+where lower(username) = lower(%s)
+  and is_active
+  and password = %s
+limit 1
+"""
+
+APP_INTEGRATIONS_COUNT_SQL = """
+select count(*) as total
+from ops.app_integration
+"""
+
+APP_INTEGRATIONS_SELECT_SQL = """
+select
+    integration_key as id,
+    integration_name as name,
+    integration_type,
+    webhook_url,
+    method,
+    auth_type,
+    auth_value,
+    extra_headers_json,
+    request_body_json,
+    is_active as active,
+    last_status,
+    last_synced_at,
+    last_error,
+    created_at,
+    updated_at
+from ops.app_integration
+order by
+    case when is_active then 0 else 1 end,
+    lower(integration_name),
+    lower(integration_key)
+"""
+
+APP_INTEGRATION_UPSERT_SQL = """
+insert into ops.app_integration (
+    integration_key,
+    integration_name,
+    integration_type,
+    webhook_url,
+    method,
+    auth_type,
+    auth_value,
+    extra_headers_json,
+    request_body_json,
+    is_active,
+    last_status,
+    last_synced_at,
+    last_error,
+    meta_json,
+    created_at,
+    updated_at
+)
+values (
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s::timestamptz,
+    %s,
+    %s::jsonb,
+    %s::timestamptz,
+    %s::timestamptz
+)
+on conflict (integration_key) do update set
+    integration_name = excluded.integration_name,
+    integration_type = excluded.integration_type,
+    webhook_url = excluded.webhook_url,
+    method = excluded.method,
+    auth_type = excluded.auth_type,
+    auth_value = excluded.auth_value,
+    extra_headers_json = excluded.extra_headers_json,
+    request_body_json = excluded.request_body_json,
+    is_active = excluded.is_active,
+    last_status = excluded.last_status,
+    last_synced_at = excluded.last_synced_at,
+    last_error = excluded.last_error,
+    meta_json = excluded.meta_json,
+    updated_at = excluded.updated_at
+returning
+    integration_key as id,
+    integration_name as name,
+    integration_type,
+    webhook_url,
+    method,
+    auth_type,
+    auth_value,
+    extra_headers_json,
+    request_body_json,
+    is_active as active,
+    last_status,
+    last_synced_at,
+    last_error,
+    created_at,
+    updated_at
+"""
+
+APP_STOCK_MOVEMENTS_COUNT_SQL = """
+select count(*) as total
+from ops.stock_movement
+"""
+
+APP_STOCK_MOVEMENTS_SELECT_SQL = """
+select
+    movement_key as id,
+    sku,
+    product_name as produto,
+    movement_type,
+    quantity,
+    product_type,
+    document_ref,
+    responsavel,
+    observacao,
+    created_at,
+    updated_at
+from ops.stock_movement
+order by created_at desc, movement_key desc
+"""
+
+APP_STOCK_MOVEMENT_INSERT_SQL = """
+insert into ops.stock_movement (
+    movement_key,
+    sku,
+    product_name,
+    movement_type,
+    quantity,
+    product_type,
+    document_ref,
+    responsavel,
+    observacao,
+    meta_json,
+    created_at,
+    updated_at
+)
+values (
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s,
+    %s::jsonb,
+    %s::timestamptz,
+    %s::timestamptz
+)
+on conflict (movement_key) do update set
+    sku = excluded.sku,
+    product_name = excluded.product_name,
+    movement_type = excluded.movement_type,
+    quantity = excluded.quantity,
+    product_type = excluded.product_type,
+    document_ref = excluded.document_ref,
+    responsavel = excluded.responsavel,
+    observacao = excluded.observacao,
+    meta_json = excluded.meta_json,
+    updated_at = excluded.updated_at
+returning
+    movement_key as id,
+    sku,
+    product_name as produto,
+    movement_type,
+    quantity,
+    product_type,
+    document_ref,
+    responsavel,
+    observacao,
+    created_at,
+    updated_at
+"""
+
+APP_STATE_DOCUMENT_SELECT_SQL = """
+select
+    doc_key,
+    doc_type,
+    source_label,
+    source_hash,
+    payload_json,
+    meta_json,
+    created_at,
+    updated_at
+from ops.app_state_document
+where doc_key = %s
+"""
+
+APP_STATE_DOCUMENT_UPSERT_SQL = """
+insert into ops.app_state_document (
+    doc_key,
+    doc_type,
+    source_label,
+    source_hash,
+    payload_json,
+    meta_json,
+    created_at,
+    updated_at
+)
+values (
+    %s,
+    %s,
+    %s,
+    %s,
+    %s::jsonb,
+    %s::jsonb,
+    %s::timestamptz,
+    %s::timestamptz
+)
+on conflict (doc_key) do update set
+    doc_type = excluded.doc_type,
+    source_label = excluded.source_label,
+    source_hash = excluded.source_hash,
+    payload_json = excluded.payload_json,
+    meta_json = excluded.meta_json,
+    updated_at = excluded.updated_at
+returning
+    doc_key,
+    doc_type,
+    source_label,
+    source_hash,
+    payload_json,
+    meta_json,
+    created_at,
+    updated_at
+"""
+
 RUN_MRP_SQL = "select mart.run_mrp() as run_id"
 
 SAVE_STRUCTURE_OVERRIDE_SQL = """

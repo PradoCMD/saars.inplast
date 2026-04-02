@@ -69,6 +69,69 @@ create table if not exists ops.webhook_event (
     finished_at timestamptz
 );
 
+create table if not exists ops.app_user (
+    user_key text primary key,
+    username text not null unique,
+    full_name text not null,
+    role text not null default 'operator',
+    password text not null,
+    is_active boolean not null default true,
+    meta_json jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create table if not exists ops.app_integration (
+    integration_key text primary key,
+    integration_name text not null,
+    integration_type text not null,
+    webhook_url text not null default '',
+    method text not null default 'POST',
+    auth_type text not null default 'none',
+    auth_value text not null default '',
+    extra_headers_json text not null default '{}',
+    request_body_json text not null default '{}',
+    is_active boolean not null default false,
+    last_status text not null default 'idle',
+    last_synced_at timestamptz,
+    last_error text not null default '',
+    meta_json jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_app_integration_type_active
+    on ops.app_integration (integration_type, is_active, updated_at desc);
+
+create table if not exists ops.stock_movement (
+    movement_key text primary key,
+    sku text not null,
+    product_name text not null default '',
+    movement_type text not null check (movement_type in ('entrada', 'saida')),
+    quantity numeric(18,6) not null check (quantity > 0),
+    product_type text,
+    document_ref text,
+    responsavel text,
+    observacao text,
+    meta_json jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
+create index if not exists idx_stock_movement_sku_created
+    on ops.stock_movement (sku, created_at desc);
+
+create table if not exists ops.app_state_document (
+    doc_key text primary key,
+    doc_type text not null default 'json',
+    source_label text,
+    source_hash text,
+    payload_json jsonb not null default '{}'::jsonb,
+    meta_json jsonb not null default '{}'::jsonb,
+    created_at timestamptz not null default now(),
+    updated_at timestamptz not null default now()
+);
+
 create table if not exists raw.landing_payload (
     payload_id bigserial primary key,
     run_id bigint not null references ops.ingestion_run(run_id) on delete cascade,

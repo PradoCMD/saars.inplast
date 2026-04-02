@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import re
 from abc import ABC, abstractmethod
@@ -50,6 +51,10 @@ DEFAULT_APP_INTEGRATION = {
 }
 
 ROMANEIO_REFERENCE_DATES_PATH = Path(__file__).resolve().parent.parent / "data" / "romaneio_reference_dates.json"
+PRODUCTION_RULES_PATH = Path(__file__).resolve().parent.parent / "data" / "production_machine_rules.json"
+
+APP_STATE_ROMANEIO_REFERENCE_KEY = "romaneio_reference_dates"
+APP_STATE_PRODUCTION_RULES_KEY = "production_machine_rules"
 
 
 def _normalize_bool(value: Any) -> bool:
@@ -195,6 +200,67 @@ def save_app_integrations(
     return sanitized
 
 
+def _coerce_stock_movement_record(raw: dict[str, Any]) -> dict[str, Any]:
+    created_at = str(raw.get("created_at") or datetime.now(timezone.utc).isoformat())
+    quantity = float(raw.get("quantity") or raw.get("quantidade") or 0)
+    movement_type = str(raw.get("movement_type") or raw.get("tipo_movimento") or "entrada").strip().lower() or "entrada"
+    if movement_type not in {"entrada", "saida"}:
+        movement_type = "entrada"
+    return {
+        "id": str(raw.get("id") or f"stock-movement-{created_at.replace(':', '').replace('-', '').replace('.', '')}"),
+        "sku": str(raw.get("sku") or "").strip().upper(),
+        "produto": str(raw.get("produto") or "").strip(),
+        "movement_type": movement_type,
+        "quantity": abs(quantity),
+        "product_type": str(raw.get("product_type") or raw.get("tipo_produto") or "").strip().lower(),
+        "document_ref": str(raw.get("document_ref") or raw.get("documento") or "").strip(),
+        "responsavel": str(raw.get("responsavel") or raw.get("operator") or "").strip(),
+        "observacao": str(raw.get("observacao") or raw.get("notes") or "").strip(),
+        "created_at": created_at,
+        "updated_at": str(raw.get("updated_at") or created_at),
+    }
+
+
+def load_stock_movements(movements_path: Path) -> list[dict[str, Any]]:
+    if movements_path.exists():
+        payload = json.loads(movements_path.read_text(encoding="utf-8"))
+        items = payload.get("items", payload) if isinstance(payload, dict) else payload
+        movements = [_coerce_stock_movement_record(item) for item in items if item]
+    else:
+        movements = []
+    return sorted(movements, key=lambda item: item["created_at"], reverse=True)
+
+
+def save_stock_movements(movements_path: Path, movements: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    sanitized = [_coerce_stock_movement_record(item) for item in movements if item]
+    movements_path.parent.mkdir(parents=True, exist_ok=True)
+    movements_path.write_text(json.dumps({"items": sanitized}, ensure_ascii=False, indent=2), encoding="utf-8")
+    return sorted(sanitized, key=lambda item: item["created_at"], reverse=True)
+
+
+def load_production_rules(path: Path = PRODUCTION_RULES_PATH) -> dict[str, Any]:
+    if not path.exists():
+        return {"items": [], "generated_at": "", "resource_catalog": []}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, dict):
+        return payload
+    return {"items": payload, "generated_at": "", "resource_catalog": []}
+
+
+def load_romaneio_reference_document(path: Path = ROMANEIO_REFERENCE_DATES_PATH) -> dict[str, Any]:
+    if not path.exists():
+        return {"items": []}
+    payload = json.loads(path.read_text(encoding="utf-8"))
+    if isinstance(payload, dict):
+        items = payload.get("items", [])
+        if isinstance(items, list):
+            return {**payload, "items": [dict(item) for item in items if item]}
+        return {"items": []}
+    if isinstance(payload, list):
+        return {"items": [dict(item) for item in payload if item]}
+    return {"items": []}
+
+
 def _normalize_romaneio_lookup_code(value: Any) -> str:
     text = str(value or "").strip()
     if not text:
@@ -208,10 +274,7 @@ def _normalize_romaneio_lookup_code(value: Any) -> str:
 
 
 def load_romaneio_reference_dates(path: Path = ROMANEIO_REFERENCE_DATES_PATH) -> dict[str, dict[str, Any]]:
-    if not path.exists():
-        return {}
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    items = payload.get("items", payload) if isinstance(payload, dict) else payload
+    items = load_romaneio_reference_document(path).get("items", [])
     mapping: dict[str, dict[str, Any]] = {}
     for item in items:
         if not item:
@@ -220,6 +283,33 @@ def load_romaneio_reference_dates(path: Path = ROMANEIO_REFERENCE_DATES_PATH) ->
         if code:
             mapping[code] = dict(item)
     return mapping
+
+
+def build_romaneio_reference_lookup(payload: dict[str, Any] | list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
+    if isinstance(payload, list):
+        items = payload
+    elif isinstance(payload, dict):
+        items = payload.get("items", [])
+    else:
+        items = []
+    mapping: dict[str, dict[str, Any]] = {}
+    for item in items:
+        if not item:
+            continue
+        code = _normalize_romaneio_lookup_code(item.get("romaneio"))
+        if code:
+            mapping[code] = dict(item)
+    return mapping
+
+
+def _json_hash(payload: Any) -> str:
+    serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
+
+
+def _timestamp_or_none(value: Any) -> str | None:
+    text = str(value or "").strip()
+    return text or None
 
 
 def apply_romaneio_reference_dates(item: dict[str, Any], references: dict[str, dict[str, Any]]) -> dict[str, Any]:
@@ -318,11 +408,23 @@ class DataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def stock_movements(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def production_rules(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def save_user(self, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
     @abstractmethod
     def save_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_stock_movement(self, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
     @abstractmethod
@@ -370,6 +472,9 @@ class MockProvider(DataProvider):
 
     def _integrations_path(self) -> Path:
         return self.data_dir / "app_integrations.json"
+
+    def _stock_movements_path(self) -> Path:
+        return self.data_dir / "stock_movements.json"
 
     def overview(self, company_code: str | None = None) -> dict[str, Any]:
         return self._read_json("overview.json")
@@ -482,6 +587,20 @@ class MockProvider(DataProvider):
     def integrations(self) -> dict[str, Any]:
         return {"items": load_app_integrations(self._integrations_path())}
 
+    def stock_movements(self) -> dict[str, Any]:
+        items = load_stock_movements(self._stock_movements_path())
+        return {
+            "items": items,
+            "summary": {
+                "entradas": sum(item["quantity"] for item in items if item["movement_type"] == "entrada"),
+                "saidas": sum(item["quantity"] for item in items if item["movement_type"] == "saida"),
+                "movimentos": len(items),
+            },
+        }
+
+    def production_rules(self) -> dict[str, Any]:
+        return load_production_rules()
+
     def save_user(self, payload: dict[str, Any]) -> dict[str, Any]:
         users = load_app_users(self._users_path())
         username = str(payload.get("username") or "").strip().lower()
@@ -536,6 +655,26 @@ class MockProvider(DataProvider):
         next_items.append(next_integration)
         persisted = save_app_integrations(self._integrations_path(), next_items)
         return {"status": "saved", "integration": next_integration, "items": persisted}
+
+    def save_stock_movement(self, payload: dict[str, Any]) -> dict[str, Any]:
+        sku = str(payload.get("sku") or "").strip().upper()
+        if not sku:
+            raise RuntimeError("SKU obrigatório para registrar movimentação.")
+        quantity = float(payload.get("quantity") or payload.get("quantidade") or 0)
+        if quantity <= 0:
+            raise RuntimeError("Quantidade obrigatória para registrar movimentação.")
+
+        next_item = _coerce_stock_movement_record(
+            {
+                **payload,
+                "sku": sku,
+                "quantity": quantity,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        persisted = save_stock_movements(self._stock_movements_path(), [next_item, *load_stock_movements(self._stock_movements_path())])
+        return {"status": "saved", "movement": next_item, "items": persisted}
 
     def authenticate_user(self, username: str, password: str) -> dict[str, Any] | None:
         users = load_app_users(self._users_path())
@@ -712,6 +851,8 @@ class PostgresProvider(DataProvider):
         self.database_url = settings.database_url
         self.actions_database_url = settings.actions_database_url or settings.database_url
         self.driver_name, self.driver = self._load_driver()
+        self._ensure_runtime_schema()
+        self._seed_runtime_state()
 
     def _load_driver(self):
         try:
@@ -738,13 +879,15 @@ class PostgresProvider(DataProvider):
 
     def _row_to_dict(self, cursor, row) -> dict[str, Any]:
         columns = [desc[0] for desc in cursor.description]
-        return {key: self._normalize_value(value) for key, value in zip(columns, row)}
+        return {key: self._normalize_value(value, key) for key, value in zip(columns, row)}
 
-    def _normalize_value(self, value: Any) -> Any:
+    def _normalize_value(self, value: Any, column_name: str | None = None) -> Any:
         if isinstance(value, Decimal):
             return float(value)
         if isinstance(value, (datetime, date)):
             return value.isoformat()
+        if column_name in {"extra_headers_json", "request_body_json"}:
+            return "" if value is None else str(value)
         if isinstance(value, str) and value and value[0] in "{[":
             try:
                 return json.loads(value)
@@ -758,6 +901,15 @@ class PostgresProvider(DataProvider):
     def _integrations_path(self) -> Path:
         return self.data_dir / "app_integrations.json"
 
+    def _stock_movements_path(self) -> Path:
+        return self.data_dir / "stock_movements.json"
+
+    def _app_document_source_label(self, path: Path) -> str:
+        try:
+            return str(path.relative_to(self.data_dir.parent))
+        except ValueError:
+            return str(path)
+
     def _fetchall(self, sql: str, params: tuple[Any, ...] = (), write: bool = False) -> list[dict[str, Any]]:
         with self._connect(write=write) as connection:
             with connection.cursor() as cursor:
@@ -769,6 +921,187 @@ class PostgresProvider(DataProvider):
     def _fetchone(self, sql: str, params: tuple[Any, ...] = (), write: bool = False) -> dict[str, Any] | None:
         rows = self._fetchall(sql, params, write=write)
         return rows[0] if rows else None
+
+    def _ensure_runtime_schema(self) -> None:
+        status = self._fetchone(queries.APP_RUNTIME_HEALTHCHECK_SQL)
+        missing = [
+            label
+            for label in ("has_app_user", "has_app_integration", "has_stock_movement", "has_app_state_document")
+            if not (status or {}).get(label)
+        ]
+        if missing:
+            missing_labels = ", ".join(name.replace("has_", "") for name in missing)
+            raise RuntimeError(
+                "Schema operacional do PCP incompleto no Postgres. "
+                f"Tabelas ausentes: {missing_labels}. Recrie/aplique o bootstrap do banco dedicado."
+            )
+
+    def _upsert_user_record(self, user: dict[str, Any]) -> dict[str, Any]:
+        normalized = _coerce_user_record(user)
+        return self._fetchone(
+            queries.APP_USER_UPSERT_SQL,
+            (
+                normalized["id"],
+                normalized["username"],
+                normalized["full_name"],
+                normalized["role"],
+                normalized["password"],
+                normalized["active"],
+                json.dumps({}, ensure_ascii=False),
+                normalized["created_at"],
+                normalized["updated_at"],
+            ),
+            write=True,
+        ) or normalized
+
+    def _upsert_integration_record(self, integration: dict[str, Any]) -> dict[str, Any]:
+        normalized = _coerce_integration_record(integration)
+        return self._fetchone(
+            queries.APP_INTEGRATION_UPSERT_SQL,
+            (
+                normalized["id"],
+                normalized["name"],
+                normalized["integration_type"],
+                normalized["webhook_url"],
+                normalized["method"],
+                normalized["auth_type"],
+                normalized["auth_value"],
+                normalized["extra_headers_json"],
+                normalized["request_body_json"],
+                normalized["active"],
+                normalized["last_status"],
+                _timestamp_or_none(normalized["last_synced_at"]),
+                normalized["last_error"],
+                json.dumps({}, ensure_ascii=False),
+                normalized["created_at"],
+                normalized["updated_at"],
+            ),
+            write=True,
+        ) or normalized
+
+    def _upsert_stock_movement_record(self, movement: dict[str, Any]) -> dict[str, Any]:
+        normalized = _coerce_stock_movement_record(movement)
+        return self._fetchone(
+            queries.APP_STOCK_MOVEMENT_INSERT_SQL,
+            (
+                normalized["id"],
+                normalized["sku"],
+                normalized["produto"],
+                normalized["movement_type"],
+                normalized["quantity"],
+                normalized["product_type"],
+                normalized["document_ref"],
+                normalized["responsavel"],
+                normalized["observacao"],
+                json.dumps({}, ensure_ascii=False),
+                normalized["created_at"],
+                normalized["updated_at"],
+            ),
+            write=True,
+        ) or normalized
+
+    def _get_app_document(self, doc_key: str) -> dict[str, Any] | None:
+        row = self._fetchone(queries.APP_STATE_DOCUMENT_SELECT_SQL, (doc_key,))
+        if not row:
+            return None
+        payload = row.get("payload_json")
+        if isinstance(payload, str):
+            try:
+                payload = json.loads(payload)
+            except json.JSONDecodeError:
+                payload = {}
+        return {
+            **row,
+            "payload_json": payload if isinstance(payload, (dict, list)) else {},
+        }
+
+    def _upsert_app_document(
+        self,
+        doc_key: str,
+        payload: dict[str, Any] | list[dict[str, Any]],
+        *,
+        source_label: str,
+        source_hash: str,
+        doc_type: str = "json",
+        meta: dict[str, Any] | None = None,
+    ) -> dict[str, Any]:
+        now_iso = datetime.now(timezone.utc).isoformat()
+        return self._fetchone(
+            queries.APP_STATE_DOCUMENT_UPSERT_SQL,
+            (
+                doc_key,
+                doc_type,
+                source_label,
+                source_hash,
+                json.dumps(payload, ensure_ascii=False),
+                json.dumps(meta or {}, ensure_ascii=False),
+                now_iso,
+                now_iso,
+            ),
+            write=True,
+        ) or {}
+
+    def _seed_state_document_from_file(
+        self,
+        doc_key: str,
+        payload: dict[str, Any] | list[dict[str, Any]],
+        source_path: Path,
+        *,
+        doc_type: str = "json",
+    ) -> None:
+        source_hash = _json_hash(payload)
+        current = self._get_app_document(doc_key)
+        if current and current.get("source_hash") == source_hash:
+            return
+        self._upsert_app_document(
+            doc_key,
+            payload,
+            source_label=self._app_document_source_label(source_path),
+            source_hash=source_hash,
+            doc_type=doc_type,
+            meta={"seeded_from": self._app_document_source_label(source_path)},
+        )
+
+    def _seed_runtime_state(self) -> None:
+        user_count = int((self._fetchone(queries.APP_USERS_COUNT_SQL) or {}).get("total") or 0)
+        if user_count == 0:
+            for user in load_app_users(self._users_path()):
+                self._upsert_user_record(user)
+        else:
+            existing_root = next((item for item in self._fetchall(queries.APP_USERS_SELECT_SQL) if item["username"] == "root"), None)
+            if not existing_root:
+                self._upsert_user_record(DEFAULT_APP_USER)
+
+        integration_count = int((self._fetchone(queries.APP_INTEGRATIONS_COUNT_SQL) or {}).get("total") or 0)
+        default_integrations = load_app_integrations(self._integrations_path(), self.settings)
+        if integration_count == 0:
+            for integration in default_integrations:
+                self._upsert_integration_record(integration)
+        else:
+            existing_integrations = {item["id"] for item in self._fetchall(queries.APP_INTEGRATIONS_SELECT_SQL)}
+            for integration in _default_integrations_from_settings(self.settings):
+                if integration["id"] not in existing_integrations:
+                    self._upsert_integration_record(integration)
+
+        movement_count = int((self._fetchone(queries.APP_STOCK_MOVEMENTS_COUNT_SQL) or {}).get("total") or 0)
+        if movement_count == 0:
+            for movement in load_stock_movements(self._stock_movements_path()):
+                self._upsert_stock_movement_record(movement)
+
+        self._seed_state_document_from_file(
+            APP_STATE_PRODUCTION_RULES_KEY,
+            load_production_rules(PRODUCTION_RULES_PATH),
+            PRODUCTION_RULES_PATH,
+        )
+        self._seed_state_document_from_file(
+            APP_STATE_ROMANEIO_REFERENCE_KEY,
+            load_romaneio_reference_document(ROMANEIO_REFERENCE_DATES_PATH),
+            ROMANEIO_REFERENCE_DATES_PATH,
+        )
+
+    def _load_romaneio_reference_dates_from_db(self) -> dict[str, dict[str, Any]]:
+        payload = (self._get_app_document(APP_STATE_ROMANEIO_REFERENCE_KEY) or {}).get("payload_json") or {"items": []}
+        return build_romaneio_reference_lookup(payload)
 
     def _build_painel_query(
         self,
@@ -862,7 +1195,7 @@ class PostgresProvider(DataProvider):
         return {"items": items}
 
     def romaneios(self) -> dict[str, Any]:
-        references = load_romaneio_reference_dates()
+        references = self._load_romaneio_reference_dates_from_db()
         items = self._fetchall(queries.ROMANEIOS_LIST_SQL)
         return {"items": [apply_romaneio_reference_dates(item, references) for item in items]}
 
@@ -881,7 +1214,7 @@ class PostgresProvider(DataProvider):
         else:
             observacao = "Romaneio ainda possui itens sem previsao confiavel de disponibilidade."
         header["previsao_saida_observacao"] = observacao
-        header = apply_romaneio_reference_dates(header, load_romaneio_reference_dates())
+        header = apply_romaneio_reference_dates(header, self._load_romaneio_reference_dates_from_db())
         return {
             "header": header,
             "items": self._fetchall(queries.ROMANEIO_ITEMS_SQL, (romaneio_code,)),
@@ -890,7 +1223,7 @@ class PostgresProvider(DataProvider):
 
     def romaneios_kanban(self) -> dict[str, Any]:
         painel_items = self._fetchall(queries.PANEL_ENRICHED_SQL)
-        references = load_romaneio_reference_dates()
+        references = self._load_romaneio_reference_dates_from_db()
         romaneios = self._fetchall(
             queries.ROMANEIOS_KANBAN_SQL.format(romaneios_list_sql=queries.ROMANEIOS_LIST_SQL)
         )
@@ -962,13 +1295,30 @@ class PostgresProvider(DataProvider):
         return {"items": self._fetchall(queries.ALERTS_SQL)}
 
     def users(self) -> dict[str, Any]:
-        return {"items": load_app_users(self._users_path())}
+        return {"items": self._fetchall(queries.APP_USERS_SELECT_SQL)}
 
     def integrations(self) -> dict[str, Any]:
-        return {"items": load_app_integrations(self._integrations_path(), self.settings)}
+        return {"items": self._fetchall(queries.APP_INTEGRATIONS_SELECT_SQL)}
+
+    def stock_movements(self) -> dict[str, Any]:
+        items = self._fetchall(queries.APP_STOCK_MOVEMENTS_SELECT_SQL)
+        return {
+            "items": items,
+            "summary": {
+                "entradas": sum(item["quantity"] for item in items if item["movement_type"] == "entrada"),
+                "saidas": sum(item["quantity"] for item in items if item["movement_type"] == "saida"),
+                "movimentos": len(items),
+            },
+        }
+
+    def production_rules(self) -> dict[str, Any]:
+        payload = (self._get_app_document(APP_STATE_PRODUCTION_RULES_KEY) or {}).get("payload_json")
+        if isinstance(payload, dict):
+            return payload
+        return load_production_rules(PRODUCTION_RULES_PATH)
 
     def save_user(self, payload: dict[str, Any]) -> dict[str, Any]:
-        users = load_app_users(self._users_path())
+        users = self._fetchall(queries.APP_USERS_SELECT_SQL)
         username = str(payload.get("username") or "").strip().lower()
         if not username:
             raise RuntimeError("Usuário obrigatório.")
@@ -989,14 +1339,15 @@ class PostgresProvider(DataProvider):
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         )
-
-        next_users = [item for item in users if item["username"] != username]
-        next_users.append(next_user)
-        persisted = save_app_users(self._users_path(), next_users)
-        return {"status": "saved", "user": next_user, "items": persisted}
+        persisted_user = self._upsert_user_record(next_user)
+        persisted = self._fetchall(queries.APP_USERS_SELECT_SQL)
+        if not any(item["username"] == "root" for item in persisted):
+            self._upsert_user_record(DEFAULT_APP_USER)
+            persisted = self._fetchall(queries.APP_USERS_SELECT_SQL)
+        return {"status": "saved", "user": persisted_user, "items": persisted}
 
     def save_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
-        integrations = load_app_integrations(self._integrations_path(), self.settings)
+        integrations = self._fetchall(queries.APP_INTEGRATIONS_SELECT_SQL)
         integration_type = str(payload.get("integration_type") or DEFAULT_APP_INTEGRATION["integration_type"]).strip()
         integration_id = _integration_id_for(payload)
         existing = next(
@@ -1017,18 +1368,36 @@ class PostgresProvider(DataProvider):
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         )
-        next_items = [item for item in integrations if item["id"] != next_integration["id"]]
-        next_items.append(next_integration)
-        persisted = save_app_integrations(self._integrations_path(), next_items, self.settings)
-        return {"status": "saved", "integration": next_integration, "items": persisted}
+        persisted_integration = self._upsert_integration_record(next_integration)
+        persisted = self._fetchall(queries.APP_INTEGRATIONS_SELECT_SQL)
+        return {"status": "saved", "integration": persisted_integration, "items": persisted}
+
+    def save_stock_movement(self, payload: dict[str, Any]) -> dict[str, Any]:
+        sku = str(payload.get("sku") or "").strip().upper()
+        if not sku:
+            raise RuntimeError("SKU obrigatório para registrar movimentação.")
+        quantity = float(payload.get("quantity") or payload.get("quantidade") or 0)
+        if quantity <= 0:
+            raise RuntimeError("Quantidade obrigatória para registrar movimentação.")
+
+        next_item = _coerce_stock_movement_record(
+            {
+                **payload,
+                "sku": sku,
+                "quantity": quantity,
+                "created_at": datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        persisted_item = self._upsert_stock_movement_record(next_item)
+        persisted = self._fetchall(queries.APP_STOCK_MOVEMENTS_SELECT_SQL)
+        return {"status": "saved", "movement": persisted_item, "items": persisted}
 
     def authenticate_user(self, username: str, password: str) -> dict[str, Any] | None:
-        users = load_app_users(self._users_path())
         normalized = str(username or "").strip().lower()
-        user = next((item for item in users if item["username"] == normalized and item["active"]), None)
-        if not user or user["password"] != str(password or ""):
+        if not normalized:
             return None
-        return user
+        return self._fetchone(queries.APP_USER_AUTH_SQL, (normalized, str(password or "")))
 
     def run_mrp(self) -> dict[str, Any]:
         row = self._fetchone(queries.RUN_MRP_SQL, write=True)

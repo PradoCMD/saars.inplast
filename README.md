@@ -121,6 +121,9 @@ Observacao:
 - a partir desta versao, o caminho recomendado e o modulo rodar com um Postgres proprio na `vm-apps`
 - a recomendacao e usar `pcp_app` para leitura e `pcp_integration` para acoes como `run_mrp`
 - se `PCP_DATABASE_URL` nao for informado, o backend tambem consegue montar a conexao automaticamente a partir de `PCP_POSTGRES_HOST`, `PCP_POSTGRES_DB`, `PCP_APP_DB_PASSWORD` e `PCP_INTEGRATION_DB_PASSWORD`
+- usuarios, integracoes, movimentos de estoque do almoxarifado, datas de referencia dos romaneios e regras de producao passam a ser persistidos no Postgres do proprio modulo
+- os JSONs em `data/` continuam apenas como semente inicial/importacao automatica quando o banco estiver vazio ou quando a referencia embarcada for atualizada
+- os arquivos `docker-compose.*.yaml` agora incluem um servico `pcp-db-migrate`, que reaplica o schema idempotente em cada subida para nao depender de apagar o volume do Postgres em upgrades
 
 ## Implantacao
 
@@ -154,6 +157,7 @@ Observacao operacional:
 
 - a partir desta versao, o modo `postgres` deixa de depender de `backend/kanban_db.json` para romaneios e kanban
 - previsoes manuais de saida do romaneio passam a ser registradas no proprio Postgres
+- usuarios, integracoes e entrada/saida de estoque do almoxarifado deixam de depender de arquivos locais no container
 - filas locais do navegador continuam existindo apenas como rascunho temporario de upload/manual antes da ingestao
 
 ## Imagem pronta para o Coolify

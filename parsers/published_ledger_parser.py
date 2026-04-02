@@ -202,18 +202,19 @@ def build_records_from_published_sheet(
             codes_to_names=codes_to_names,
             sku_prefix=config.sku_prefix,
         )
-        quantity = round(float(movement_info.get("calculated_stock", 0.0)), 6)
+        calculated_stock = round(float(movement_info.get("calculated_stock", 0.0)), 6)
         sheet_stock = round(float(stock_info.get("sheet_stock", 0.0)), 6) if stock_info else None
+        quantity = sheet_stock if sheet_stock is not None else calculated_stock
         if sheet_stock is None:
             missing_in_stock_sheet.append(display_name)
         if not movement_info:
             missing_in_movements.append(display_name)
-        if sheet_stock is not None and abs(sheet_stock - quantity) > 1e-6:
+        if sheet_stock is not None and abs(sheet_stock - calculated_stock) > 1e-6:
             stock_mismatches.append(
                 {
                     "description": display_name,
                     "sheet_stock": sheet_stock,
-                    "calculated_stock": quantity,
+                    "calculated_stock": calculated_stock,
                 }
             )
         if code_status != "trusted_code":
@@ -249,6 +250,7 @@ def build_records_from_published_sheet(
                     "code_status": code_status,
                     "all_legacy_codes": all_codes,
                     "sheet_stock": sheet_stock,
+                    "calculated_stock": calculated_stock,
                     "movement_count": movement_info.get("movement_count", 0),
                     "movement_types": dict(sorted(movement_info.get("movement_types", Counter()).items())),
                     "last_movement_at": movement_info.get("last_movement_at"),

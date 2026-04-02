@@ -2246,6 +2246,84 @@
       align-items: start;
   }
 
+  .stock-layout {
+      display: grid;
+      grid-template-columns: minmax(0, 1.18fr) minmax(360px, 0.82fr);
+      gap: 24px;
+      align-items: start;
+  }
+
+  .stock-movement-panel {
+      display: flex;
+      flex-direction: column;
+      gap: 18px;
+  }
+
+  .programming-recommendation {
+      margin-top: 18px;
+      margin-bottom: 8px;
+  }
+
+  .programming-recommendation-card {
+      border-radius: 20px;
+      padding: 18px;
+      display: grid;
+      grid-template-columns: minmax(0, 1.2fr) minmax(240px, 0.8fr);
+      gap: 18px;
+      background: linear-gradient(135deg, rgba(64, 128, 255, 0.14), rgba(255, 255, 255, 0.04));
+      border: 1px solid rgba(110, 154, 255, 0.22);
+  }
+
+  .programming-recommendation-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+  }
+
+  .programming-recommendation-copy small,
+  .programming-recommendation-empty {
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+  }
+
+  .programming-recommendation-copy span {
+      color: var(--text-secondary);
+      line-height: 1.5;
+  }
+
+  .programming-recommendation-metrics,
+  .programming-recommendation-options {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 10px;
+      align-content: flex-start;
+  }
+
+  .resource-suggestion-chip {
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: rgba(10, 16, 31, 0.45);
+      border-radius: 16px;
+      padding: 10px 12px;
+      display: inline-flex;
+      flex-direction: column;
+      gap: 3px;
+      color: var(--text-primary);
+      cursor: pointer;
+      transition: var(--transition);
+      min-width: 120px;
+      text-align: left;
+  }
+
+  .resource-suggestion-chip:hover {
+      border-color: rgba(110, 154, 255, 0.44);
+      transform: translateY(-1px);
+  }
+
+  .resource-suggestion-chip span {
+      color: var(--text-secondary);
+      font-size: 0.78rem;
+  }
+
   .programming-shortcuts {
       display: grid;
       grid-template-columns: repeat(auto-fit, minmax(200px, 1fr));
@@ -2456,6 +2534,19 @@
   .hourly-schedule-card span,
   .hourly-legend-card span {
       color: var(--text-secondary);
+      line-height: 1.45;
+  }
+
+  .hourly-focus-machine-hints {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+  }
+
+  .hourly-focus-rule {
+      font-style: normal;
+      color: var(--text-secondary);
+      font-size: 0.8rem;
       line-height: 1.45;
   }
 
@@ -2949,7 +3040,9 @@
   @media (max-width: 1080px) {
       .auth-shell,
       .kanban-layout,
+      .stock-layout,
       .programming-shell,
+      .programming-recommendation-card,
       .programming-board,
       .hourly-shell,
       .hourly-hero,

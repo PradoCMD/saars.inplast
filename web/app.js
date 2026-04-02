@@ -73,6 +73,8 @@ const state = {
     painel: [],
   },
   integrations: [],
+  stockMovements: [],
+  productionRules: { items: [], resourceCatalog: [], bySku: new Map(), byDescription: new Map() },
   currentUser: null,
   users: [],
   mrpRunning: false,
@@ -181,8 +183,9 @@ const HOURLY_MODULE_CONFIG = {
     queueCopy: "Distribua a carteira intermediaria pelas celulas e use a disponibilidade real do turno como trava da programacao.",
     resources: Array.from({ length: 6 }, (_, index) => ({
       id: `producao-${String(index + 1).padStart(2, "0")}`,
-      label: `Extrusora ${String(index + 1).padStart(2, "0")}`,
-      lineCode: `EXTR-${String(index + 1).padStart(2, "0")}`,
+      label: `Celula ${String(index + 1).padStart(2, "0")}`,
+      lineCode: `INJ-${String(index + 1).padStart(2, "0")}`,
+      aliases: [`INJ-${String(index + 1).padStart(2, "0")}`, `EXTR-${String(index + 1).padStart(2, "0")}`, `PROD-${String(index + 1).padStart(2, "0")}`],
       workstationCode: `MAQ-0${index + 1}`,
       machineLabel: `Maquina ${index + 1}`,
       operators: 1,
@@ -498,7 +501,7 @@ function inferRomaneioDocumentKind(value) {
     .normalize("NFD")
     .replace(/[\u0300-\u036f]/g, "")
     .toUpperCase();
-  return /ROMANEIO\s+NOTA/.test(text) ? "romaneio_nota" : "romaneio";
+  return text.includes("ROMANEIO") && text.includes("NOTA") ? "romaneio_nota" : "romaneio";
 }
 
 function isComplementaryRomaneioUpload(left, right) {
@@ -711,6 +714,161 @@ function normalizeRomaneioLookupCode(value) {
   return text;
 }
 
+function normalizeSkuLookup(value) {
+  return String(value || "").trim().toUpperCase();
+}
+
+function normalizeSkuDigits(value) {
+  return String(value || "").replace(/\D/g, "");
+}
+
+function deriveWorkstationFromResourceCode(value) {
+  const match = String(value || "").match(/(\d{1,2})$/);
+  if (!match) {
+    return "";
+  }
+  return `MAQ-${String(match[1]).padStart(2, "0")}`;
+}
+
+function buildProductionRulesState(payload) {
+  const items = Array.isArray(payload?.items) ? payload.items : [];
+  const resourceCatalog = Array.isArray(payload?.resource_catalog) ? payload.resource_catalog : [];
+  const bySku = new Map();
+  const byDescription = new Map();
+
+  items.forEach((item) => {
+    const skuKey = normalizeSkuLookup(item.sku);
+    const digitKey = normalizeSkuDigits(item.sku);
+    if (skuKey) {
+      bySku.set(skuKey, item);
+    }
+    if (digitKey) {
+      bySku.set(digitKey, item);
+    }
+    if (item.descricao) {
+      byDescription.set(normalizeSkuLookup(item.descricao), item);
+    }
+  });
+
+  return { items, resourceCatalog, bySku, byDescription };
+}
+
+function getProductionRule(input) {
+  const sku = typeof input === "string" ? input : input?.sku;
+  const description = typeof input === "object" ? input?.produto || input?.descricao : "";
+  const exact = normalizeSkuLookup(sku);
+  const digits = normalizeSkuDigits(sku);
+  return (
+    state.productionRules.bySku.get(exact)
+    || state.productionRules.bySku.get(digits)
+    || state.productionRules.byDescription.get(normalizeSkuLookup(description))
+    || null
+  );
+}
+
+function chooseLeastLoadedResource(resources, action) {
+  const loadByCode = new Map();
+  (state.datasets.programming || [])
+    .filter((entry) => String(entry.action || "").toLowerCase() === String(action || "").toLowerCase())
+    .forEach((entry) => {
+      const code = normalizeSkuLookup(entry.assembly_line_code || entry.workstation_code);
+      if (!code) {
+        return;
+      }
+      loadByCode.set(code, (loadByCode.get(code) || 0) + 1);
+    });
+
+  return [...resources].sort((left, right) => {
+    const leftCodes = [left.code || left.lineCode, ...(left.aliases || [])].map(normalizeSkuLookup);
+    const rightCodes = [right.code || right.lineCode, ...(right.aliases || [])].map(normalizeSkuLookup);
+    const leftLoad = Math.min(...leftCodes.map((code) => loadByCode.get(code) || 0));
+    const rightLoad = Math.min(...rightCodes.map((code) => loadByCode.get(code) || 0));
+    return leftLoad - rightLoad || (Number(left.recommendationRank || 0) - Number(right.recommendationRank || 0)) || normalizeSkuLookup(left.label || left.code).localeCompare(normalizeSkuLookup(right.label || right.code));
+  })[0] || resources[0] || null;
+}
+
+function getRecommendedResourceOptions(item, action) {
+  if (action === "produzir") {
+    const rule = getProductionRule(item);
+    if (rule?.resource_options?.length) {
+      return [...rule.resource_options]
+        .filter((option) => option.can_run || option.cycle_seconds)
+        .sort((left, right) => {
+          const leftScore = [left.can_run ? 0 : 1, left.cycle_seconds || 999999, -(left.pieces_per_hour || 0), left.code];
+          const rightScore = [right.can_run ? 0 : 1, right.cycle_seconds || 999999, -(right.pieces_per_hour || 0), right.code];
+          return leftScore < rightScore ? -1 : leftScore > rightScore ? 1 : 0;
+        })
+        .map((option, index) => ({
+          ...option,
+          recommendationRank: index,
+          workstationCode: deriveWorkstationFromResourceCode(option.code),
+          aliases: (state.productionRules.resourceCatalog.find((entry) => entry.code === option.code)?.aliases) || [option.code],
+        }));
+    }
+    return HOURLY_MODULE_CONFIG.producao.resources.map((resource, index) => ({
+      code: resource.lineCode,
+      label: resource.label,
+      workstationCode: resource.workstationCode,
+      aliases: resource.aliases || [resource.lineCode],
+      recommendationRank: index,
+      pieces_per_hour: 0,
+      cycle_seconds: 0,
+      can_run: true,
+    }));
+  }
+
+  return HOURLY_MODULE_CONFIG.montagem.resources.map((resource, index) => ({
+    code: resource.lineCode,
+    label: resource.label,
+    workstationCode: resource.workstationCode,
+    aliases: [resource.lineCode],
+    recommendationRank: index,
+    pieces_per_hour: 0,
+    cycle_seconds: 0,
+    can_run: true,
+  }));
+}
+
+function getSuggestedProgrammingContext(item, action = "montar") {
+  const options = getRecommendedResourceOptions(item, action);
+  const primary = chooseLeastLoadedResource(options, action) || options[0] || {};
+  const rule = action === "produzir" ? getProductionRule(item) : null;
+  const noteParts = [];
+
+  if (action === "produzir" && primary.code) {
+    noteParts.push(`Recurso sugerido ${primary.code}`);
+  }
+  if (rule?.molde) {
+    noteParts.push(`Molde ${rule.molde}`);
+  }
+  if (rule?.pecas_hora) {
+    noteParts.push(`${number.format(rule.pecas_hora)} pç/h`);
+  }
+  if (rule?.material_prima) {
+    noteParts.push(rule.material_prima);
+  }
+
+  return {
+    assembly_line_code: primary.code || "",
+    workstation_code: primary.workstationCode || deriveWorkstationFromResourceCode(primary.code),
+    notes: noteParts.join(" · "),
+    resourceOptions: options,
+    rule,
+  };
+}
+
+function getOperationalStockForItem(item) {
+  const sku = normalizeSkuLookup(item?.sku);
+  const baseStock = Number(item?.estoque_atual || item?.stock_available || 0);
+  const delta = (state.stockMovements || []).reduce((total, movement) => {
+    if (normalizeSkuLookup(movement.sku) !== sku) {
+      return total;
+    }
+    return total + (movement.movement_type === "saida" ? -Number(movement.quantity || 0) : Number(movement.quantity || 0));
+  }, 0);
+  return baseStock + delta;
+}
+
 function getHourlyModuleDefinition(moduleKey) {
   return HOURLY_MODULE_CONFIG[moduleKey];
 }
@@ -779,6 +937,7 @@ function matchesHourlyResource(entry, resource) {
 
   return [
     resource.lineCode,
+    ...(resource.aliases || []),
     resource.workstationCode,
     machineCodeFromLabel(resource.machineLabel),
     resource.label,
@@ -916,7 +1075,7 @@ function renderHourlyResourceSwitcher(context) {
     >
       <small>${context.definition.title}</small>
       <strong>${resource.label}</strong>
-      <span>${resource.lineCode} · ${resource.workstationCode}</span>
+      <span>${resource.lineCode}${resource.aliases?.[1] ? ` · ${resource.aliases[1]}` : ""} · ${resource.workstationCode}</span>
     </button>
   `).join("");
 
@@ -1105,6 +1264,8 @@ function renderHourlySidebar(context) {
   if (!context.focusItem) {
     focus.innerHTML = `<div class="hourly-focus-empty">Sem item priorizado para ${context.resource.label}. Assim que a fila carregar, este recurso poderá programar a próxima atividade.</div>`;
   } else {
+    const rule = context.definition.action === "produzir" ? getProductionRule(context.focusItem) : null;
+    const machineHints = getRecommendedResourceOptions(context.focusItem, context.definition.action).slice(0, 3);
     focus.innerHTML = `
       <small>Item líder do recurso</small>
       <strong>${context.focusItem.sku} · ${context.focusItem.produto}</strong>
@@ -1116,9 +1277,15 @@ function renderHourlySidebar(context) {
         </div>
         <div>
           <small>Estoque atual</small>
-          <strong>${number.format(context.focusItem.stock_available || 0)}</strong>
+          <strong>${number.format(getOperationalStockForItem(context.focusItem))}</strong>
         </div>
       </div>
+      ${machineHints.length ? `
+        <div class="hourly-focus-machine-hints">
+          ${machineHints.map((option) => `<span class="tag info">${option.code}${option.pieces_per_hour ? ` · ${number.format(option.pieces_per_hour)} pç/h` : ""}</span>`).join("")}
+        </div>
+      ` : ""}
+      ${rule ? `<em class="hourly-focus-rule">${rule.material_prima || "MP"} · ${rule.cavidades || 0} cav. · ciclo ${number.format(rule.media_ciclo || 0)} s</em>` : ""}
       <div class="hourly-focus-actions">
         <button type="button" class="btn btn-primary btn-sm" id="${context.definition.focusId}-quick-save">Programar líder agora</button>
         <button type="button" class="btn btn-secondary btn-sm" id="${context.definition.focusId}-open-form">Abrir Programação</button>
@@ -1136,7 +1303,7 @@ function renderHourlySidebar(context) {
       <div class="hourly-queue-meta">
         <div>
           <small>Estoque</small>
-          <strong>${number.format(item.stock_available || 0)}</strong>
+          <strong>${number.format(getOperationalStockForItem(item))}</strong>
         </div>
         <div>
           <small>Custo estimado</small>
@@ -2632,11 +2799,79 @@ function renderStructures(data) {
   });
 }
 
+function renderProgrammingRecommendation(item, quickCandidates = []) {
+  const container = document.getElementById("programming-recommendation");
+  if (!container) {
+    return;
+  }
+
+  const action = String(item?.action || item?.suggestedAction || document.getElementById("programming-form")?.elements?.namedItem("action")?.value || "montar").toLowerCase();
+  const suggestion = getSuggestedProgrammingContext(item || {}, action);
+  const options = suggestion.resourceOptions || [];
+  const rule = suggestion.rule;
+
+  if (!item || (!item.sku && !quickCandidates.length)) {
+    container.innerHTML = `<div class="programming-recommendation-empty">Selecione um item da fila, do MRP ou da carteira programada para ver o melhor recurso sugerido.</div>`;
+    return;
+  }
+
+  container.innerHTML = `
+    <div class="programming-recommendation-card">
+      <div class="programming-recommendation-copy">
+        <small>${action === "produzir" ? "Otimização de produção" : action === "montar" ? "Otimização de montagem" : "Planejamento operacional"}</small>
+        <strong>${item.sku || "Sem SKU"} · ${item.produto || item.descricao || "Item em preparação"}</strong>
+        <span>${rule ? `${rule.material_prima || "MP"} · ${rule.cavidades || 0} cavidades · molde ${rule.molde || "não informado"}` : "Sem regra específica da planilha para este SKU. Aplicando sugestão operacional da carteira."}</span>
+      </div>
+      <div class="programming-recommendation-metrics">
+        <div class="mini-card">
+          <small>Recurso líder</small>
+          <strong>${suggestion.assembly_line_code || "A definir"}</strong>
+        </div>
+        <div class="mini-card">
+          <small>Máquina</small>
+          <strong>${suggestion.workstation_code || "A definir"}</strong>
+        </div>
+        <div class="mini-card">
+          <small>Capacidade</small>
+          <strong>${number.format(options[0]?.pieces_per_hour || rule?.pecas_hora || 0)}</strong>
+        </div>
+      </div>
+      <div class="programming-recommendation-options">
+        ${(options.length ? options : []).slice(0, 4).map((option) => `
+          <button type="button" class="resource-suggestion-chip" data-programming-resource="${option.code}" data-programming-workstation="${option.workstationCode || deriveWorkstationFromResourceCode(option.code)}">
+            <strong>${option.code}</strong>
+            <span>${option.pieces_per_hour ? `${number.format(option.pieces_per_hour)} pç/h` : "recurso disponível"}</span>
+          </button>
+        `).join("")}
+      </div>
+    </div>
+  `;
+
+  container.querySelectorAll("[data-programming-resource]").forEach((button) => {
+    button.addEventListener("click", () => {
+      const form = document.getElementById("programming-form");
+      if (!form) {
+        return;
+      }
+      const lineField = form.elements.namedItem("assembly_line_code");
+      const workstationField = form.elements.namedItem("workstation_code");
+      const notesField = form.elements.namedItem("notes");
+      if (lineField) lineField.value = button.getAttribute("data-programming-resource") || "";
+      if (workstationField) workstationField.value = button.getAttribute("data-programming-workstation") || "";
+      if (notesField && !String(notesField.value || "").includes("Recurso sugerido")) {
+        notesField.value = [String(notesField.value || "").trim(), `Recurso sugerido ${button.getAttribute("data-programming-resource") || ""}`].filter(Boolean).join(" · ");
+      }
+      setElementStatus("programming-status", `Recurso ${button.getAttribute("data-programming-resource")} aplicado na programação.`, "success");
+    });
+  });
+}
+
 function renderProgramming(items) {
   const tbody = document.getElementById("programming-table");
   const board = document.getElementById("programming-board");
   const shortcuts = document.getElementById("programming-shortcuts");
-  if (!tbody || !board || !shortcuts) {
+  const summary = document.getElementById("programming-summary");
+  if (!tbody || !board || !shortcuts || !summary) {
     return;
   }
 
@@ -2659,6 +2894,32 @@ function renderProgramming(items) {
     .sort((left, right) => (Number(right.net_required) || 0) - (Number(left.net_required) || 0))
     .slice(0, 6);
 
+  const totals = {
+    itens: filtered.length,
+    montagem: filtered.filter((item) => item.action === "montar").length,
+    producao: filtered.filter((item) => item.action === "produzir").length,
+    compras: filtered.filter((item) => item.action === "comprar").length,
+    quantidade: sumBy(filtered, (item) => item.quantity_planned || 0),
+  };
+
+  summary.innerHTML = "";
+  [
+    ["Agenda", number.format(totals.itens)],
+    ["Montagem", number.format(totals.montagem)],
+    ["Produção", number.format(totals.producao)],
+    ["Compras", number.format(totals.compras)],
+    ["Qtd programada", number.format(totals.quantidade)],
+  ].forEach(([label, value]) => {
+    summary.appendChild(
+      el(`
+        <div class="mini-card">
+          <small>${label}</small>
+          <strong>${value}</strong>
+        </div>
+      `),
+    );
+  });
+
   shortcuts.innerHTML = "";
   if (!quickCandidates.length) {
     shortcuts.appendChild(emptyState("Nenhum atalho crítico para programação com os filtros atuais."));
@@ -2666,23 +2927,27 @@ function renderProgramming(items) {
     quickCandidates.forEach((item) => {
       const card = el(`
         <article class="programming-shortcut-card" title="Pré-preencher programação de ${item.sku}">
-          <small>${item.suggestedAction === "montar" ? "Fila de esteiras" : "Fila de extrusoras"}</small>
+          <small>${item.suggestedAction === "montar" ? "Fila de esteiras" : "Fila de produção"}</small>
           <strong>${item.sku}</strong>
           <span>${item.produto}</span>
-          <em>${number.format(item.net_required || 0)} un pend. · est. ${number.format(item.stock_available || 0)}</em>
+          <em>${number.format(item.net_required || 0)} un pend. · est. ${number.format(getOperationalStockForItem(item))}</em>
           <button type="button" class="btn btn-secondary btn-xs">Programar</button>
         </article>
       `);
       card.querySelector("button").addEventListener("click", () => {
+        const suggestion = getSuggestedProgrammingContext(item, item.suggestedAction);
         prefillProgrammingForm(
           { ...item, action: item.suggestedAction },
           {
-            assembly_line_code: item.suggestedAction === "montar" ? "LINHA-01" : "EXTR-01",
-            workstation_code: item.suggestedAction === "montar" ? "POSTO-A" : "MAQ-01",
+            assembly_line_code: suggestion.assembly_line_code,
+            workstation_code: suggestion.workstation_code,
+            notes: suggestion.notes,
             switchTab: true,
           },
         );
+        renderProgrammingRecommendation({ ...item, action: item.suggestedAction }, quickCandidates);
       });
+      card.addEventListener("mouseenter", () => renderProgrammingRecommendation({ ...item, action: item.suggestedAction }, quickCandidates));
       shortcuts.appendChild(card);
     });
   }
@@ -2708,10 +2973,16 @@ function renderProgramming(items) {
           </td>
         </tr>
       `);
-      row.addEventListener("click", () => prefillProgrammingForm(item, { switchTab: true }));
+      row.addEventListener("click", () => {
+        const suggestion = getSuggestedProgrammingContext(item, item.action);
+        prefillProgrammingForm(item, { ...suggestion, switchTab: true });
+        renderProgrammingRecommendation(item, quickCandidates);
+      });
       row.querySelector('[data-action="edit"]').addEventListener("click", (event) => {
         event.stopPropagation();
-        prefillProgrammingForm(item, { switchTab: true });
+        const suggestion = getSuggestedProgrammingContext(item, item.action);
+        prefillProgrammingForm(item, { ...suggestion, switchTab: true });
+        renderProgrammingRecommendation(item, quickCandidates);
       });
       tbody.appendChild(row);
     });
@@ -2759,13 +3030,25 @@ function renderProgramming(items) {
             <em>Disponível ${formatDateTimeWithFallback(item.available_at, "sem previsão")}</em>
           </article>
         `);
-        card.addEventListener("click", () => prefillProgrammingForm(item, { switchTab: true }));
+        card.addEventListener("click", () => {
+          prefillProgrammingForm(item, { ...getSuggestedProgrammingContext(item, item.action), switchTab: true });
+          renderProgrammingRecommendation(item, quickCandidates);
+        });
         laneBody.appendChild(card);
       });
     }
 
     board.appendChild(laneEl);
   });
+
+  const form = document.getElementById("programming-form");
+  const currentSku = normalizeSkuLookup(form?.elements?.namedItem("sku")?.value || "");
+  const draftMatch = quickCandidates.find((entry) => normalizeSkuLookup(entry.sku) === currentSku)
+    || filtered.find((entry) => normalizeSkuLookup(entry.sku) === currentSku)
+    || quickCandidates[0]
+    || filtered[0]
+    || null;
+  renderProgrammingRecommendation(draftMatch, quickCandidates);
 }
 
 function renderApontamento() {
@@ -3134,8 +3417,7 @@ function renderMrpTable(targetId, items) {
     tbody.appendChild(el(`<tr><td colspan="6" class="muted">Sem itens nesta fila com os dados atuais.</td></tr>`));
   } else {
     filtered.forEach((item, index) => {
-      const lineCode = action === "montar" ? `LINHA-${String((index % 2) + 1).padStart(2, "0")}` : `EXTR-${String((index % 6) + 1).padStart(2, "0")}`;
-      const workstationCode = action === "montar" ? `POSTO-${String.fromCharCode(65 + (index % 4))}` : `MAQ-0${(index % 6) + 1}`;
+      const suggestion = getSuggestedProgrammingContext(item, action);
       const row = el(`
         <tr class="interactive-row">
           <td>
@@ -3148,7 +3430,7 @@ function renderMrpTable(targetId, items) {
           </td>
           <td>${item.produto}</td>
           <td>${number.format(item.net_required)}</td>
-          <td>${number.format(item.stock_available)}</td>
+          <td>${number.format(getOperationalStockForItem(item))}</td>
           <td>${money.format(item.estimated_total_cost)}</td>
           <td>
             <div class="kanban-inline-actions">
@@ -3162,23 +3444,28 @@ function renderMrpTable(targetId, items) {
         prefillProgrammingForm(
           { ...item, action },
           {
-            assembly_line_code: lineCode,
-            workstation_code: workstationCode,
+            assembly_line_code: suggestion.assembly_line_code,
+            workstation_code: suggestion.workstation_code,
+            notes: suggestion.notes,
             switchTab: true,
           },
         );
+        renderProgrammingRecommendation({ ...item, action });
       });
       row.querySelector('[data-action="program"]').addEventListener("click", (event) => {
         event.stopPropagation();
         prefillProgrammingForm(
           { ...item, action },
           {
-            assembly_line_code: lineCode,
-            workstation_code: workstationCode,
+            assembly_line_code: suggestion.assembly_line_code,
+            workstation_code: suggestion.workstation_code,
+            notes: suggestion.notes,
             switchTab: true,
           },
         );
+        renderProgrammingRecommendation({ ...item, action });
       });
+      row.addEventListener("mouseenter", () => renderProgrammingRecommendation({ ...item, action }));
       tbody.appendChild(row);
     });
   }
@@ -3525,9 +3812,9 @@ function renderEstoqueAtual(items) {
 
   const totals = {
     skus: filtered.length,
-    estoque: sumBy(filtered, (item) => item.estoque_atual || 0),
-    disponiveis: filtered.filter((item) => Number(item.estoque_atual || 0) > 0).length,
-    criticos: filtered.filter((item) => Number(item.estoque_atual || 0) <= 0).length,
+    estoque: sumBy(filtered, (item) => getOperationalStockForItem(item)),
+    disponiveis: filtered.filter((item) => getOperationalStockForItem(item) > 0).length,
+    criticos: filtered.filter((item) => getOperationalStockForItem(item) <= 0).length,
   };
 
   summary.innerHTML = "";
@@ -3556,21 +3843,120 @@ function renderEstoqueAtual(items) {
   }
 
   filtered.forEach((item) => {
-    const stock = Number(item.estoque_atual || 0);
+    const stock = getOperationalStockForItem(item);
     const tone = stock <= 0 ? "high" : stock < 50 ? "warning" : "ok";
     const label = stock <= 0 ? "Sem saldo" : stock < 50 ? "Baixo" : "Disponível";
-    tbody.appendChild(
+    const row = el(`
+      <tr class="interactive-row">
+        <td><strong>${item.sku}</strong></td>
+        <td>${item.produto}</td>
+        <td>${formatProductType(item.tipo || item.product_type)}</td>
+        <td class="${stock <= 0 ? "text-warning" : ""}">${number.format(stock)}</td>
+        <td><span class="tag ${tone}">${label}</span></td>
+      </tr>
+    `);
+    row.addEventListener("click", () => prefillStockMovementForm(item));
+    tbody.appendChild(row);
+  });
+}
+
+function prefillStockMovementForm(item = {}) {
+  const form = document.getElementById("stock-movement-form");
+  if (!form) {
+    return;
+  }
+  const values = {
+    sku: item.sku || "",
+    produto: item.produto || "",
+    product_type: (item.tipo || item.product_type || "").toLowerCase(),
+    movement_type: "entrada",
+    quantity: "",
+    document_ref: "",
+    responsavel: state.currentUser?.full_name || "",
+    observacao: item.sku ? `Ajuste operacional para ${item.sku}.` : "",
+  };
+  Object.entries(values).forEach(([fieldName, value]) => {
+    const field = form.elements.namedItem(fieldName);
+    if (field) {
+      field.value = value;
+    }
+  });
+  setElementStatus("stock-movement-status", item.sku ? `Movimentação preparada para ${item.sku}.` : "Formulário pronto.", "success");
+}
+
+function renderStockMovements() {
+  const tbody = document.getElementById("stock-movement-table");
+  const summary = document.getElementById("stock-movement-summary");
+  if (!tbody || !summary) {
+    return;
+  }
+
+  const items = Array.isArray(state.stockMovements) ? state.stockMovements : [];
+  const totals = {
+    entradas: sumBy(items.filter((item) => item.movement_type === "entrada"), (item) => item.quantity || 0),
+    saidas: sumBy(items.filter((item) => item.movement_type === "saida"), (item) => item.quantity || 0),
+    movimentos: items.length,
+  };
+
+  summary.innerHTML = "";
+  [
+    ["Entradas", number.format(totals.entradas)],
+    ["Saídas", number.format(totals.saidas)],
+    ["Movimentos", number.format(totals.movimentos)],
+  ].forEach(([label, value]) => {
+    summary.appendChild(
       el(`
-        <tr class="interactive-row">
-          <td><strong>${item.sku}</strong></td>
-          <td>${item.produto}</td>
-          <td>${formatProductType(item.tipo || item.product_type)}</td>
-          <td class="${stock <= 0 ? "text-warning" : ""}">${number.format(stock)}</td>
-          <td><span class="tag ${tone}">${label}</span></td>
-        </tr>
+        <div class="mini-card">
+          <small>${label}</small>
+          <strong>${value}</strong>
+        </div>
       `),
     );
   });
+
+  tbody.innerHTML = "";
+  if (!items.length) {
+    tbody.appendChild(el(`<tr><td colspan="6" class="muted">Nenhuma movimentação registrada pelo almoxarifado ainda.</td></tr>`));
+    return;
+  }
+
+  items.slice(0, 14).forEach((item) => {
+    const row = el(`
+      <tr class="interactive-row">
+        <td>${formatDateTimeWithFallback(item.created_at, "Agora")}</td>
+        <td><strong>${item.sku}</strong><br /><span class="muted">${item.produto || "Produto não informado"}</span></td>
+        <td><span class="tag ${item.movement_type === "saida" ? "warning" : "ok"}">${item.movement_type === "saida" ? "Saída" : "Entrada"}</span></td>
+        <td>${number.format(item.quantity || 0)}</td>
+        <td>${item.document_ref || "-"}</td>
+        <td>${item.responsavel || "-"}</td>
+      </tr>
+    `);
+    row.addEventListener("click", () => prefillStockMovementForm(item));
+    tbody.appendChild(row);
+  });
+}
+
+async function salvarStockMovement(event) {
+  event.preventDefault();
+  try {
+    const form = event.currentTarget;
+    const payload = payloadFromForm(form);
+    if (!payload.sku || !payload.quantity) {
+      setElementStatus("stock-movement-status", "Informe SKU e quantidade para registrar o movimento.", "error");
+      return;
+    }
+    if (!payload.responsavel && state.currentUser) {
+      payload.responsavel = state.currentUser.full_name || state.currentUser.username;
+    }
+    const response = await postJson("/api/pcp/stock-movements/save", payload);
+    state.stockMovements = Array.isArray(response.items) ? response.items : state.stockMovements;
+    renderEstoqueAtual(state.datasets.painel);
+    renderStockMovements();
+    prefillStockMovementForm(response.movement || {});
+    setElementStatus("stock-movement-status", `Movimentação de ${payload.sku} registrada com sucesso.`, "success");
+  } catch (error) {
+    setElementStatus("stock-movement-status", error.message, "error");
+  }
 }
 
 async function salvarIntegracao(event) {
@@ -3700,6 +4086,7 @@ function prefillProgrammingForm(payload, options = {}) {
   }
 
   setElementStatus("programming-status", "Programação pré-preenchida a partir da fila operacional.", "success");
+  renderProgrammingRecommendation({ ...payload, ...suggestion });
 
   if (options.switchTab !== false) {
     window.location.hash = "#programacao";
@@ -3721,7 +4108,7 @@ function buildApontamentoQueue() {
       planned_start_at: item.planned_start_at,
       available_at: item.available_at,
       op_code: item.romaneio_reference || item.schedule_key || `OP-${item.sku}`,
-      machine_hint: item.workstation_code || item.assembly_line_code || "Máquina 1",
+      machine_hint: item.workstation_code || item.assembly_line_code || getSuggestedProgrammingContext(item, item.action).assembly_line_code || "Máquina 1",
       notes: item.notes || "",
       status: item.planning_status || "programado",
     }));
@@ -3755,7 +4142,7 @@ function buildApontamentoQueue() {
       planned_start_at: new Date().toISOString(),
       available_at: addHoursToIso(new Date().toISOString(), 8),
       op_code: `OP-${item.sku}`,
-      machine_hint: `Extrusora ${index + 1}`,
+      machine_hint: getSuggestedProgrammingContext(item, "produzir").assembly_line_code || `Célula ${index + 1}`,
       notes: "Sugestão automática da fila de produção.",
       status: "sugerido",
     })),
@@ -5396,6 +5783,8 @@ async function carregarTudo() {
     integrations,
     painel,
     users,
+    stockMovements,
+    productionRules,
   ] = await Promise.all([
     safeApi("/api/pcp/overview", { totals: {}, top_criticos: [] }, warnings),
     safeApi("/api/pcp/alerts", { items: [] }, warnings),
@@ -5412,6 +5801,8 @@ async function carregarTudo() {
     safeApi("/api/pcp/integrations", { items: [] }, warnings),
     safeApi("/api/pcp/painel", { items: [] }, warnings),
     safeApi("/api/pcp/users", { items: state.users || [] }, warnings),
+    safeApi("/api/pcp/stock-movements", { items: [], summary: {} }, warnings),
+    safeApi("/api/pcp/production-rules", { items: [], resource_catalog: [] }, warnings),
   ]);
 
   renderOverview(overview);
@@ -5426,6 +5817,8 @@ async function carregarTudo() {
   state.datasets.production = Array.isArray(production.items) ? production.items : [];
   state.datasets.painel = Array.isArray(painel.items) ? painel.items : [];
   state.integrations = Array.isArray(integrations.items) ? integrations.items : [];
+  state.stockMovements = Array.isArray(stockMovements.items) ? stockMovements.items : [];
+  state.productionRules = buildProductionRulesState(productionRules);
   saveUsers(mergeUsersWithDefault(users.items || []));
   refreshRomaneiosWorkspace();
   renderKanban(kanban);
@@ -5443,6 +5836,7 @@ async function carregarTudo() {
   renderIntegrations(state.integrations);
   renderPainel(painel.items);
   renderEstoqueAtual(state.datasets.painel);
+  renderStockMovements();
   renderUsersModule();
   renderCockpitReports({
     overview,
@@ -5481,7 +5875,18 @@ document.getElementById("run-mrp")?.addEventListener("click", dispararMrp);
 document.getElementById("reload-all")?.addEventListener("click", carregarTudo);
 document.getElementById("structure-form")?.addEventListener("submit", salvarEstrutura);
 document.getElementById("programming-form")?.addEventListener("submit", salvarProgramacao);
+document.getElementById("programming-form")?.addEventListener("input", () => renderProgrammingRecommendation({
+  sku: document.getElementById("programming-form")?.elements?.namedItem("sku")?.value || "",
+  produto: document.getElementById("programming-form")?.elements?.namedItem("produto")?.value || "",
+  action: document.getElementById("programming-form")?.elements?.namedItem("action")?.value || "montar",
+}));
+document.getElementById("programming-form")?.addEventListener("change", () => renderProgrammingRecommendation({
+  sku: document.getElementById("programming-form")?.elements?.namedItem("sku")?.value || "",
+  produto: document.getElementById("programming-form")?.elements?.namedItem("produto")?.value || "",
+  action: document.getElementById("programming-form")?.elements?.namedItem("action")?.value || "montar",
+}));
 document.getElementById("apontamento-form")?.addEventListener("submit", salvarApontamento);
+document.getElementById("stock-movement-form")?.addEventListener("submit", salvarStockMovement);
 document.getElementById("apontamento-form")?.elements.namedItem("maquina")?.addEventListener("change", (event) => {
   state.apontamentoSelecionado = event.target.value || state.apontamentoSelecionado;
   renderApontamento();
@@ -5514,6 +5919,10 @@ document.getElementById("stock-search-input")?.addEventListener("input", (event)
 document.getElementById("stock-type-filter")?.addEventListener("change", (event) => {
   state.estoqueFiltro = event.target.value || "";
   renderEstoqueAtual(state.datasets.painel);
+});
+document.getElementById("stock-movement-reset")?.addEventListener("click", () => {
+  document.getElementById("stock-movement-form")?.reset();
+  prefillStockMovementForm();
 });
 document.getElementById("kanban-status-filter")?.addEventListener("change", (event) => {
   state.kanbanStatusFilter = event.target.value || "todos";
