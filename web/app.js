@@ -528,10 +528,25 @@ function refreshHorizontalScroller(shell) {
   const hasOverflow = viewport.scrollWidth > viewport.clientWidth + 12;
   const atStart = viewport.scrollLeft <= 6;
   const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 6;
+  const isKanbanShell = shell.classList.contains("x-scroll-shell--kanban");
 
   shell.classList.toggle("is-scrollable", hasOverflow);
   leftButton.disabled = !hasOverflow || atStart;
   rightButton.disabled = !hasOverflow || atEnd;
+
+  if (isKanbanShell) {
+    const rect = shell.getBoundingClientRect();
+    const inView = rect.bottom > 120 && rect.top < window.innerHeight - 80;
+    const topPosition = Math.min(Math.max(window.innerHeight / 2, rect.top + 84), rect.bottom - 84);
+    const leftPosition = Math.max(rect.left + 12, 16);
+    const rightInset = Math.max(window.innerWidth - rect.right + 12, 16);
+
+    shell.classList.toggle("nav-in-view", inView);
+    leftButton.style.top = `${topPosition}px`;
+    rightButton.style.top = `${topPosition}px`;
+    leftButton.style.left = `${leftPosition}px`;
+    rightButton.style.right = `${rightInset}px`;
+  }
 }
 
 function ensureHorizontalScroller(node, shellClass = "") {
@@ -629,6 +644,10 @@ function ensureHorizontalScroller(node, shellClass = "") {
 function applyHorizontalScrollEnhancements(root = document) {
   root.querySelectorAll(".modern-table").forEach((table) => ensureHorizontalScroller(table, "x-scroll-shell--table"));
   ensureHorizontalScroller(document.getElementById("kanban-board"), "x-scroll-shell--kanban");
+  refreshHorizontalScrollers(root);
+}
+
+function refreshHorizontalScrollers(root = document) {
   root.querySelectorAll(".x-scroll-shell").forEach((shell) => refreshHorizontalScroller(shell));
 }
 
@@ -870,10 +889,13 @@ function renderHourlyHero(context) {
   }
   wrapper.innerHTML = `
     <article class="hourly-hero-copy">
-      <small class="hourly-kicker">H-H padrão do turno</small>
+      <small class="hourly-kicker">H-H padrão do turno ${helpTip(context.definition.queueCopy)}</small>
       <strong>${context.resource.label}</strong>
-      <p>${context.definition.queueCopy}</p>
-      <span>Operador-chave: ${context.operatorKey} · ${context.operatorsReal} operador(es) real(is) · ${number.format(context.queueTotal)} peças na carteira.</span>
+      <div class="hourly-hero-meta">
+        <span>Operador-chave: ${context.operatorKey}</span>
+        <span>${context.operatorsReal} operador(es)</span>
+        <span>${number.format(context.queueTotal)} peças na carteira</span>
+      </div>
     </article>
     <section class="hourly-kpi-grid">
       <div class="hourly-kpi">
@@ -955,8 +977,10 @@ function renderHourlyGrid(context) {
     <section class="hourly-grid-card">
       <div class="panel-header compact">
         <div>
-          <h3>Faixas do recurso</h3>
-          <span class="section-copy">Estrutura inspirada na aba H-H PADRÃO: intervalo, paradas, disponibilidade, operadores, produto e objetivo da faixa.</span>
+          <div class="title-with-help">
+            <h3>Faixas do recurso</h3>
+            ${helpTip("Estrutura inspirada na aba H-H PADRÃO: intervalo, paradas, disponibilidade, operadores, produto e objetivo da faixa.")}
+          </div>
         </div>
         <span class="status-badge info">${context.resource.lineCode}</span>
       </div>
@@ -1059,7 +1083,7 @@ function renderHourlySidebar(context) {
   }
 
   queue.innerHTML = context.queueItems.slice(0, 6).map((item) => `
-    <article class="hourly-queue-card ${item.sku === context.focusItem?.sku ? "active" : ""}" data-hourly-focus="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-sku="${item.sku}">
+    <article class="hourly-queue-card ${item.sku === context.focusItem?.sku ? "active" : ""}" data-hourly-focus="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-sku="${item.sku}" title="Selecionar ${item.sku}">
       <small>Fila priorizada</small>
       <strong>${item.sku} · ${item.produto}</strong>
       <span>${formatProductType(item.product_type)} · ${number.format(item.net_required || 0)} peças pendentes</span>
@@ -1098,13 +1122,15 @@ function renderHourlySidebar(context) {
   schedule.innerHTML = `
     <div class="panel-header compact">
       <div>
-        <h3>Agenda do recurso</h3>
-        <span class="section-copy">Programações já lançadas para ${context.resource.label}.</span>
+        <div class="title-with-help">
+          <h3>Agenda do recurso</h3>
+          ${helpTip(`Programações já lançadas para ${context.resource.label}.`)}
+        </div>
       </div>
       <span class="status-badge info">${number.format(context.programmingItems.length)}</span>
     </div>
     ${context.programmingItems.length ? context.programmingItems.map((entry) => `
-      <article class="hourly-schedule-card" data-hourly-entry="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-entry-sku="${entry.sku}">
+      <article class="hourly-schedule-card" data-hourly-entry="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-entry-sku="${entry.sku}" title="Editar programação de ${entry.sku}">
         <small>${entry.workstation_code || entry.assembly_line_code || context.resource.lineCode}</small>
         <strong>${entry.sku} · ${entry.produto}</strong>
         <span>${formatDateTimeWithFallback(entry.planned_start_at, "Sem início")} → ${formatDateTimeWithFallback(entry.available_at, "Sem disponibilidade")}</span>
@@ -1132,8 +1158,10 @@ function renderHourlySidebar(context) {
   legend.innerHTML = `
     <div class="panel-header compact">
       <div>
-        <h3>Legenda H-H</h3>
-        <span class="section-copy">Códigos da H-H PADRÃO usados para paradas planejadas e causas não planejadas.</span>
+        <div class="title-with-help">
+          <h3>Legenda H-H</h3>
+          ${helpTip("Códigos da H-H PADRÃO usados para paradas planejadas e causas não planejadas.")}
+        </div>
       </div>
     </div>
     <div class="hourly-legend-grid">
@@ -1790,6 +1818,19 @@ function el(html) {
   const template = document.createElement("template");
   template.innerHTML = html.trim();
   return template.content.firstElementChild;
+}
+
+function escapeHtmlAttr(value) {
+  return String(value ?? "")
+    .replace(/&/g, "&amp;")
+    .replace(/"/g, "&quot;")
+    .replace(/</g, "&lt;")
+    .replace(/>/g, "&gt;");
+}
+
+function helpTip(text, label = "i") {
+  const tooltip = escapeHtmlAttr(text);
+  return `<span class="help-tip" tabindex="0" data-tooltip="${tooltip}" aria-label="${tooltip}">${label}</span>`;
 }
 
 function renderOverview(data) {
@@ -2523,11 +2564,11 @@ function renderProgramming(items) {
   } else {
     quickCandidates.forEach((item) => {
       const card = el(`
-        <article class="programming-shortcut-card">
+        <article class="programming-shortcut-card" title="Pré-preencher programação de ${item.sku}">
           <small>${item.suggestedAction === "montar" ? "Fila de esteiras" : "Fila de extrusoras"}</small>
           <strong>${item.sku}</strong>
           <span>${item.produto}</span>
-          <em>${number.format(item.net_required || 0)} un pendentes · estoque ${number.format(item.stock_available || 0)}</em>
+          <em>${number.format(item.net_required || 0)} un pend. · est. ${number.format(item.stock_available || 0)}</em>
           <button type="button" class="btn btn-secondary btn-xs">Programar</button>
         </article>
       `);
@@ -2610,7 +2651,7 @@ function renderProgramming(items) {
     } else {
       laneItems.slice(0, 12).forEach((item) => {
         const card = el(`
-          <article class="programming-entry-card">
+          <article class="programming-entry-card" title="Editar programação de ${item.sku}">
             <small>${item.sku}</small>
             <strong>${item.produto}</strong>
             <span>${number.format(item.quantity_planned || 0)} un · ${item.assembly_line_code || item.workstation_code || "Sem recurso"}</span>
@@ -3848,18 +3889,20 @@ function syncKanbanInspectorHeader(viewMode, selectedCard) {
   const title = document.getElementById("kanban-inspector-title");
   const copy = document.getElementById("kanban-inspector-copy");
   const label = document.getElementById("kanban-selected-label");
-  const toggle = document.getElementById("kanban-inspector-toggle");
+  const toggles = Array.from(document.querySelectorAll("[data-kanban-inspector-toggle]"));
 
-  if (!title || !copy || !label || !toggle) {
+  if (!title || !copy || !label || !toggles.length) {
     return;
   }
 
   const isBoardMode = viewMode === "board";
   const isCollapsed = isBoardMode && state.kanbanInspectorCollapsed;
-  toggle.hidden = !isBoardMode;
-  toggle.textContent = isCollapsed ? "Abrir" : "Ocultar";
-  toggle.className = `btn ${isCollapsed ? "btn-primary" : "btn-secondary"} btn-xs`;
-  toggle.setAttribute("aria-label", isCollapsed ? "Abrir detalhes do romaneio" : "Recolher detalhes do romaneio");
+  toggles.forEach((toggle) => {
+    toggle.hidden = !isBoardMode;
+    toggle.textContent = isCollapsed ? "Estender detalhes" : "Recolher detalhes";
+    toggle.className = `btn ${isCollapsed ? "btn-primary" : "btn-secondary"} ${toggle.classList.contains("btn-xs") ? "btn-xs" : ""}`.trim();
+    toggle.setAttribute("aria-label", isCollapsed ? "Estender detalhes do romaneio" : "Recolher detalhes do romaneio");
+  });
 
   if (!selectedCard) {
     title.textContent = viewMode === "workbench" ? "Workbench Logístico" : "Detalhes do Romaneio";
@@ -5144,12 +5187,14 @@ document.getElementById("kanban-view-mode")?.addEventListener("change", (event) 
   }
   renderKanban(state.datasets.kanban);
 });
-document.getElementById("kanban-inspector-toggle")?.addEventListener("click", () => {
-  if (state.kanbanViewMode !== "board") {
-    return;
-  }
-  state.kanbanInspectorCollapsed = !state.kanbanInspectorCollapsed;
-  renderKanban(state.datasets.kanban);
+document.querySelectorAll("[data-kanban-inspector-toggle]").forEach((button) => {
+  button.addEventListener("click", () => {
+    if (state.kanbanViewMode !== "board") {
+      return;
+    }
+    state.kanbanInspectorCollapsed = !state.kanbanInspectorCollapsed;
+    renderKanban(state.datasets.kanban);
+  });
 });
 document.getElementById("kanban-reset-filters")?.addEventListener("click", () => {
   state.kanbanStatusFilter = "todos";
@@ -5175,8 +5220,11 @@ document.getElementById("sync-all-sources")?.addEventListener("click", () => {
   });
 });
 window.addEventListener("resize", () => {
-  applyHorizontalScrollEnhancements();
+  refreshHorizontalScrollers();
 });
+window.addEventListener("scroll", () => {
+  refreshHorizontalScrollers();
+}, { passive: true });
 configurarRomaneioIntake();
 ensureUsersStorage();
 state.sidebarCollapsed = loadSidebarPreference();

@@ -251,6 +251,7 @@
                   <option value="board">Modo Kanban</option>
                   <option value="workbench">Modo Workbench</option>
                 </select>
+                <button data-kanban-inspector-toggle type="button" class="btn btn-secondary">Recolher detalhes</button>
                 <select id="kanban-status-filter" class="input-mini">
                   <option value="todos">Todos os status</option>
                   <option value="sem_previsao">Sem previsão</option>
@@ -276,7 +277,6 @@
                     <p id="kanban-inspector-copy" class="section-copy">Selecione um romaneio no Kanban para visualizar carteira, produtos e programação.</p>
                   </div>
                   <div class="kanban-inspector-header-actions">
-                    <button id="kanban-inspector-toggle" type="button" class="btn btn-secondary btn-xs">Ocultar</button>
                     <span id="kanban-selected-label" class="status-badge info">Sem romaneio selecionado</span>
                   </div>
                 </div>
@@ -496,8 +496,10 @@
           <div id="programacao" class="view-module">
             <div class="module-header">
               <div class="header-titles">
-                <h2>Programação Operacional</h2>
-                <p>Programe manualmente montagem e extrusão com base na fila de MRP e nas prioridades da carteira logística.</p>
+                <div class="title-with-help">
+                  <h2>Programação Operacional</h2>
+                  <span class="help-tip" tabindex="0" data-tooltip="Programe montagem e extrusão com base na fila do MRP, romaneios e prioridades da carteira." aria-label="Ajuda da programação operacional">i</span>
+                </div>
               </div>
               <div class="filter-controls">
                 <select id="programming-action-filter" class="input-mini">
@@ -513,8 +515,10 @@
               <div class="glass-panel programming-form-panel">
                 <div class="panel-header">
                   <div>
-                    <h3>Programar atividade</h3>
-                    <p class="section-copy">Clique em uma esteira, extrusora, item do MRP ou romaneio para pré-preencher esta programação.</p>
+                    <div class="title-with-help">
+                      <h3>Programar atividade</h3>
+                      <span class="help-tip" tabindex="0" data-tooltip="Clique em uma esteira, extrusora, item do MRP ou romaneio para pré-preencher esta programação." aria-label="Ajuda da programação">i</span>
+                    </div>
                   </div>
                 </div>
                 <div class="form-container">
@@ -591,8 +595,10 @@
               <div class="glass-panel programming-board-panel">
                 <div class="panel-header">
                   <div>
-                    <h3>Carteira programada</h3>
-                    <p class="section-copy">Fila consolidada das programações gravadas e seus próximos slots operacionais.</p>
+                    <div class="title-with-help">
+                      <h3>Carteira programada</h3>
+                      <span class="help-tip" tabindex="0" data-tooltip="Fila consolidada das programações gravadas e seus próximos slots operacionais." aria-label="Ajuda da carteira programada">i</span>
+                    </div>
                   </div>
                 </div>
                 <div id="programming-board" class="programming-board"></div>
@@ -620,8 +626,10 @@
           <div id="apontamento" class="view-module">
             <div class="module-header">
               <div class="header-titles">
-                <h2>Apontamento de Produção</h2>
-                <p>Subinterface operacional dedicada para tablet, com fila do turno, execução da OP, paradas, perdas e histórico do operador.</p>
+                <div class="title-with-help">
+                  <h2>Apontamento de Produção</h2>
+                  <span class="help-tip" tabindex="0" data-tooltip="Subinterface operacional dedicada para tablet, com fila do turno, execução da OP, paradas, perdas e histórico do operador." aria-label="Ajuda do apontamento">i</span>
+                </div>
               </div>
               <div class="filter-controls aponta-toolbar">
                 <span id="apontamento-session-pill" class="status-badge info">Modo gestor</span>
@@ -632,16 +640,20 @@
             <section class="glass-panel aponta-shell">
               <div class="aponta-shell-copy">
                 <small class="aponta-kicker">Operação assistida</small>
-                <h3>Fila da fábrica, execução da OP e apontamento do operador no mesmo fluxo</h3>
-                <p>O operador escolhe a atividade, executa a OP, registra parada, perdas e fechamento sem precisar navegar por outros módulos.</p>
+                <div class="title-with-help">
+                  <h3>Fila da fábrica e execução da OP</h3>
+                  <span class="help-tip" tabindex="0" data-tooltip="O operador escolhe a atividade, executa a OP, registra parada, perdas e fechamento sem precisar navegar por outros módulos." aria-label="Ajuda do fluxo de apontamento">i</span>
+                </div>
               </div>
               <div id="apontamento-screen-tabs" class="aponta-screen-tabs"></div>
               <div class="aponta-tablet-layout">
                 <div class="glass-panel aponta-tablet-panel">
                   <div class="panel-header compact">
                     <div>
-                      <h3>Fila do Turno</h3>
-                      <span class="section-copy">Programações prontas para o operador assumir.</span>
+                      <div class="title-with-help">
+                        <h3>Fila do Turno</h3>
+                        <span class="help-tip" tabindex="0" data-tooltip="Programações prontas para o operador assumir." aria-label="Ajuda da fila do turno">i</span>
+                      </div>
                     </div>
                     <span id="apontamento-queue-count" class="status-badge info">0</span>
                   </div>
@@ -651,8 +663,10 @@
                 <div class="glass-panel aponta-tablet-panel">
                   <div class="panel-header compact">
                     <div>
-                      <h3>Execução da OP</h3>
-                      <span class="section-copy">Resumo vivo da OP, máquina e progresso da atividade.</span>
+                      <div class="title-with-help">
+                        <h3>Execução da OP</h3>
+                        <span class="help-tip" tabindex="0" data-tooltip="Resumo vivo da OP, máquina e progresso da atividade." aria-label="Ajuda da execução da OP">i</span>
+                      </div>
                     </div>
                     <span id="apontamento-stage-status" class="status-badge info">Resumo</span>
                   </div>
@@ -662,8 +676,10 @@
                 <div class="glass-panel aponta-tablet-panel">
                   <div class="panel-header compact">
                     <div>
-                      <h3>Máquinas e ações rápidas</h3>
-                      <span class="section-copy">Selecione a máquina e abra o evento correto para apontar.</span>
+                      <div class="title-with-help">
+                        <h3>Máquinas e ações rápidas</h3>
+                        <span class="help-tip" tabindex="0" data-tooltip="Selecione a máquina e abra o evento correto para apontar." aria-label="Ajuda das máquinas e ações rápidas">i</span>
+                      </div>
                     </div>
                   </div>
                   <div id="apontamento-operator-panel" class="aponta-operator-panel"></div>
@@ -764,8 +780,10 @@
           <div id="montagem" class="view-module full-height">
             <div class="module-header">
               <div class="header-titles">
-                <h2>Esteiras de Montagem | H-H Padrão</h2>
-                <p>Painel hora-a-hora para as 2 esteiras, com operador-chave, metas do turno, agenda do recurso e carteira de montagem.</p>
+                <div class="title-with-help">
+                  <h2>Esteiras de Montagem | H-H Padrão</h2>
+                  <span class="help-tip" tabindex="0" data-tooltip="Painel hora-a-hora para as esteiras, com operador-chave, metas do turno, agenda do recurso e carteira de montagem." aria-label="Ajuda das esteiras de montagem">i</span>
+                </div>
               </div>
             </div>
             <div class="hourly-shell" id="assembly-hourly-shell">
@@ -773,8 +791,10 @@
                 <div class="hourly-topbar">
                   <div>
                     <small class="hourly-kicker">H-H PADRÃO</small>
-                    <h3>Operação de montagem por faixa horária</h3>
-                    <p class="section-copy">Acompanhe intervalos, paradas planejadas, operadores reais, produto da faixa e objetivo do recurso selecionado.</p>
+                    <div class="title-with-help">
+                      <h3>Operação de montagem por faixa horária</h3>
+                      <span class="help-tip" tabindex="0" data-tooltip="Acompanhe intervalos, paradas planejadas, operadores reais, produto da faixa e objetivo do recurso selecionado." aria-label="Ajuda da operação de montagem">i</span>
+                    </div>
                   </div>
                   <div id="assembly-resource-switcher" class="hourly-resource-switcher"></div>
                 </div>
@@ -785,8 +805,10 @@
               <aside class="glass-panel hourly-sidebar">
                 <div class="panel-header compact">
                   <div>
-                    <h3>Carteira da Esteira</h3>
-                    <span class="section-copy">Selecione um item para liderar o turno e programar o próximo slot sem sair do módulo.</span>
+                    <div class="title-with-help">
+                      <h3>Carteira da Esteira</h3>
+                      <span class="help-tip" tabindex="0" data-tooltip="Selecione um item para liderar o turno e programar o próximo slot sem sair do módulo." aria-label="Ajuda da carteira da esteira">i</span>
+                    </div>
                   </div>
                 </div>
                 <div id="assembly-focus-card" class="hourly-focus-card"></div>
@@ -799,8 +821,10 @@
             
             <div class="glass-panel mt-4">
               <div class="panel-header">
-                <h3>Fila Operacional: Montagem</h3>
-                <p class="section-copy">Clique em um bloco da esteira ou em um item da fila para pré-programar a montagem.</p>
+                <div class="title-with-help">
+                  <h3>Fila Operacional: Montagem</h3>
+                  <span class="help-tip" tabindex="0" data-tooltip="Clique em um bloco da esteira ou em um item da fila para pré-programar a montagem." aria-label="Ajuda da fila operacional de montagem">i</span>
+                </div>
               </div>
               <table class="modern-table">
                 <thead>
@@ -822,8 +846,10 @@
           <div id="producao" class="view-module full-height">
             <div class="module-header">
               <div class="header-titles">
-                <h2>Produção | H-H Padrão</h2>
-                <p>Leitura hora-a-hora das 6 células de produção, espelhando a lógica de intervalos, paradas e objetivos do chão de fábrica.</p>
+                <div class="title-with-help">
+                  <h2>Produção | H-H Padrão</h2>
+                  <span class="help-tip" tabindex="0" data-tooltip="Leitura hora-a-hora das células de produção, espelhando a lógica de intervalos, paradas e objetivos do chão de fábrica." aria-label="Ajuda da produção">i</span>
+                </div>
               </div>
             </div>
             <div class="hourly-shell" id="production-hourly-shell">
@@ -831,8 +857,10 @@
                 <div class="hourly-topbar">
                   <div>
                     <small class="hourly-kicker">H-H PADRÃO</small>
-                    <h3>Execução produtiva por célula</h3>
-                    <p class="section-copy">Visualize o turno por faixa horária, distribua a carteira crítica e enxergue a disponibilidade real antes do apontamento.</p>
+                    <div class="title-with-help">
+                      <h3>Execução produtiva por célula</h3>
+                      <span class="help-tip" tabindex="0" data-tooltip="Visualize o turno por faixa horária, distribua a carteira crítica e enxergue a disponibilidade real antes do apontamento." aria-label="Ajuda da execução produtiva">i</span>
+                    </div>
                   </div>
                   <div id="production-resource-switcher" class="hourly-resource-switcher"></div>
                 </div>
@@ -843,8 +871,10 @@
               <aside class="glass-panel hourly-sidebar">
                 <div class="panel-header compact">
                   <div>
-                    <h3>Carteira da Célula</h3>
-                    <span class="section-copy">Escolha o item líder, confira o recurso e grave a próxima programação da fila produtiva.</span>
+                    <div class="title-with-help">
+                      <h3>Carteira da Célula</h3>
+                      <span class="help-tip" tabindex="0" data-tooltip="Escolha o item líder, confira o recurso e grave a próxima programação da fila produtiva." aria-label="Ajuda da carteira da célula">i</span>
+                    </div>
                   </div>
                 </div>
                 <div id="production-focus-card" class="hourly-focus-card"></div>
@@ -857,8 +887,10 @@
 
             <div class="glass-panel mt-4">
               <div class="panel-header">
-                <h3>Fila Operacional: Extrusão</h3>
-                <p class="section-copy">Clique em um bloco da extrusora ou em um item da fila para criar a programação da produção.</p>
+                <div class="title-with-help">
+                  <h3>Fila Operacional: Extrusão</h3>
+                  <span class="help-tip" tabindex="0" data-tooltip="Clique em um bloco da extrusora ou em um item da fila para criar a programação da produção." aria-label="Ajuda da fila operacional de extrusão">i</span>
+                </div>
               </div>
               <table class="modern-table">
                 <thead>

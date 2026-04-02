@@ -825,6 +825,83 @@
   }
   .module-header h2 { font-size: 1.8rem; margin-bottom: 4px; }
   .module-header p { color: var(--text-secondary); }
+  .title-with-help {
+      display: inline-flex;
+      align-items: center;
+      gap: 10px;
+      flex-wrap: wrap;
+  }
+  .help-tip {
+      position: relative;
+      display: inline-flex;
+      align-items: center;
+      justify-content: center;
+      width: 24px;
+      height: 24px;
+      border-radius: 999px;
+      border: 1px solid rgba(255,255,255,0.1);
+      background: rgba(255,255,255,0.04);
+      color: var(--text-secondary);
+      font-size: 0.75rem;
+      font-weight: 700;
+      cursor: help;
+      transition: var(--transition);
+      flex-shrink: 0;
+  }
+  .help-tip:hover,
+  .help-tip:focus-visible {
+      color: var(--text-primary);
+      border-color: rgba(80, 120, 255, 0.42);
+      background: rgba(80, 120, 255, 0.14);
+      outline: none;
+  }
+  .help-tip::after {
+      content: attr(data-tooltip);
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 10px);
+      transform: translate(-50%, 8px);
+      min-width: 220px;
+      max-width: min(320px, 56vw);
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(8, 13, 21, 0.96);
+      border: 1px solid rgba(255,255,255,0.08);
+      box-shadow: 0 18px 36px rgba(0,0,0,0.35);
+      color: var(--text-primary);
+      font-size: 0.78rem;
+      font-weight: 500;
+      line-height: 1.5;
+      opacity: 0;
+      pointer-events: none;
+      z-index: 60;
+      transition: opacity 160ms ease, transform 160ms ease;
+      white-space: normal;
+      text-align: left;
+  }
+  .help-tip::before {
+      content: "";
+      position: absolute;
+      left: 50%;
+      bottom: calc(100% + 4px);
+      width: 10px;
+      height: 10px;
+      background: rgba(8, 13, 21, 0.96);
+      border-left: 1px solid rgba(255,255,255,0.08);
+      border-top: 1px solid rgba(255,255,255,0.08);
+      transform: translateX(-50%) rotate(45deg);
+      opacity: 0;
+      pointer-events: none;
+      transition: opacity 160ms ease, transform 160ms ease;
+      z-index: 59;
+  }
+  .help-tip:hover::after,
+  .help-tip:focus-visible::after,
+  .help-tip:hover::before,
+  .help-tip:focus-visible::before {
+      opacity: 1;
+      transform: translate(-50%, 0);
+  }
   
   .kanban-board {
       display: flex;
@@ -1062,10 +1139,20 @@
       right: -18px;
   }
   .x-scroll-shell--kanban .x-scroll-nav {
-      top: 46%;
+      position: fixed;
+      top: 50vh;
       width: 58px;
       height: 58px;
+      z-index: 44;
       background: linear-gradient(180deg, rgba(12, 17, 27, 0.98), rgba(18, 27, 40, 0.96));
+  }
+  .x-scroll-shell--kanban:not(.nav-in-view) .x-scroll-nav {
+      opacity: 0;
+      pointer-events: none;
+  }
+  .x-scroll-shell--kanban.is-scrollable.nav-in-view .x-scroll-nav {
+      opacity: 0.92;
+      pointer-events: auto;
   }
   .x-scroll-shell--kanban .x-scroll-viewport {
       padding: 2px 18px 20px;
@@ -1688,6 +1775,7 @@
 
   .kanban-toolbar {
       display: flex;
+      flex-wrap: wrap;
       gap: 12px;
       align-items: center;
   }
@@ -2144,6 +2232,16 @@
   .aponta-machine-card {
       cursor: pointer;
   }
+  .programming-shortcut-card,
+  .programming-entry-card {
+      transition: var(--transition);
+  }
+  .programming-shortcut-card:hover,
+  .programming-entry-card:hover {
+      border-color: rgba(80, 120, 255, 0.32);
+      transform: translateY(-1px);
+      box-shadow: 0 12px 28px rgba(0, 0, 0, 0.18);
+  }
 
   .hourly-shell {
       display: grid;
@@ -2273,10 +2371,20 @@
         rgba(255, 255, 255, 0.03);
   }
 
-  .hourly-hero-copy p {
+  .hourly-hero-meta {
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+  }
+  .hourly-hero-meta span {
+      display: inline-flex;
+      align-items: center;
+      padding: 7px 10px;
+      border-radius: 999px;
+      background: rgba(255,255,255,0.05);
+      border: 1px solid rgba(255,255,255,0.08);
       color: var(--text-secondary);
-      line-height: 1.6;
-      max-width: 44ch;
+      font-size: 0.82rem;
   }
 
   .hourly-kpi-grid {
