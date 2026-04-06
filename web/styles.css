@@ -1185,7 +1185,7 @@
       min-width: 100%;
   }
   .x-scroll-shell--table .modern-table.x-scroll-track {
-      min-width: max(1460px, 100%);
+      min-width: max(1560px, 100%);
   }
   .x-scroll-nav {
       position: fixed;
@@ -1218,7 +1218,7 @@
       transform: translateY(-50%) scale(1.04);
   }
   .x-scroll-nav:disabled {
-      opacity: 0;
+      opacity: 0.32;
       pointer-events: none;
   }
   .x-scroll-nav--left {
@@ -2814,6 +2814,21 @@
   .hourly-status-chip.ready { color: var(--status-ok); }
   .hourly-status-chip.pending { color: var(--status-warning); }
   .hourly-status-chip.idle { color: var(--text-secondary); }
+  .hourly-status-chip.running {
+      color: var(--status-ok);
+      background: rgba(34, 197, 94, 0.14);
+      border-color: rgba(34, 197, 94, 0.24);
+  }
+  .hourly-status-chip.stopped {
+      color: #ffb4b4;
+      background: rgba(255, 99, 132, 0.14);
+      border-color: rgba(255, 99, 132, 0.24);
+  }
+  .hourly-status-chip.finished {
+      color: #9dd9ff;
+      background: rgba(56, 189, 248, 0.14);
+      border-color: rgba(56, 189, 248, 0.24);
+  }
 
   .hourly-focus-card,
   .hourly-queue-card,
@@ -2847,6 +2862,20 @@
       margin-top: 4px;
   }
 
+  .hourly-live-strip {
+      display: flex;
+      flex-wrap: wrap;
+      align-items: center;
+      gap: 10px;
+      margin-top: 4px;
+  }
+
+  .hourly-live-strip em {
+      color: var(--text-secondary);
+      font-style: normal;
+      font-size: 0.82rem;
+  }
+
   .hourly-focus-empty {
       padding: 20px;
       border-radius: 18px;
@@ -2878,6 +2907,24 @@
   .hourly-queue-card.active {
       border-color: rgba(80, 120, 255, 0.72);
       box-shadow: 0 0 0 1px rgba(80, 120, 255, 0.18);
+  }
+
+  .hourly-queue-card.state-running,
+  .aponta-queue-card.state-running {
+      border-color: rgba(34, 197, 94, 0.38);
+      background: linear-gradient(135deg, rgba(34,197,94,0.12), rgba(255,255,255,0.03));
+  }
+
+  .hourly-queue-card.state-stopped,
+  .aponta-queue-card.state-stopped {
+      border-color: rgba(255, 99, 132, 0.38);
+      background: linear-gradient(135deg, rgba(255,99,132,0.12), rgba(255,255,255,0.03));
+  }
+
+  .hourly-queue-card.state-finished,
+  .aponta-queue-card.state-finished {
+      border-color: rgba(56, 189, 248, 0.34);
+      background: linear-gradient(135deg, rgba(56,189,248,0.12), rgba(255,255,255,0.03));
   }
 
   .hourly-legend-grid {

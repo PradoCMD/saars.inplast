@@ -610,21 +610,28 @@ function refreshHorizontalScroller(shell) {
   const hasOverflow = viewport.scrollWidth > viewport.clientWidth + 12;
   const atStart = viewport.scrollLeft <= 6;
   const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 6;
+  const buttonWidth = 56;
 
   shell.classList.toggle("is-scrollable", hasOverflow);
   leftButton.disabled = !hasOverflow || atStart;
   rightButton.disabled = !hasOverflow || atEnd;
   const rect = shell.getBoundingClientRect();
-  const inView = hasOverflow && rect.bottom > 88 && rect.top < window.innerHeight - 72;
+  const inView = hasOverflow && rect.bottom > 24 && rect.top < window.innerHeight - 24;
   const topPosition = clamp(window.innerHeight / 2, 96, window.innerHeight - 96);
-  const leftPosition = Math.max(rect.left + 18, 18);
-  const rightInset = Math.max(window.innerWidth - rect.right + 18, 18);
+  const leftPosition = clamp(rect.left + 18, 18, Math.max(window.innerWidth - buttonWidth - 18, 18));
+  const rightPosition = clamp(
+    rect.right - buttonWidth - 18,
+    leftPosition + buttonWidth + 12,
+    Math.max(window.innerWidth - buttonWidth - 18, leftPosition + buttonWidth + 12),
+  );
 
   shell.classList.toggle("nav-in-view", inView);
   leftButton.style.top = `${topPosition}px`;
   rightButton.style.top = `${topPosition}px`;
   leftButton.style.left = `${leftPosition}px`;
-  rightButton.style.right = `${rightInset}px`;
+  leftButton.style.right = "auto";
+  rightButton.style.left = `${rightPosition}px`;
+  rightButton.style.right = "auto";
 }
 
 function ensureHorizontalScroller(node, shellClass = "") {
@@ -680,6 +687,7 @@ function ensureHorizontalScroller(node, shellClass = "") {
 
   const scrollStep = () => Math.max(viewport.clientWidth * 0.82, 240);
   let hoverTimer = null;
+  const scheduleRefresh = () => window.requestAnimationFrame(() => refreshHorizontalScroller(shell));
 
   const stopAutoScroll = () => {
     if (hoverTimer) {
@@ -715,6 +723,11 @@ function ensureHorizontalScroller(node, shellClass = "") {
   rightButton.addEventListener("mouseleave", stopAutoScroll);
   leftButton.addEventListener("blur", stopAutoScroll);
   rightButton.addEventListener("blur", stopAutoScroll);
+  if (!shell.dataset.scrollBound) {
+    window.addEventListener("scroll", scheduleRefresh, { passive: true });
+    window.addEventListener("resize", scheduleRefresh, { passive: true });
+    shell.dataset.scrollBound = "true";
+  }
   window.requestAnimationFrame(() => refreshHorizontalScroller(shell));
   return shell;
 }
@@ -743,9 +756,39 @@ function addHoursToIso(value, hours) {
   return parsed.toISOString();
 }
 
-function machineCodeFromLabel(value) {
+function legacyMachineCodeFromLabel(value) {
   const match = String(value || "").match(/(\d+)/);
   return match ? `MÁQ ${match[1]}` : String(value || "").toUpperCase();
+}
+
+function machineCodeFromLabel(value) {
+  const text = String(value || "").trim();
+  if (!text) {
+    return "";
+  }
+  const upper = text.toUpperCase();
+  const match = upper.match(/(\d{1,2})/);
+  if (/EXTRUSORA|EXTR/.test(upper) && match) {
+    return `EXTR-${String(match[1]).padStart(2, "0")}`;
+  }
+  if (/INJETORA|INJ/.test(upper) && match) {
+    return `INJ-${String(match[1]).padStart(2, "0")}`;
+  }
+  if (/ESTEIRA|LINHA/.test(upper) && match) {
+    return `EST-${String(match[1]).padStart(2, "0")}`;
+  }
+  if (/(MÁQ|MAQ|MAQUINA)/.test(upper) && match) {
+    return `MAQ-${String(match[1]).padStart(2, "0")}`;
+  }
+  return match ? `MAQ-${String(match[1]).padStart(2, "0")}` : upper;
+}
+
+function getMachineCodeAliases(value) {
+  return [...new Set([
+    machineCodeFromLabel(value),
+    legacyMachineCodeFromLabel(value),
+    String(value || "").trim().toUpperCase(),
+  ].filter(Boolean))];
 }
 
 function minutesFromClock(value) {
@@ -1039,11 +1082,240 @@ function matchesHourlyResource(entry, resource) {
 
 function getHourlyLogsForResource(resource) {
   const codes = new Set([
-    machineCodeFromLabel(resource.machineLabel),
-    machineCodeFromLabel(resource.label),
-    String(resource.workstationCode || "").toUpperCase(),
+    ...getMachineCodeAliases(resource.machineLabel),
+    ...getMachineCodeAliases(resource.label),
+    ...getMachineCodeAliases(resource.lineCode),
+    ...getMachineCodeAliases(resource.workstationCode),
+    ...((resource.aliases || []).flatMap((alias) => getMachineCodeAliases(alias))),
   ]);
   return (state.apontamentoLogs || []).filter((entry) => codes.has(String(entry.machine_code || "").toUpperCase()));
+}
+
+function getProgrammingEntryOpCode(entry, fallbackIndex = 0) {
+  return String(
+    entry?.op_code
+    || entry?.romaneio_reference
+    || entry?.schedule_key
+    || (entry?.sku ? `OP-${entry.sku}-${fallbackIndex + 1}` : `OP-${fallbackIndex + 1}`),
+  ).trim();
+}
+
+function getApontamentoLogsForOperation(opCode, sourceLogs = state.apontamentoLogs || []) {
+  const normalized = normalizeSkuLookup(opCode);
+  if (!normalized) {
+    return [];
+  }
+  return (sourceLogs || []).filter((entry) => normalizeSkuLookup(entry.op_code) === normalized);
+}
+
+function formatElapsedMinutes(totalMinutes) {
+  const safe = Math.max(Number(totalMinutes) || 0, 0);
+  const hours = Math.floor(safe / 60);
+  const minutes = safe % 60;
+  if (hours) {
+    return `${hours}h ${String(minutes).padStart(2, "0")}min`;
+  }
+  return `${minutes}min`;
+}
+
+function calculateRecentPieces(logs, windowMinutes = 60) {
+  const now = Date.now();
+  return sumBy((logs || []).filter((entry) => {
+    const createdAt = parseIsoDate(entry.created_at);
+    if (!createdAt) {
+      return false;
+    }
+    return now - createdAt.getTime() <= windowMinutes * 60 * 1000;
+  }), (entry) => entry.pieces);
+}
+
+function getOperationalStateMeta(latestLog, hasPlan, realizedPieces = 0, objectivePieces = 0) {
+  if (objectivePieces > 0 && realizedPieces >= objectivePieces) {
+    return { key: "finished", label: "Finalizada", tone: "info" };
+  }
+  if (latestLog) {
+    const eventType = String(latestLog.event_type || "").toLowerCase();
+    if (eventType === "parada") {
+      return { key: "stopped", label: "Parada", tone: "warning" };
+    }
+    if (eventType === "finalizar") {
+      return { key: "finished", label: "Finalizada", tone: "info" };
+    }
+    if (["iniciar", "apontar"].includes(eventType)) {
+      return { key: "running", label: "Em execucao", tone: "ok" };
+    }
+  }
+  if (hasPlan) {
+    return { key: "pending", label: "Programada", tone: "info" };
+  }
+  return { key: "idle", label: "Livre", tone: "info" };
+}
+
+function buildResourceOperationalState(resource, programmingItems, focusItem = null) {
+  const resourceLogs = getHourlyLogsForResource(resource);
+  const activeProgrammingItem = programmingItems.find((entry, index) => {
+    const opCode = getProgrammingEntryOpCode(entry, index);
+    const opLogs = getApontamentoLogsForOperation(opCode, resourceLogs);
+    return getOperationalStateMeta(opLogs[0] || null, true, sumBy(opLogs, (item) => item.pieces), Number(entry.quantity_planned || 0)).key !== "finished";
+  }) || programmingItems[0] || null;
+  const activeOpCode = activeProgrammingItem
+    ? getProgrammingEntryOpCode(activeProgrammingItem, programmingItems.indexOf(activeProgrammingItem))
+    : (focusItem?.sku ? `OP-${focusItem.sku}` : "");
+  const activeLogs = activeProgrammingItem ? getApontamentoLogsForOperation(activeOpCode, resourceLogs) : resourceLogs;
+  const latest = activeLogs[0] || resourceLogs[0] || null;
+  const objectivePieces = Number(activeProgrammingItem?.quantity_planned || focusItem?.net_required || 0);
+  const realizedPieces = sumBy(activeLogs, (entry) => entry.pieces);
+  const scrapPieces = sumBy(activeLogs, (entry) => entry.scrap);
+  const hourlyRate = calculateRecentPieces(resourceLogs, 60);
+  const remainingPieces = Math.max(objectivePieces - realizedPieces, 0);
+  const status = getOperationalStateMeta(latest, Boolean(activeProgrammingItem || focusItem), realizedPieces, objectivePieces);
+  let elapsedLabel = "Sem ciclo ativo";
+  if (latest?.created_at) {
+    const latestDate = parseIsoDate(latest.created_at);
+    if (latestDate) {
+      const elapsedMinutes = Math.max(Math.round((Date.now() - latestDate.getTime()) / 60000), 0);
+      elapsedLabel = `${status.label} ha ${formatElapsedMinutes(elapsedMinutes)}`;
+    }
+  }
+  let expectedFinishAt = activeProgrammingItem?.available_at || "";
+  if (hourlyRate > 0 && remainingPieces > 0) {
+    expectedFinishAt = new Date(Date.now() + (remainingPieces / hourlyRate) * 60 * 60 * 1000).toISOString();
+  }
+  const statusDetail = activeOpCode
+    ? `${activeOpCode} · ${remainingPieces > 0 ? `${number.format(remainingPieces)} pç restantes` : "lote atendido"}`
+    : "Sem OP carregada neste recurso.";
+
+  return {
+    activeProgrammingItem,
+    activeOpCode,
+    latest,
+    objectivePieces,
+    realizedPieces,
+    scrapPieces,
+    remainingPieces,
+    hourlyRate,
+    expectedFinishAt,
+    elapsedLabel,
+    status,
+    statusDetail,
+  };
+}
+
+function deriveQueueOperationalState(item) {
+  const logs = getApontamentoLogsForOperation(item.op_code);
+  const realizedPieces = sumBy(logs, (entry) => entry.pieces);
+  const scrapPieces = sumBy(logs, (entry) => entry.scrap);
+  const remainingPieces = Math.max(Number(item.quantity_planned || 0) - realizedPieces, 0);
+  const meta = getOperationalStateMeta(logs[0] || null, true, realizedPieces, Number(item.quantity_planned || 0));
+  return {
+    logs,
+    realizedPieces,
+    scrapPieces,
+    remainingPieces,
+    status: meta.label,
+    statusKey: meta.key,
+    tone: meta.tone,
+  };
+}
+
+function createApontamentoEntry(payload) {
+  const createdAt = new Date().toISOString();
+  return {
+    id: `log-${Date.now()}-${Math.random().toString(36).slice(2, 8)}`,
+    created_at: createdAt,
+    machine_code: machineCodeFromLabel(payload.maquina || payload.machine_code || ""),
+    operator: payload.operator,
+    event_type: payload.event_type,
+    op_code: payload.op_code || "",
+    pieces: Number(payload.pieces) || 0,
+    scrap: Number(payload.scrap) || 0,
+    stop_start: payload.stop_start || "",
+    stop_end: payload.stop_end || "",
+    reason: payload.reason || "",
+    time_range: formatTimeWithFallback(createdAt, "--:--"),
+  };
+}
+
+function refreshOperationalViews() {
+  renderApontamento();
+  ["montagem", "producao", "extrusao"].forEach((moduleKey) => renderHourlyModule(moduleKey));
+}
+
+function runOperationalQuickAction(moduleKey, context, eventType, selectedQueueItem = null) {
+  const operator = state.currentUser?.full_name || state.currentUser?.username || "Equipe do turno";
+  const activeItem = selectedQueueItem
+    || context.resourceState.activeProgrammingItem
+    || context.programmingItems[0]
+    || (context.focusItem ? {
+      sku: context.focusItem.sku,
+      produto: context.focusItem.produto,
+      quantity_planned: Number(context.focusItem.net_required || 0),
+      op_code: `OP-${context.focusItem.sku}`,
+    } : null);
+  const opCode = activeItem ? getProgrammingEntryOpCode(activeItem) : "";
+  const machineLabel = context.resource.label;
+  let payload = {
+    maquina: machineLabel,
+    operator,
+    event_type: eventType,
+    op_code: opCode,
+    pieces: 0,
+    scrap: 0,
+    stop_start: "",
+    stop_end: "",
+    reason: "",
+  };
+
+  if (eventType === "apontar") {
+    const suggestedPieces = String(Math.max(Math.round(context.resourceState.hourlyRate || 0), 1));
+    const piecesRaw = window.prompt(`Quantas peças deseja apontar em ${context.resource.label}?`, suggestedPieces);
+    if (piecesRaw === null) {
+      return;
+    }
+    const scrapRaw = window.prompt("Refugo desta leitura", "0");
+    if (scrapRaw === null) {
+      return;
+    }
+    payload = {
+      ...payload,
+      pieces: Number(String(piecesRaw).replace(",", ".")) || 0,
+      scrap: Number(String(scrapRaw).replace(",", ".")) || 0,
+      reason: "Apontamento rapido pelo painel operacional.",
+    };
+  } else if (eventType === "parada") {
+    const reason = window.prompt("Motivo da parada", "Aguardando material");
+    if (reason === null) {
+      return;
+    }
+    const minutesRaw = window.prompt("Duracao da parada em minutos", "15");
+    if (minutesRaw === null) {
+      return;
+    }
+    const minutes = Math.max(Number(String(minutesRaw).replace(",", ".")) || 0, 0);
+    const startDate = new Date();
+    const endDate = new Date(startDate.getTime() + minutes * 60 * 1000);
+    payload = {
+      ...payload,
+      reason,
+      stop_start: formatTimeWithFallback(startDate.toISOString(), "--:--"),
+      stop_end: formatTimeWithFallback(endDate.toISOString(), "--:--"),
+    };
+  } else if (eventType === "iniciar") {
+    payload.reason = `Inicio da OP ${opCode || "sem codigo"} em ${context.resource.label}.`;
+  } else if (eventType === "finalizar") {
+    payload.reason = `Fechamento da atividade em ${context.resource.label}.`;
+  }
+
+  const entry = createApontamentoEntry(payload);
+  saveApontamentoLogs([entry, ...state.apontamentoLogs]);
+  state.apontamentoSelecionado = machineLabel;
+  if (selectedQueueItem?.queue_key) {
+    state.apontamentoFilaSelecionada = selectedQueueItem.queue_key;
+  }
+  state.apontamentoScreen = apontaScreenFromEvent(eventType);
+  refreshOperationalViews();
+  setElementStatus(context.definition.statusId, `${formatStatusLabel(eventType)} registrado em ${context.resource.label}.`, "success");
+  setElementStatus("apontamento-status", `${formatStatusLabel(eventType)} registrado para ${context.resource.label}.`, "success");
 }
 
 function calculateStopDuration(entry) {
@@ -1129,7 +1401,8 @@ function getHourlyModuleContext(moduleKey) {
   const productiveMinutes = sumBy(HORA_HORA_INTERVALS, (interval) => durationBetweenClocks(interval.start, interval.end)) - plannedStopMinutes;
   const stoppedMinutes = sumBy(logs.filter((entry) => String(entry.event_type || "").toLowerCase() === "parada"), calculateStopDuration);
   const availability = productiveMinutes > 0 ? clamp((productiveMinutes - stoppedMinutes) / productiveMinutes, 0, 1) : 0;
-  const objectivePieces = sumBy(programmingItems, (entry) => entry.quantity_planned) || Number(focusItem?.net_required || 0);
+  const resourceState = buildResourceOperationalState(resource, programmingItems, focusItem);
+  const objectivePieces = resourceState.objectivePieces || sumBy(programmingItems, (entry) => entry.quantity_planned) || Number(focusItem?.net_required || 0);
   const operatorsReal = Math.max(resource.operators, new Set(logs.map((entry) => entry.operator).filter(Boolean)).size || 0);
   const queueTotal = sumBy(queueItems, (item) => item.net_required);
 
@@ -1151,6 +1424,7 @@ function getHourlyModuleContext(moduleKey) {
     objectivePieces,
     operatorsReal,
     queueTotal,
+    resourceState,
     operatorKey: state.currentUser?.full_name || "Equipe do turno",
   };
 }
@@ -1194,9 +1468,15 @@ function renderHourlyHero(context) {
         <span>Operador-chave: ${context.operatorKey}</span>
         <span>${context.operatorsReal} operador(es)</span>
         <span>${number.format(context.queueTotal)} peças na carteira</span>
+        <span class="hourly-status-chip ${context.resourceState.status.key}">${context.resourceState.status.label}</span>
       </div>
     </article>
     <section class="hourly-kpi-grid">
+      <div class="hourly-kpi hourly-kpi--live">
+        <small>Execução atual</small>
+        <strong>${context.resourceState.activeOpCode || "Sem OP"}</strong>
+        <span>${context.resourceState.statusDetail}</span>
+      </div>
       <div class="hourly-kpi">
         <small>Objetivo do recurso</small>
         <strong>${number.format(context.objectivePieces)}</strong>
@@ -1206,6 +1486,11 @@ function renderHourlyHero(context) {
         <small>Realizado</small>
         <strong>${number.format(context.realizedPieces)}</strong>
         <span>Peças já apontadas nesse recurso</span>
+      </div>
+      <div class="hourly-kpi">
+        <small>Contagem real</small>
+        <strong>${number.format(context.resourceState.hourlyRate)}</strong>
+        <span>${context.resourceState.elapsedLabel}</span>
       </div>
       <div class="hourly-kpi">
         <small>Disponibilidade</small>
@@ -1249,6 +1534,8 @@ function buildHourlyGridRows(context) {
       const minute = created.getHours() * 60 + created.getMinutes();
       return minute >= minutesFromClock(interval.start) && minute < minutesFromClock(interval.end);
     });
+    const latestIntervalLog = intervalLogs[0] || null;
+    const rowState = getOperationalStateMeta(latestIntervalLog, Boolean(entry), sumBy(intervalLogs, (log) => log.pieces), rowObjective);
     const defaults = getHourlyIntervalDefaults(interval);
     return {
       interval,
@@ -1259,7 +1546,8 @@ function buildHourlyGridRows(context) {
       rowRealized: sumBy(intervalLogs, (log) => log.pieces),
       rowScrap: sumBy(intervalLogs, (log) => log.scrap),
       rowRework: sumBy(intervalLogs.filter((log) => /retrabalho/i.test(String(log.reason || ""))), (log) => log.pieces),
-      rowStatus: entry ? "Programado" : "Livre",
+      rowStatus: rowState.label,
+      rowStatusKey: rowState.key,
     };
   });
   return intervalRows;
@@ -1322,7 +1610,7 @@ function renderHourlyGrid(context) {
               <td>${number.format(row.rowRealized)}</td>
               <td>${number.format(row.rowRework)}</td>
               <td>${number.format(row.rowScrap)}</td>
-              <td><span class="hourly-status-chip ${row.entry ? "ready" : "idle"}">${row.rowStatus}</span></td>
+              <td><span class="hourly-status-chip ${row.rowStatusKey}">${row.rowStatus}</span></td>
               <td>
                 <div class="kanban-inline-actions">
                   <button type="button" class="btn btn-secondary btn-xs" data-hourly-prefill="${context.moduleKey}" data-slot-index="${row.index}">
@@ -1364,6 +1652,10 @@ function renderHourlySidebar(context) {
       <small>Item líder do recurso</small>
       <strong>${context.focusItem.sku} · ${context.focusItem.produto}</strong>
       <span>${formatProductType(context.focusItem.product_type)} · criticidade ${String(context.focusItem.criticidade || "").toLowerCase()}</span>
+      <div class="hourly-live-strip">
+        <span class="hourly-status-chip ${context.resourceState.status.key}">${context.resourceState.status.label}</span>
+        <em>${context.resourceState.statusDetail}</em>
+      </div>
       <div class="hourly-focus-meta">
         <div>
           <small>Necessidade</small>
@@ -1372,6 +1664,14 @@ function renderHourlySidebar(context) {
         <div>
           <small>Estoque atual</small>
           <strong>${number.format(getOperationalStockForItem(context.focusItem))}</strong>
+        </div>
+        <div>
+          <small>Apontado na OP</small>
+          <strong>${number.format(context.resourceState.realizedPieces)}</strong>
+        </div>
+        <div>
+          <small>Previsão de término</small>
+          <strong>${formatDateTimeWithFallback(context.resourceState.expectedFinishAt, "Sem previsão")}</strong>
         </div>
       </div>
       ${machineHints.length ? `
@@ -1383,15 +1683,28 @@ function renderHourlySidebar(context) {
       <div class="hourly-focus-actions">
         <button type="button" class="btn btn-primary btn-sm" id="${context.definition.focusId}-quick-save">Programar líder agora</button>
         <button type="button" class="btn btn-secondary btn-sm" id="${context.definition.focusId}-open-form">Abrir Programação</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="${context.definition.focusId}-start">Iniciar</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="${context.definition.focusId}-point">Apontar</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="${context.definition.focusId}-stop">Parada</button>
+        <button type="button" class="btn btn-secondary btn-sm" id="${context.definition.focusId}-finish">Finalizar</button>
       </div>
     `;
     focus.querySelector(`#${context.definition.focusId}-quick-save`)?.addEventListener("click", () => saveHourlyLeader(context.moduleKey));
     focus.querySelector(`#${context.definition.focusId}-open-form`)?.addEventListener("click", () => prefillHourlySlot(context.moduleKey));
+    focus.querySelector(`#${context.definition.focusId}-start`)?.addEventListener("click", () => runOperationalQuickAction(context.moduleKey, context, "iniciar"));
+    focus.querySelector(`#${context.definition.focusId}-point`)?.addEventListener("click", () => runOperationalQuickAction(context.moduleKey, context, "apontar"));
+    focus.querySelector(`#${context.definition.focusId}-stop`)?.addEventListener("click", () => runOperationalQuickAction(context.moduleKey, context, "parada"));
+    focus.querySelector(`#${context.definition.focusId}-finish`)?.addEventListener("click", () => runOperationalQuickAction(context.moduleKey, context, "finalizar"));
   }
 
-  queue.innerHTML = context.queueItems.slice(0, 6).map((item) => `
-    <article class="hourly-queue-card ${item.sku === context.focusItem?.sku ? "active" : ""}" data-hourly-focus="${context.moduleKey}" data-sku="${item.sku}" title="Selecionar ${item.sku}">
-      <small>Fila priorizada</small>
+  queue.innerHTML = context.queueItems.slice(0, 6).map((item) => {
+    const operational = deriveQueueOperationalState({
+      op_code: `OP-${item.sku}`,
+      quantity_planned: Number(item.net_required || 0),
+    });
+    return `
+    <article class="hourly-queue-card ${item.sku === context.focusItem?.sku ? "active" : ""} state-${operational.statusKey}" data-hourly-focus="${context.moduleKey}" data-sku="${item.sku}" title="Selecionar ${item.sku}">
+      <small>${operational.status}</small>
       <strong>${item.sku} · ${item.produto}</strong>
       <span>${formatProductType(item.product_type)} · ${number.format(item.net_required || 0)} peças pendentes</span>
       <div class="hourly-queue-meta">
@@ -1404,11 +1717,13 @@ function renderHourlySidebar(context) {
           <strong>${money.format(item.estimated_total_cost || 0)}</strong>
         </div>
       </div>
+      <em>${number.format(operational.realizedPieces)} apontadas · ${number.format(operational.remainingPieces)} restantes</em>
       <div class="hourly-queue-actions">
         <button type="button" class="btn btn-secondary btn-xs" data-hourly-program="${context.moduleKey}" data-sku="${item.sku}">Pre-programar</button>
       </div>
     </article>
-  `).join("") || `<div class="hourly-focus-empty">Sem itens críticos nesta carteira com os filtros atuais.</div>`;
+  `;
+  }).join("") || `<div class="hourly-focus-empty">Sem itens críticos nesta carteira com os filtros atuais.</div>`;
 
   queue.querySelectorAll("[data-hourly-focus]").forEach((card) => {
     card.addEventListener("click", () => {
@@ -3407,28 +3722,28 @@ function renderApontamento() {
   } else {
     queueItems.forEach((item) => {
       const card = el(`
-        <article class="aponta-queue-card ${item.queue_key === state.apontamentoFilaSelecionada ? "selected" : ""}">
-          <small>${formatStatusLabel(item.status)} · ${formatDateTimeWithFallback(item.planned_start_at, "Agora")}</small>
+        <article class="aponta-queue-card ${item.queue_key === state.apontamentoFilaSelecionada ? "selected" : ""} state-${item.status_key || "pending"}">
+          <small>${item.status} · ${formatDateTimeWithFallback(item.planned_start_at, "Agora")}</small>
           <strong>${item.op_code}</strong>
           <span>${item.sku} · ${item.produto}</span>
-          <em>${number.format(item.quantity_planned || 0)} un · ${item.machine_hint}</em>
+          <em>${number.format(item.quantity_planned || 0)} un · ${item.machine_hint} · ${number.format(item.realized_pieces || 0)} apontadas</em>
           <button type="button" class="btn btn-secondary btn-xs">Assumir</button>
         </article>
       `);
       card.addEventListener("click", () => {
         state.apontamentoFilaSelecionada = item.queue_key;
+        if (item.machine_hint && machines.some((machine) => machine.maquina === item.machine_hint)) {
+          state.apontamentoSelecionado = item.machine_hint;
+        }
         renderApontamento();
       });
       card.querySelector("button").addEventListener("click", (event) => {
         event.stopPropagation();
         state.apontamentoFilaSelecionada = item.queue_key;
-        prefillApontamentoForm({
-          maquina: selectedMachine.maquina,
-          op_code: item.op_code,
-          event_type: "iniciar",
-          screen: "resumo",
-          reason: item.notes || "",
-        });
+        if (item.machine_hint && machines.some((machine) => machine.maquina === item.machine_hint)) {
+          state.apontamentoSelecionado = item.machine_hint;
+        }
+        renderApontamento();
       });
       queueList.appendChild(card);
     });
@@ -3470,19 +3785,25 @@ function renderApontamento() {
       `);
       card.addEventListener("click", () => {
         state.apontamentoSelecionado = item.maquina;
+        const definition = getHourlyModuleDefinition(item.moduleKey);
+        const matchedResource = definition?.resources?.find((resource) => resource.label === item.maquina);
+        if (matchedResource) {
+          getHourlySelection(item.moduleKey).resourceId = matchedResource.id;
+        }
         renderApontamento();
       });
       machineGrid.appendChild(card);
     });
 
+  const selectedMachineCodes = new Set(getMachineCodeAliases(selectedMachine.maquina));
   const machineLogs = state.apontamentoLogs
-    .filter((entry) => entry.machine_code === machineCodeFromLabel(selectedMachine.maquina))
+    .filter((entry) => selectedMachineCodes.has(String(entry.machine_code || "").toUpperCase()))
     .slice(0, 10);
 
   hourTable.innerHTML = "";
   buildApontamentoTableRows()
     .filter((item) => matchesSearch([item.maquina, item.motivo], searchQuery))
-    .filter((item) => item.maquina === machineCodeFromLabel(selectedMachine.maquina) || item.maquina === selectedMachine.maquina)
+    .filter((item) => selectedMachineCodes.has(String(item.maquina || "").toUpperCase()) || item.maquina === selectedMachine.maquina)
     .slice(0, 18)
     .forEach((item) => {
       hourTable.appendChild(
@@ -3525,13 +3846,14 @@ function renderApontamento() {
   operatorPanel.querySelectorAll("[data-event]").forEach((button) => {
     button.addEventListener("click", () => {
       const eventType = button.getAttribute("data-event");
-      prefillApontamentoForm({
-        maquina: selectedMachine.maquina,
-        op_code: selectedQueueItem?.op_code || "",
-        event_type: eventType,
-        screen: apontaScreenFromEvent(eventType),
-        reason: eventType === "parada" ? "Informe o motivo da parada." : "",
-      });
+      if (selectedMachine?.moduleKey) {
+        const matchedResource = getHourlyModuleDefinition(selectedMachine.moduleKey)?.resources?.find((resource) => resource.label === selectedMachine.maquina);
+        if (matchedResource) {
+          getHourlySelection(selectedMachine.moduleKey).resourceId = matchedResource.id;
+        }
+      }
+      const context = getHourlyModuleContext(selectedMachine.moduleKey || selectedQueueItem?.module_key || "montagem");
+      runOperationalQuickAction(context.moduleKey, context, eventType, selectedQueueItem);
     });
   });
 
@@ -4391,20 +4713,34 @@ function buildApontamentoQueue() {
   const queue = (state.datasets.programming || [])
     .filter((item) => ["montar", "produzir"].includes(String(item.action || "").toLowerCase()))
     .sort((left, right) => new Date(left.planned_start_at || 0) - new Date(right.planned_start_at || 0))
-    .map((item, index) => ({
-      queue_key: item.schedule_key || `${item.sku}-${item.planned_start_at || index}`,
-      sku: item.sku,
-      produto: item.produto,
-      action: item.action,
-      product_type: item.product_type,
-      quantity_planned: Number(item.quantity_planned || 0),
-      planned_start_at: item.planned_start_at,
-      available_at: item.available_at,
-      op_code: item.romaneio_reference || item.schedule_key || `OP-${item.sku}`,
-      machine_hint: item.workstation_code || item.assembly_line_code || getSuggestedProgrammingContext(item, item.action, item.action === "produzir" ? getProductionModuleKeyForItem(item) : "montagem").assembly_line_code || "Máquina 1",
-      notes: item.notes || "",
-      status: item.planning_status || "programado",
-    }));
+    .map((item, index) => {
+      const moduleKey = item.action === "produzir" ? getProductionModuleKeyForItem(item) : "montagem";
+      const definition = getHourlyModuleDefinition(moduleKey);
+      const resource = definition.resources.find((entry) => matchesHourlyResource(item, entry)) || definition.resources[0];
+      const opCode = getProgrammingEntryOpCode(item, index);
+      const operational = deriveQueueOperationalState({
+        op_code: opCode,
+        quantity_planned: Number(item.quantity_planned || 0),
+      });
+      return {
+        queue_key: item.schedule_key || `${item.sku}-${item.planned_start_at || index}`,
+        sku: item.sku,
+        produto: item.produto,
+        action: item.action,
+        module_key: moduleKey,
+        product_type: item.product_type,
+        quantity_planned: Number(item.quantity_planned || 0),
+        planned_start_at: item.planned_start_at,
+        available_at: item.available_at,
+        op_code: opCode,
+        machine_hint: resource?.label || item.workstation_code || item.assembly_line_code || getSuggestedProgrammingContext(item, item.action, moduleKey).assembly_line_code || "Recurso sem carga",
+        notes: item.notes || "",
+        status: operational.status,
+        status_key: operational.statusKey,
+        realized_pieces: operational.realizedPieces,
+        remaining_pieces: operational.remainingPieces,
+      };
+    });
 
   if (queue.length) {
     return queue;
@@ -4416,6 +4752,7 @@ function buildApontamentoQueue() {
       sku: item.sku,
       produto: item.produto,
       action: "montar",
+      module_key: "montagem",
       product_type: item.product_type || "acabado",
       quantity_planned: Number(item.net_required || 0),
       planned_start_at: new Date().toISOString(),
@@ -4424,59 +4761,78 @@ function buildApontamentoQueue() {
       machine_hint: `Esteira ${index + 1}`,
       notes: "Sugestão automática da fila de montagem.",
       status: "sugerido",
+      status_key: "pending",
+      realized_pieces: 0,
+      remaining_pieces: Number(item.net_required || 0),
     })),
     ...(state.datasets.production || []).slice(0, 4).map((item, index) => ({
       queue_key: `production-${item.sku}-${index}`,
       sku: item.sku,
       produto: item.produto,
       action: "produzir",
+      module_key: "producao",
       product_type: item.product_type || "intermediario",
       quantity_planned: Number(item.net_required || 0),
       planned_start_at: new Date().toISOString(),
       available_at: addHoursToIso(new Date().toISOString(), 8),
       op_code: `OP-${item.sku}`,
-      machine_hint: getSuggestedProgrammingContext(item, "produzir", "producao").assembly_line_code || `Injetora ${index + 1}`,
+      machine_hint: getSuggestedProgrammingContext(item, "produzir", "producao").resourceOptions?.[0]?.label || `Injetora ${index + 1}`,
       notes: "Sugestão automática da fila de injetoras.",
       status: "sugerido",
+      status_key: "pending",
+      realized_pieces: 0,
+      remaining_pieces: Number(item.net_required || 0),
+    })),
+    ...(state.datasets.extrusion || []).slice(0, 3).map((item, index) => ({
+      queue_key: `extrusion-${item.sku}-${index}`,
+      sku: item.sku,
+      produto: item.produto,
+      action: "produzir",
+      module_key: "extrusao",
+      product_type: item.product_type || "intermediario",
+      quantity_planned: Number(item.net_required || 0),
+      planned_start_at: new Date().toISOString(),
+      available_at: addHoursToIso(new Date().toISOString(), 8),
+      op_code: `OP-${item.sku}`,
+      machine_hint: getSuggestedProgrammingContext(item, "produzir", "extrusao").resourceOptions?.[0]?.label || `Extrusora ${index + 1}`,
+      notes: "Sugestão automática da fila de extrusão.",
+      status: "sugerido",
+      status_key: "pending",
+      realized_pieces: 0,
+      remaining_pieces: Number(item.net_required || 0),
     })),
   ];
 }
 
 function buildApontamentoMachines() {
-  return apontamentoMachines.map((machine) => {
-    const code = machineCodeFromLabel(machine.maquina);
-    const logs = state.apontamentoLogs.filter((entry) => entry.machine_code === code);
-    const totalPieces = sumBy(logs, (entry) => entry.pieces || 0);
-    const totalScrap = sumBy(logs, (entry) => entry.scrap || 0);
-    const latest = logs[0] || null;
-
-    let status = machine.status;
-    let tone = machine.tone;
-    if (latest) {
-      if (latest.event_type === "parada") {
-        status = "Parada";
-        tone = "warning";
-      } else if (latest.event_type === "finalizar") {
-        status = "Finalizada";
-        tone = "info";
-      } else {
-        status = "Produzindo";
-        tone = "ok";
-      }
-    }
-
-    return {
-      ...machine,
-      machineCode: code,
-      pecasRestantes: Math.max((Number(machine.pecasRestantes) || 0) - totalPieces, 0),
-      produzidoHora: latest ? Number(latest.pieces || 0) : machine.produzidoHora,
-      somaTurno: (Number(machine.somaTurno) || 0) + totalPieces,
-      totalScrap,
-      status,
-      tone,
-      latest,
-    };
-  });
+  return Object.values(HOURLY_MODULE_CONFIG).flatMap((definition) =>
+    definition.resources.map((resource) => {
+      const programmingItems = (state.datasets.programming || [])
+        .filter((entry) => String(entry.action || "").toLowerCase() === definition.action)
+        .filter((entry) => matchesHourlyResource(entry, resource))
+        .sort((left, right) => new Date(left.planned_start_at || 0) - new Date(right.planned_start_at || 0));
+      const datasetItems = state.datasets[definition.datasetKey] || [];
+      const resourceIndex = definition.resources.findIndex((entry) => entry.id === resource.id);
+      const fallbackItem = datasetItems[resourceIndex] || datasetItems[0] || null;
+      const operational = buildResourceOperationalState(resource, programmingItems, fallbackItem);
+      return {
+        maquina: resource.label,
+        produto: operational.activeProgrammingItem?.produto || fallbackItem?.produto || `${definition.title} aguardando carga`,
+        pecasRestantes: operational.remainingPieces,
+        produzidoHora: operational.hourlyRate,
+        somaTurno: operational.realizedPieces,
+        lote: operational.objectivePieces,
+        previstoTermino: operational.expectedFinishAt,
+        status: operational.status.label,
+        tone: operational.status.tone,
+        latest: operational.latest,
+        machineCode: machineCodeFromLabel(resource.label),
+        moduleKey: definition.moduleKey,
+        activeOpCode: operational.activeOpCode,
+        totalScrap: operational.scrapPieces,
+      };
+    }),
+  );
 }
 
 function buildApontamentoTableRows() {
@@ -6042,26 +6398,12 @@ function salvarApontamento(event) {
       throw new Error("Máquina, operador e tipo do evento são obrigatórios.");
     }
 
-    const machineCode = machineCodeFromLabel(payload.maquina);
-    const entry = {
-      id: `log-${Date.now()}`,
-      created_at: new Date().toISOString(),
-      machine_code: machineCode,
-      operator: payload.operator,
-      event_type: payload.event_type,
-      op_code: payload.op_code || "",
-      pieces: Number(payload.pieces) || 0,
-      scrap: Number(payload.scrap) || 0,
-      stop_start: payload.stop_start || "",
-      stop_end: payload.stop_end || "",
-      reason: payload.reason || "",
-      time_range: formatTimeWithFallback(new Date().toISOString(), "--:--"),
-    };
+    const entry = createApontamentoEntry(payload);
 
     saveApontamentoLogs([entry, ...state.apontamentoLogs]);
     state.apontamentoSelecionado = payload.maquina;
     state.apontamentoScreen = payload.event_type === "parada" ? "paradas" : "historico";
-    renderApontamento();
+    refreshOperationalViews();
     setElementStatus("apontamento-status", "Apontamento registrado no diário operacional.", "success");
     const currentMachine = payload.maquina;
     form.reset();
