@@ -37,6 +37,7 @@ class Settings:
     sync_api_token: str | None
     n8n_romaneios_webhook_url: str | None
     n8n_romaneios_webhook_token: str | None
+    n8n_romaneios_webhook_timeout_seconds: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -70,4 +71,7 @@ class Settings:
             sync_api_token=(os.getenv("PCP_SYNC_API_TOKEN") or "").strip() or None,
             n8n_romaneios_webhook_url=(os.getenv("PCP_N8N_ROMANEIOS_WEBHOOK_URL") or "").strip() or None,
             n8n_romaneios_webhook_token=(os.getenv("PCP_N8N_ROMANEIOS_WEBHOOK_TOKEN") or "").strip() or None,
+            n8n_romaneios_webhook_timeout_seconds=int(
+                (os.getenv("PCP_N8N_ROMANEIOS_WEBHOOK_TIMEOUT_SECONDS") or "180").strip() or "180"
+            ),
         )

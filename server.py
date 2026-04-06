@@ -355,7 +355,7 @@ def _call_integration_webhook(integration: dict) -> tuple[int, dict | list]:
 
     request = Request(webhook_url, data=body_bytes, headers=headers, method=method)
     try:
-        with urlopen(request, timeout=60) as response:
+        with urlopen(request, timeout=SETTINGS.n8n_romaneios_webhook_timeout_seconds) as response:
             status_code = getattr(response, "status", None) or response.getcode()
             raw_body = response.read().decode("utf-8") if response else ""
     except HTTPError as exc:
