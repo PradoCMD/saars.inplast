@@ -3994,6 +3994,12 @@ async function atualizarRomaneiosViaWebhook(integrationId = "") {
       state.romaneioSelecionado = String(response.refreshed_romaneios[0]);
     }
     await carregarTudo();
+    const refreshStatus = String(response.status || "").toLowerCase();
+    if (["accepted", "queued", "started", "processing", "running"].includes(refreshStatus)) {
+      const acceptedMessage = response.message || "Atualização aceita. O n8n seguirá processando em segundo plano.";
+      statusIds.forEach((id) => setElementStatus(id, acceptedMessage, "success"));
+      return response;
+    }
     const successCount = Number(response.count || response.received_records || 0);
     const errorCount = Array.isArray(response.errors) ? response.errors.length : 0;
     const message = errorCount

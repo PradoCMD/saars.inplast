@@ -372,6 +372,32 @@ def _call_integration_webhook(integration: dict) -> tuple[int, dict | list]:
         raise RuntimeError("Webhook de romaneios retornou uma resposta que não é JSON válido.") from exc
 
 
+def _is_async_refresh_ack(payload: dict | list) -> bool:
+    if not isinstance(payload, dict):
+        return False
+
+    status = str(payload.get("status") or payload.get("state") or payload.get("result") or "").strip().lower()
+    message = str(payload.get("message") or payload.get("detail") or "").strip().lower()
+    flags = [
+        payload.get("async"),
+        payload.get("accepted"),
+        payload.get("queued"),
+        payload.get("started"),
+        payload.get("processing"),
+    ]
+
+    if any(bool(flag) for flag in flags):
+        return True
+
+    if status in {"accepted", "queued", "started", "processing", "running"}:
+        return True
+
+    if "processamento iniciado" in message or "queued" in message or "accepted" in message:
+        return True
+
+    return False
+
+
 def refresh_romaneios_from_integration(payload: dict | None = None) -> dict:
     request_payload = payload or {}
     integration = _resolve_romaneio_integration(str(request_payload.get("integration_id") or "").strip() or None)
@@ -380,6 +406,34 @@ def refresh_romaneios_from_integration(payload: dict | None = None) -> dict:
 
     try:
         webhook_status, webhook_payload = _call_integration_webhook(integration)
+        if _is_async_refresh_ack(webhook_payload):
+            message = str(
+                webhook_payload.get("message")
+                or webhook_payload.get("detail")
+                or "Atualização aceita. O n8n seguirá processando em segundo plano."
+            ).strip()
+            PROVIDER.save_integration(
+                {
+                    "id": integration_id,
+                    "last_status": "accepted",
+                    "last_synced_at": synced_at,
+                    "last_error": "",
+                }
+            )
+            return {
+                "status": "accepted",
+                "count": 0,
+                "received_records": 0,
+                "refreshed_romaneios": [],
+                "message": message,
+                "integration": {
+                    "id": integration_id,
+                    "name": integration.get("name"),
+                    "integration_type": integration.get("integration_type"),
+                },
+                "webhook_status_code": webhook_status,
+            }
+
         parsed_records = normalize_webhook_romaneios(webhook_payload)
         if not parsed_records:
             raise RuntimeError("O webhook não retornou nenhum romaneio aproveitável para ingestão.")
