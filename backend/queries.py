@@ -871,19 +871,19 @@ select
     ops.ingest_romaneio_event_payload(
         (select source_code from chosen_source),
         jsonb_build_object(
-            'event_id', %s,
+            'event_id', %s::text,
             'event_type', 'delete',
             'event_at', %s::timestamptz,
             'romaneio', jsonb_build_object(
-                'codigo', %s,
-                'empresa', nullif(%s, ''),
+                'codigo', %s::text,
+                'empresa', nullif(%s::text, ''),
                 'itens', jsonb_build_array()
             )
         ),
         jsonb_build_object(
-            'deleted_by', nullif(%s, ''),
-            'reason', coalesce(nullif(%s, ''), 'manual_delete'),
-            'romaneio_code', %s
+            'deleted_by', nullif(%s::text, ''),
+            'reason', coalesce(nullif(%s::text, ''), 'manual_delete'),
+            'romaneio_code', %s::text
         )
     ) as ingest
 from chosen_source

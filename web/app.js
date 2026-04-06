@@ -583,25 +583,21 @@ function refreshHorizontalScroller(shell) {
   const hasOverflow = viewport.scrollWidth > viewport.clientWidth + 12;
   const atStart = viewport.scrollLeft <= 6;
   const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 6;
-  const isKanbanShell = shell.classList.contains("x-scroll-shell--kanban");
 
   shell.classList.toggle("is-scrollable", hasOverflow);
   leftButton.disabled = !hasOverflow || atStart;
   rightButton.disabled = !hasOverflow || atEnd;
+  const rect = shell.getBoundingClientRect();
+  const inView = hasOverflow && rect.bottom > 88 && rect.top < window.innerHeight - 72;
+  const topPosition = clamp(window.innerHeight / 2, 96, window.innerHeight - 96);
+  const leftPosition = Math.max(rect.left + 18, 18);
+  const rightInset = Math.max(window.innerWidth - rect.right + 18, 18);
 
-  if (isKanbanShell) {
-    const rect = shell.getBoundingClientRect();
-    const inView = rect.bottom > 120 && rect.top < window.innerHeight - 80;
-    const topPosition = Math.min(Math.max(window.innerHeight / 2, rect.top + 84), rect.bottom - 84);
-    const leftPosition = Math.max(rect.left + 12, 16);
-    const rightInset = Math.max(window.innerWidth - rect.right + 12, 16);
-
-    shell.classList.toggle("nav-in-view", inView);
-    leftButton.style.top = `${topPosition}px`;
-    rightButton.style.top = `${topPosition}px`;
-    leftButton.style.left = `${leftPosition}px`;
-    rightButton.style.right = `${rightInset}px`;
-  }
+  shell.classList.toggle("nav-in-view", inView);
+  leftButton.style.top = `${topPosition}px`;
+  rightButton.style.top = `${topPosition}px`;
+  leftButton.style.left = `${leftPosition}px`;
+  rightButton.style.right = `${rightInset}px`;
 }
 
 function ensureHorizontalScroller(node, shellClass = "") {
@@ -5694,6 +5690,8 @@ function rerenderOperationalViews() {
   renderHourlyModule("montagem");
   renderMrpTable("production-table", state.datasets.production);
   renderHourlyModule("producao");
+  renderMrpTable("extrusion-table", state.datasets.extrusion);
+  renderHourlyModule("extrusao");
   renderIntegrations(state.integrations);
   renderUsersModule();
   applyHorizontalScrollEnhancements();
@@ -6076,11 +6074,13 @@ async function carregarTudo() {
   };
   state.datasets.programming = Array.isArray(programming.items) ? programming.items : [];
   state.datasets.assembly = Array.isArray(assembly.items) ? assembly.items : [];
-  state.datasets.production = Array.isArray(production.items) ? production.items : [];
+  state.productionRules = buildProductionRulesState(productionRules);
+  const splitProduction = splitProductionDatasets(Array.isArray(production.items) ? production.items : []);
+  state.datasets.production = splitProduction.injetoras;
+  state.datasets.extrusion = splitProduction.extrusao;
   state.datasets.painel = Array.isArray(painel.items) ? painel.items : [];
   state.integrations = Array.isArray(integrations.items) ? integrations.items : [];
   state.stockMovements = Array.isArray(stockMovements.items) ? stockMovements.items : [];
-  state.productionRules = buildProductionRulesState(productionRules);
   saveUsers(mergeUsersWithDefault(users.items || []));
   refreshRomaneiosWorkspace();
   renderKanban(kanban);
@@ -6091,6 +6091,8 @@ async function carregarTudo() {
   renderHourlyModule("montagem");
   renderMrpTable("production-table", state.datasets.production);
   renderHourlyModule("producao");
+  renderMrpTable("extrusion-table", state.datasets.extrusion);
+  renderHourlyModule("extrusao");
   renderPurchases(purchases.items);
   renderRecycling(recycling.items);
   renderCosts(costs.items);
@@ -6228,6 +6230,8 @@ document.getElementById("assembly-toggle-sidebar")?.addEventListener("click", ()
 document.getElementById("assembly-toggle-table")?.addEventListener("click", () => toggleHourlyPanel("montagem", "tableCollapsed"));
 document.getElementById("production-toggle-sidebar")?.addEventListener("click", () => toggleHourlyPanel("producao", "sidebarCollapsed"));
 document.getElementById("production-toggle-table")?.addEventListener("click", () => toggleHourlyPanel("producao", "tableCollapsed"));
+document.getElementById("extrusion-toggle-sidebar")?.addEventListener("click", () => toggleHourlyPanel("extrusao", "sidebarCollapsed"));
+document.getElementById("extrusion-toggle-table")?.addEventListener("click", () => toggleHourlyPanel("extrusao", "tableCollapsed"));
 document.getElementById("apontamento-operator-mode")?.addEventListener("click", () => {
   setApontamentoOperatorMode(!state.apontamentoOperatorMode);
 });

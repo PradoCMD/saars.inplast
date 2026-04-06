@@ -19,14 +19,14 @@
             <h1>Operação, MRP e logística em um só posto de comando.</h1>
             <p>Entre com um usuário autorizado para programar romaneios, apontar produção e administrar acessos.</p>
           </div>
-          <div class="auth-highlights">
-            <div class="auth-highlight-card">
+            <div class="auth-highlights">
+              <div class="auth-highlight-card">
               <small>Kanban Logístico</small>
               <strong>Consulta por romaneio, até o romaneio e necessidade geral</strong>
             </div>
             <div class="auth-highlight-card">
               <small>Programação</small>
-              <strong>Esteiras, extrusoras e apontamento operando no mesmo fluxo</strong>
+              <strong>Esteiras, injetoras, extrusão e apontamento operando no mesmo fluxo</strong>
             </div>
           </div>
         </div>
@@ -104,7 +104,11 @@
           </a>
           <a href="#producao" class="nav-item">
             <span class="icon">🏭</span>
-            <span class="nav-label">Produção (Extrusoras)</span>
+            <span class="nav-label">Produção (Injetoras)</span>
+          </a>
+          <a href="#extrusao" class="nav-item">
+            <span class="icon">🧵</span>
+            <span class="nav-label">Extrusão</span>
           </a>
           <a href="#compras" class="nav-item">
             <span class="icon">🛒</span>
@@ -961,8 +965,8 @@
             <div class="module-header">
               <div class="header-titles">
                 <div class="title-with-help">
-                  <h2>Produção | H-H Padrão</h2>
-                  <span class="help-tip" tabindex="0" data-tooltip="Leitura hora-a-hora das células de produção, espelhando a lógica de intervalos, paradas e objetivos do chão de fábrica." aria-label="Ajuda da produção">i</span>
+                  <h2>Injetoras | H-H Padrão</h2>
+                  <span class="help-tip" tabindex="0" data-tooltip="Leitura hora-a-hora das injetoras, espelhando a lógica de intervalos, paradas e objetivos do chão de fábrica." aria-label="Ajuda das injetoras">i</span>
                 </div>
               </div>
               <div class="module-header-actions">
@@ -976,8 +980,8 @@
                   <div>
                     <small class="hourly-kicker">H-H PADRÃO</small>
                     <div class="title-with-help">
-                      <h3>Execução produtiva por célula</h3>
-                      <span class="help-tip" tabindex="0" data-tooltip="Visualize o turno por faixa horária, distribua a carteira crítica e enxergue a disponibilidade real antes do apontamento." aria-label="Ajuda da execução produtiva">i</span>
+                      <h3>Execução produtiva por injetora</h3>
+                      <span class="help-tip" tabindex="0" data-tooltip="Visualize o turno por faixa horária, distribua a carteira crítica e enxergue a disponibilidade real das seis injetoras antes do apontamento." aria-label="Ajuda da execução das injetoras">i</span>
                     </div>
                   </div>
                   <div id="production-resource-switcher" class="hourly-resource-switcher"></div>
@@ -990,8 +994,8 @@
                 <div class="panel-header compact">
                   <div>
                     <div class="title-with-help">
-                      <h3>Carteira da Célula</h3>
-                      <span class="help-tip" tabindex="0" data-tooltip="Escolha o item líder, confira o recurso e grave a próxima programação da fila produtiva." aria-label="Ajuda da carteira da célula">i</span>
+                      <h3>Carteira da Injetora</h3>
+                      <span class="help-tip" tabindex="0" data-tooltip="Escolha o item líder, confira o recurso e grave a próxima programação da fila das injetoras." aria-label="Ajuda da carteira da injetora">i</span>
                     </div>
                   </div>
                 </div>
@@ -1006,8 +1010,8 @@
             <div class="glass-panel mt-4 hourly-bottom-panel" id="production-bottom-panel">
               <div class="panel-header">
                 <div class="title-with-help">
-                  <h3>Fila Operacional: Extrusão</h3>
-                  <span class="help-tip" tabindex="0" data-tooltip="Clique em um bloco da extrusora ou em um item da fila para criar a programação da produção." aria-label="Ajuda da fila operacional de extrusão">i</span>
+                  <h3>Fila Operacional: Injetoras</h3>
+                  <span class="help-tip" tabindex="0" data-tooltip="Clique em um bloco da injetora ou em um item da fila para criar a programação da produção." aria-label="Ajuda da fila operacional das injetoras">i</span>
                 </div>
               </div>
               <table class="modern-table">
@@ -1022,6 +1026,75 @@
                   </tr>
                 </thead>
                 <tbody id="production-table"></tbody>
+              </table>
+            </div>
+          </div>
+
+          <div id="extrusao" class="view-module full-height">
+            <div class="module-header">
+              <div class="header-titles">
+                <div class="title-with-help">
+                  <h2>Extrusão | H-H Padrão</h2>
+                  <span class="help-tip" tabindex="0" data-tooltip="Leitura hora-a-hora das três extrusoras, com foco na fila de intermediários e disponibilidade do turno." aria-label="Ajuda da extrusão">i</span>
+                </div>
+              </div>
+              <div class="module-header-actions">
+                <button type="button" id="extrusion-toggle-sidebar" class="btn btn-secondary btn-xs">Recolher painel</button>
+                <button type="button" id="extrusion-toggle-table" class="btn btn-secondary btn-xs">Recolher fila</button>
+              </div>
+            </div>
+            <div class="hourly-shell" id="extrusion-hourly-shell">
+              <section class="glass-panel hourly-main">
+                <div class="hourly-topbar">
+                  <div>
+                    <small class="hourly-kicker">H-H PADRÃO</small>
+                    <div class="title-with-help">
+                      <h3>Execução produtiva por extrusora</h3>
+                      <span class="help-tip" tabindex="0" data-tooltip="Visualize o turno por faixa horária, distribua a carteira crítica e enxergue a disponibilidade real das três extrusoras." aria-label="Ajuda da execução da extrusão">i</span>
+                    </div>
+                  </div>
+                  <div id="extrusion-resource-switcher" class="hourly-resource-switcher"></div>
+                </div>
+                <div id="extrusion-hour-hero" class="hourly-hero"></div>
+                <div id="extrusion-hour-grid" class="hourly-grid-shell"></div>
+              </section>
+
+              <aside class="glass-panel hourly-sidebar">
+                <div class="panel-header compact">
+                  <div>
+                    <div class="title-with-help">
+                      <h3>Carteira da Extrusora</h3>
+                      <span class="help-tip" tabindex="0" data-tooltip="Escolha o item líder, confira o recurso e grave a próxima programação da fila de extrusão." aria-label="Ajuda da carteira da extrusora">i</span>
+                    </div>
+                  </div>
+                </div>
+                <div id="extrusion-focus-card" class="hourly-focus-card"></div>
+                <div id="extrusion-queue-list" class="hourly-queue-list"></div>
+                <div id="extrusion-schedule-list" class="hourly-schedule-list"></div>
+                <div id="extrusion-legend" class="hourly-legend"></div>
+                <span id="extrusion-hourly-status" class="status-msg"></span>
+              </aside>
+            </div>
+
+            <div class="glass-panel mt-4 hourly-bottom-panel" id="extrusion-bottom-panel">
+              <div class="panel-header">
+                <div class="title-with-help">
+                  <h3>Fila Operacional: Extrusão</h3>
+                  <span class="help-tip" tabindex="0" data-tooltip="Clique em um bloco da extrusora ou em um item da fila para criar a programação da extrusão." aria-label="Ajuda da fila operacional da extrusão">i</span>
+                </div>
+              </div>
+              <table class="modern-table">
+                <thead>
+                  <tr>
+                    <th>SKU / Produto</th>
+                    <th>Necessidade</th>
+                    <th>Estoque</th>
+                    <th>Custo</th>
+                    <th>Critico</th>
+                    <th>Ação</th>
+                  </tr>
+                </thead>
+                <tbody id="extrusion-table"></tbody>
               </table>
             </div>
           </div>

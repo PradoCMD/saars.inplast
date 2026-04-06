@@ -1185,33 +1185,33 @@
       min-width: 100%;
   }
   .x-scroll-nav {
-      position: absolute;
-      top: 50%;
+      position: fixed;
+      top: 50vh;
       transform: translateY(-50%);
-      width: 52px;
-      height: 52px;
+      width: 56px;
+      height: 56px;
       border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.08);
-      background: linear-gradient(180deg, rgba(11, 16, 23, 0.94), rgba(18, 27, 40, 0.94));
+      border: 1px solid rgba(255,255,255,0.28);
+      background: linear-gradient(180deg, rgba(255,255,255,0.24), rgba(226,232,240,0.16));
       color: var(--text-primary);
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      backdrop-filter: blur(18px);
-      box-shadow: 0 18px 34px rgba(0, 0, 0, 0.34);
+      backdrop-filter: blur(22px) saturate(120%);
+      box-shadow: 0 18px 36px rgba(3, 10, 22, 0.26);
       cursor: pointer;
-      z-index: 3;
+      z-index: 44;
       transition: opacity 180ms ease, transform 180ms ease, border-color 180ms ease, background 180ms ease;
       opacity: 0;
       pointer-events: none;
   }
-  .x-scroll-shell.is-scrollable .x-scroll-nav {
-      opacity: 0.88;
+  .x-scroll-shell.is-scrollable.nav-in-view .x-scroll-nav {
+      opacity: 0.94;
       pointer-events: auto;
   }
   .x-scroll-nav:hover {
-      border-color: rgba(59, 130, 246, 0.35);
-      background: linear-gradient(180deg, rgba(21, 33, 52, 0.98), rgba(15, 25, 41, 0.98));
+      border-color: rgba(255,255,255,0.42);
+      background: linear-gradient(180deg, rgba(255,255,255,0.3), rgba(226,232,240,0.2));
       transform: translateY(-50%) scale(1.04);
   }
   .x-scroll-nav:disabled {
@@ -1224,21 +1224,13 @@
   .x-scroll-nav--right {
       right: -18px;
   }
-  .x-scroll-shell--kanban .x-scroll-nav {
-      position: fixed;
-      top: 50vh;
-      width: 58px;
-      height: 58px;
-      z-index: 44;
-      background: linear-gradient(180deg, rgba(12, 17, 27, 0.98), rgba(18, 27, 40, 0.96));
-  }
-  .x-scroll-shell--kanban:not(.nav-in-view) .x-scroll-nav {
+  .x-scroll-shell:not(.nav-in-view) .x-scroll-nav {
       opacity: 0;
       pointer-events: none;
   }
-  .x-scroll-shell--kanban.is-scrollable.nav-in-view .x-scroll-nav {
-      opacity: 0.92;
-      pointer-events: auto;
+  .x-scroll-shell--kanban .x-scroll-nav {
+      width: 60px;
+      height: 60px;
   }
   .x-scroll-shell--kanban .x-scroll-viewport {
       padding: 2px 18px 20px;
