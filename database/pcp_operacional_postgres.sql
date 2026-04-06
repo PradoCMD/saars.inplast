@@ -27,7 +27,8 @@ create table if not exists ops.source_registry (
         'http_file',
         'api',
         'sql_pull',
-        'manual_load'
+        'manual_load',
+        'google_published_sheet'
     )),
     parser_name text,
     format_hint text,
@@ -40,6 +41,21 @@ create table if not exists ops.source_registry (
     created_at timestamptz not null default now(),
     updated_at timestamptz not null default now()
 );
+
+alter table ops.source_registry
+    drop constraint if exists source_registry_source_kind_check;
+
+alter table ops.source_registry
+    add constraint source_registry_source_kind_check
+    check (source_kind in (
+        'smb_file',
+        'sftp_file',
+        'http_file',
+        'api',
+        'sql_pull',
+        'manual_load',
+        'google_published_sheet'
+    ));
 
 create table if not exists ops.ingestion_run (
     run_id bigserial primary key,
