@@ -86,6 +86,7 @@ with last_event as (
     select distinct on ((meta_json->>'romaneio_code'))
         meta_json->>'romaneio_code' as romaneio_code,
         coalesce(meta_json->>'company_code', '') as company_code,
+        coalesce(meta_json->>'event_type', 'update') as event_type,
         status as status_evento,
         coalesce(reference_at, finished_at, received_at) as data_evento
     from ops.webhook_event
@@ -135,6 +136,8 @@ select
 from eta
 left join last_event e on e.romaneio_code = eta.romaneio
 left join last_manual_schedule ms on ms.romaneio_code = eta.romaneio
+where coalesce(e.event_type, 'update') <> 'delete'
+  and coalesce(eta.quantidade_total, 0) > 0
 order by coalesce(e.data_evento, eta.data_evento) desc, eta.romaneio desc
 """
 

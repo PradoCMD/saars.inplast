@@ -6243,6 +6243,17 @@ document.getElementById("sync-all-sources")?.addEventListener("click", () => {
 document.getElementById("refresh-romaneios")?.addEventListener("click", () => {
   atualizarRomaneiosViaWebhook().catch(() => {});
 });
+document.getElementById("romaneios-selection-toggle")?.addEventListener("click", () => {
+  toggleRomaneioSelectionMode();
+});
+document.getElementById("romaneios-select-all")?.addEventListener("click", () => {
+  toggleAllRomaneiosSelection();
+});
+document.getElementById("romaneios-delete-selected")?.addEventListener("click", () => {
+  excluirRomaneiosSelecionados().catch((error) => {
+    setElementStatus("romaneio-dropzone-status", error.message, "error");
+  });
+});
 document.getElementById("open-integracoes")?.addEventListener("click", () => {
   switchTab("#integracoes");
 });

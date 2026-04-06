@@ -390,7 +390,11 @@
               <div class="glass-panel scroll-y">
                 <div class="panel-header">
                   <h3>Romaneios Recebidos</h3>
-                  <div class="filter-controls">
+                  <div class="filter-controls romaneio-list-toolbar">
+                    <button id="romaneios-selection-toggle" type="button" class="btn btn-secondary btn-xs">Selecionar itens</button>
+                    <button id="romaneios-select-all" type="button" class="btn btn-secondary btn-xs" disabled>Marcar todos</button>
+                    <button id="romaneios-delete-selected" type="button" class="btn btn-secondary btn-xs" disabled>Excluir</button>
+                    <span id="romaneios-selection-counter" class="status-badge info">Seleção desativada</span>
                     <input id="romaneios-filter-input" type="text" placeholder="Filtrar romaneio, pedido ou arquivo..." class="input-mini">
                   </div>
                 </div>
