@@ -604,6 +604,11 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 self.send_json(HTTPStatus.OK, PROVIDER.save_stock_movement(payload))
                 return
 
+            if parsed.path == "/api/pcp/apontamento/save":
+                payload = self.read_json_body()
+                self.send_json(HTTPStatus.OK, PROVIDER.save_apontamento(payload))
+                return
+
             if parsed.path == "/api/pcp/auth/login":
                 payload = self.read_json_body()
                 username = str(payload.get("username") or "").strip()
@@ -768,6 +773,10 @@ class PcpApiHandler(BaseHTTPRequestHandler):
 
             if path == "/api/pcp/stock-movements":
                 self.send_json(HTTPStatus.OK, PROVIDER.stock_movements())
+                return
+
+            if path == "/api/pcp/apontamento/logs":
+                self.send_json(HTTPStatus.OK, PROVIDER.apontamento_logs())
                 return
 
             if path == "/api/pcp/production-rules":

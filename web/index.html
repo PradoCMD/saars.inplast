@@ -6,7 +6,7 @@
     <title>PCP Dashboard | Inplast</title>
     <link rel="preconnect" href="https://fonts.googleapis.com">
     <link rel="preconnect" href="https://fonts.gstatic.com" crossorigin>
-    <link href="https://fonts.googleapis.com/css2?family=Inter:wght@400;500;600;700&family=Outfit:wght@500;700&display=swap" rel="stylesheet">
+    <link href="https://fonts.googleapis.com/css2?family=Manrope:wght@400;500;600;700;800&family=Sora:wght@500;600;700;800&display=swap" rel="stylesheet">
     <link rel="stylesheet" href="/styles.css" />
   </head>
   <body class="dark-theme">
@@ -767,17 +767,18 @@
               <div class="aponta-shell-copy">
                 <small class="aponta-kicker">Operação assistida</small>
                 <div class="title-with-help">
-                  <h3>Fila da fábrica e execução da OP</h3>
-                  <span class="help-tip" tabindex="0" data-tooltip="O operador escolhe a atividade, executa a OP, registra parada, perdas e fechamento sem precisar navegar por outros módulos." aria-label="Ajuda do fluxo de apontamento">i</span>
+                  <h3>Mesa do operador e execução da OP</h3>
+                  <span class="help-tip" tabindex="0" data-tooltip="Referência de POD/chão de fábrica: o operador assume a ordem, inicia, aponta, registra parada e fecha a operação sem sair da estação." aria-label="Ajuda do fluxo de apontamento">i</span>
                 </div>
               </div>
+              <div id="apontamento-shell-metrics" class="aponta-shell-metrics"></div>
               <div id="apontamento-screen-tabs" class="aponta-screen-tabs"></div>
               <div class="aponta-tablet-layout">
                 <div class="glass-panel aponta-tablet-panel">
                   <div class="panel-header compact">
                     <div>
                       <div class="title-with-help">
-                        <h3>Fila do Turno</h3>
+                        <h3>Ordens prontas</h3>
                         <span class="help-tip" tabindex="0" data-tooltip="Programações prontas para o operador assumir." aria-label="Ajuda da fila do turno">i</span>
                       </div>
                     </div>
@@ -790,7 +791,7 @@
                   <div class="panel-header compact">
                     <div>
                       <div class="title-with-help">
-                        <h3>Execução da OP</h3>
+                        <h3>Mesa da OP</h3>
                         <span class="help-tip" tabindex="0" data-tooltip="Resumo vivo da OP, máquina e progresso da atividade." aria-label="Ajuda da execução da OP">i</span>
                       </div>
                     </div>
@@ -803,7 +804,7 @@
                   <div class="panel-header compact">
                     <div>
                       <div class="title-with-help">
-                        <h3>Máquinas e ações rápidas</h3>
+                        <h3>Recursos do turno</h3>
                         <span class="help-tip" tabindex="0" data-tooltip="Selecione a máquina e abra o evento correto para apontar." aria-label="Ajuda das máquinas e ações rápidas">i</span>
                       </div>
                     </div>

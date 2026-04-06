@@ -31,8 +31,8 @@
     --status-missing-bg: rgba(139, 148, 158, 0.15);
   
     /* Typography */
-    --font-heading: 'Outfit', sans-serif;
-    --font-body: 'Inter', sans-serif;
+    --font-heading: 'Sora', sans-serif;
+    --font-body: 'Manrope', sans-serif;
   
     /* Spacing & Structure */
     --sidebar-width: 260px;
@@ -1194,16 +1194,16 @@
       width: 56px;
       height: 56px;
       border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.38);
-      background: linear-gradient(180deg, rgba(255,255,255,0.34), rgba(237,242,247,0.22));
+      border: 1px solid rgba(255,255,255,0.54);
+      background: linear-gradient(180deg, rgba(255,255,255,0.48), rgba(243,244,246,0.26));
       color: var(--text-primary);
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      backdrop-filter: blur(22px) saturate(120%);
-      box-shadow: 0 18px 36px rgba(3, 10, 22, 0.26);
+      backdrop-filter: blur(24px) saturate(118%);
+      box-shadow: 0 18px 40px rgba(3, 10, 22, 0.3);
       cursor: pointer;
-      z-index: 44;
+      z-index: 84;
       transition: opacity 180ms ease, transform 180ms ease, border-color 180ms ease, background 180ms ease;
       opacity: 0;
       pointer-events: none;
@@ -1213,28 +1213,24 @@
       pointer-events: auto;
   }
   .x-scroll-nav:hover {
-      border-color: rgba(255,255,255,0.58);
-      background: linear-gradient(180deg, rgba(255,255,255,0.42), rgba(237,242,247,0.28));
+      border-color: rgba(255,255,255,0.76);
+      background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(237,242,247,0.32));
       transform: translateY(-50%) scale(1.04);
   }
   .x-scroll-nav:disabled {
-      opacity: 0.32;
-      pointer-events: none;
+      opacity: 0.58 !important;
+      pointer-events: auto;
+      cursor: default;
+      border-color: rgba(255,255,255,0.22);
+      background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(226,232,240,0.12));
   }
-  .x-scroll-nav--left {
-      left: -18px;
-  }
-  .x-scroll-nav--right {
-      right: -18px;
-  }
+  .x-scroll-nav--left { left: 18px; }
+  .x-scroll-nav--right { right: 18px; }
   .x-scroll-shell:not(.nav-in-view) .x-scroll-nav {
       opacity: 0;
       pointer-events: none;
   }
-  .x-scroll-shell--kanban .x-scroll-nav {
-      width: 60px;
-      height: 60px;
-  }
+  .x-scroll-shell--kanban .x-scroll-nav { width: 60px; height: 60px; }
   .x-scroll-shell--kanban .x-scroll-viewport {
       padding: 2px 18px 20px;
   }
@@ -1896,13 +1892,16 @@
       align-items: center;
       justify-content: space-between;
       gap: 16px;
-      padding: 14px 18px;
+      padding: 18px 20px;
       position: sticky;
       top: 10px;
       z-index: 7;
-      background: linear-gradient(135deg, rgba(11, 38, 92, 0.86), rgba(28, 37, 56, 0.92));
-      border: 1px solid rgba(116, 161, 255, 0.18);
-      box-shadow: 0 18px 40px rgba(6, 12, 24, 0.26);
+      border-radius: 24px;
+      background:
+        radial-gradient(circle at 20% 10%, rgba(116, 161, 255, 0.18), transparent 28%),
+        linear-gradient(135deg, rgba(11, 38, 92, 0.9), rgba(23, 34, 56, 0.94));
+      border: 1px solid rgba(143, 184, 255, 0.18);
+      box-shadow: 0 24px 54px rgba(6, 12, 24, 0.28);
   }
 
   .kanban-quickbar.is-empty {
@@ -1946,10 +1945,10 @@
       flex-direction: column;
       gap: 4px;
       min-width: 250px;
-      padding: 10px 14px;
-      border-radius: 16px;
-      background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(226,232,240,0.08));
-      border: 1px solid rgba(255,255,255,0.16);
+      padding: 12px 16px;
+      border-radius: 18px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.2), rgba(226,232,240,0.08));
+      border: 1px solid rgba(255,255,255,0.18);
   }
 
   .kanban-sync-state small {
@@ -3214,6 +3213,331 @@
       grid-template-columns: 1fr;
   }
 
+  .flow-progress {
+      position: relative;
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+  }
+
+  .flow-progress span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, rgba(113, 198, 255, 0.88), rgba(132, 255, 187, 0.92));
+      box-shadow: 0 0 18px rgba(132, 255, 187, 0.2);
+  }
+
+  .hourly-supervisor-strip {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-top: 8px;
+  }
+
+  .hourly-supervisor-pill {
+      padding: 14px 16px;
+      border-radius: 18px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.09), rgba(9, 16, 28, 0.18));
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+  }
+
+  .hourly-supervisor-pill small,
+  .hourly-focus-progress em {
+      color: var(--text-secondary);
+      font-size: 0.72rem;
+      font-style: normal;
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+  }
+
+  .hourly-supervisor-pill strong {
+      font-size: 1rem;
+      line-height: 1.25;
+  }
+
+  .hourly-supervisor-pill span {
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      line-height: 1.45;
+  }
+
+  .hourly-supervisor-pill.state-running {
+      border-color: rgba(34, 197, 94, 0.28);
+      background: linear-gradient(145deg, rgba(34, 197, 94, 0.16), rgba(255, 255, 255, 0.04));
+  }
+
+  .hourly-supervisor-pill.state-stopped {
+      border-color: rgba(248, 81, 73, 0.28);
+      background: linear-gradient(145deg, rgba(248, 81, 73, 0.14), rgba(255, 255, 255, 0.04));
+  }
+
+  .hourly-kpi--progress {
+      grid-column: span 2;
+  }
+
+  .hourly-kpi--progress .flow-progress {
+      margin: 4px 0 2px;
+  }
+
+  .hourly-focus-progress {
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+  }
+
+  .aponta-shell {
+      grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.15fr);
+      gap: 22px;
+      border-radius: 28px;
+      border: 1px solid rgba(151, 238, 176, 0.16);
+      box-shadow: 0 22px 64px rgba(4, 10, 24, 0.28);
+      background:
+        radial-gradient(circle at top left, rgba(118, 255, 159, 0.14), transparent 28%),
+        radial-gradient(circle at 82% 18%, rgba(131, 190, 255, 0.14), transparent 26%),
+        linear-gradient(135deg, rgba(12, 34, 23, 0.92) 0%, rgba(12, 22, 34, 0.92) 100%);
+  }
+
+  .aponta-shell-copy h3 {
+      font-size: clamp(1.85rem, 2.6vw, 2.45rem);
+      letter-spacing: -0.04em;
+  }
+
+  .aponta-shell-metrics {
+      display: grid;
+      grid-template-columns: repeat(4, minmax(0, 1fr));
+      gap: 14px;
+      align-self: stretch;
+  }
+
+  .aponta-shell-card {
+      padding: 16px 18px;
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.1);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(12, 16, 24, 0.18));
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+      min-height: 144px;
+      position: relative;
+      overflow: hidden;
+  }
+
+  .aponta-shell-card::after {
+      content: "";
+      position: absolute;
+      inset: auto -18% -48% 38%;
+      height: 120px;
+      border-radius: 999px;
+      background: radial-gradient(circle, rgba(110, 163, 255, 0.16), transparent 64%);
+      pointer-events: none;
+  }
+
+  .aponta-shell-card.is-live {
+      border-color: rgba(118, 255, 159, 0.22);
+      box-shadow: 0 0 0 1px rgba(118, 255, 159, 0.08);
+  }
+
+  .aponta-shell-card small {
+      color: rgba(219, 234, 254, 0.76);
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      font-size: 0.7rem;
+  }
+
+  .aponta-shell-card strong {
+      font-size: 1.2rem;
+      line-height: 1.2;
+  }
+
+  .aponta-shell-card span,
+  .aponta-shell-card em {
+      color: var(--text-secondary);
+      font-style: normal;
+      line-height: 1.45;
+  }
+
+  .aponta-shell-card--timer strong,
+  .aponta-stage-live strong,
+  .aponta-machine-live strong {
+      color: #9be29f;
+      font-variant-numeric: tabular-nums;
+  }
+
+  .aponta-shell-progress {
+      position: relative;
+      width: 100%;
+      height: 10px;
+      border-radius: 999px;
+      background: rgba(255, 255, 255, 0.08);
+      overflow: hidden;
+      margin-top: auto;
+  }
+
+  .aponta-shell-progress span {
+      display: block;
+      height: 100%;
+      border-radius: inherit;
+      background: linear-gradient(90deg, #7ea7ff 0%, #8ff5a0 100%);
+      box-shadow: 0 0 14px rgba(143, 245, 160, 0.22);
+  }
+
+  .aponta-tablet-panel {
+      border-radius: 24px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(180deg, rgba(8, 17, 27, 0.48), rgba(255, 255, 255, 0.04));
+  }
+
+  .aponta-queue-card,
+  .aponta-stage-row,
+  .aponta-operator-card,
+  .aponta-machine-card {
+      border-radius: 20px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.06), rgba(9, 14, 22, 0.16));
+  }
+
+  .aponta-queue-card.selected,
+  .aponta-stage-row.selected,
+  .aponta-machine-card.selected {
+      border-color: rgba(113, 198, 255, 0.58);
+      background: linear-gradient(145deg, rgba(113, 198, 255, 0.16), rgba(255, 255, 255, 0.04));
+      box-shadow: 0 0 0 1px rgba(113, 198, 255, 0.12);
+  }
+
+  .aponta-queue-metrics {
+      display: grid;
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 8px;
+      margin-top: 2px;
+  }
+
+  .aponta-queue-metrics b {
+      padding: 9px 10px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      font-size: 0.82rem;
+      line-height: 1.4;
+  }
+
+  .aponta-operator-panel {
+      grid-template-columns: repeat(3, minmax(0, 1fr));
+      gap: 12px;
+      margin-bottom: 18px;
+  }
+
+  .aponta-operator-card {
+      padding: 14px 16px;
+      min-height: 122px;
+  }
+
+  .aponta-operator-card.is-live {
+      border-color: rgba(143, 245, 160, 0.26);
+  }
+
+  .aponta-reason-strip {
+      grid-column: 1 / -1;
+      display: flex;
+      flex-wrap: wrap;
+      gap: 8px;
+      padding-top: 4px;
+    }
+
+  .aponta-reason-strip .btn {
+      min-height: 36px;
+      border-radius: 999px;
+  }
+
+  .aponta-machine-live {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 12px;
+      margin-bottom: 12px;
+      padding: 10px 12px;
+      border-radius: 14px;
+      background: rgba(255, 255, 255, 0.04);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+  }
+
+  .aponta-machine-live span {
+      color: var(--text-secondary);
+      font-size: 0.8rem;
+      line-height: 1.35;
+  }
+
+  .aponta-machine-card.is-live {
+      border-color: rgba(118, 255, 159, 0.28);
+      box-shadow: 0 16px 34px rgba(6, 24, 14, 0.14);
+  }
+
+  .aponta-stage-hero {
+      display: grid;
+      grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(180px, 0.85fr));
+      gap: 14px;
+      padding: 16px;
+      border-radius: 22px;
+      border: 1px solid rgba(255, 255, 255, 0.08);
+      background: linear-gradient(145deg, rgba(113, 198, 255, 0.14), rgba(255, 255, 255, 0.04));
+  }
+
+  .aponta-stage-hero.state-running {
+      border-color: rgba(118, 255, 159, 0.22);
+      background: linear-gradient(145deg, rgba(33, 163, 102, 0.2), rgba(255, 255, 255, 0.04));
+  }
+
+  .aponta-stage-hero.state-stopped {
+      border-color: rgba(248, 81, 73, 0.22);
+      background: linear-gradient(145deg, rgba(248, 81, 73, 0.16), rgba(255, 255, 255, 0.04));
+  }
+
+  .aponta-stage-live,
+  .aponta-stage-progress {
+      padding: 12px 14px;
+      border-radius: 18px;
+      background: rgba(6, 14, 24, 0.2);
+      border: 1px solid rgba(255, 255, 255, 0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 6px;
+      justify-content: center;
+  }
+
+  .aponta-stage-live small,
+  .aponta-stage-progress small {
+      color: var(--text-secondary);
+      text-transform: uppercase;
+      letter-spacing: 0.06em;
+      font-size: 0.72rem;
+  }
+
+  .aponta-stage-live span,
+  .aponta-stage-progress span {
+      color: var(--text-secondary);
+      font-size: 0.82rem;
+      line-height: 1.4;
+  }
+
+  .aponta-stage-progress .aponta-shell-progress {
+      margin-top: 2px;
+  }
+
+  .source-card {
+      border-radius: 18px;
+      background: linear-gradient(180deg, rgba(255, 255, 255, 0.045), rgba(12, 16, 24, 0.1));
+  }
+
+  .source-card-copy strong {
+      font-size: 1.02rem;
+  }
+
   @media (max-width: 1080px) {
       .auth-shell,
       .kanban-layout,
@@ -3224,7 +3548,10 @@
       .hourly-shell,
       .hourly-hero,
       .hourly-kpi-grid,
+      .hourly-supervisor-strip,
       .hourly-focus-meta,
+      .aponta-shell-metrics,
+      .aponta-queue-metrics,
       .hourly-queue-meta,
       .hourly-schedule-meta,
       .hourly-legend-grid,
@@ -3234,6 +3561,14 @@
       .auth-highlights,
       .kanban-workbench-toolbar {
           grid-template-columns: 1fr;
+      }
+
+      .aponta-stage-hero {
+          grid-template-columns: 1fr;
+      }
+
+      .hourly-kpi--progress {
+          grid-column: auto;
       }
 
       .kanban-quickbar {

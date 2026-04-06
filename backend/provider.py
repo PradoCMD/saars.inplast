@@ -55,6 +55,7 @@ PRODUCTION_RULES_PATH = Path(__file__).resolve().parent.parent / "data" / "produ
 
 APP_STATE_ROMANEIO_REFERENCE_KEY = "romaneio_reference_dates"
 APP_STATE_PRODUCTION_RULES_KEY = "production_machine_rules"
+APP_STATE_APONTAMENTO_LOGS_KEY = "apontamento_logs"
 
 
 def _normalize_bool(value: Any) -> bool:
@@ -238,6 +239,72 @@ def save_stock_movements(movements_path: Path, movements: list[dict[str, Any]]) 
     return sorted(sanitized, key=lambda item: item["created_at"], reverse=True)
 
 
+def _coerce_apontamento_log_record(raw: dict[str, Any]) -> dict[str, Any]:
+    created_at = str(raw.get("created_at") or datetime.now(timezone.utc).isoformat())
+    event_type = str(raw.get("event_type") or "apontar").strip().lower() or "apontar"
+    if event_type not in {"iniciar", "apontar", "parada", "finalizar"}:
+        event_type = "apontar"
+    return {
+        "id": str(raw.get("id") or f"apontamento-{created_at.replace(':', '').replace('-', '').replace('.', '')}"),
+        "created_at": created_at,
+        "machine_code": str(raw.get("machine_code") or raw.get("maquina") or "").strip().upper(),
+        "operator": str(raw.get("operator") or raw.get("responsavel") or "").strip(),
+        "event_type": event_type,
+        "op_code": str(raw.get("op_code") or "").strip().upper(),
+        "pieces": float(raw.get("pieces") or raw.get("pecas") or 0),
+        "scrap": float(raw.get("scrap") or raw.get("refugo") or 0),
+        "stop_start": str(raw.get("stop_start") or "").strip(),
+        "stop_end": str(raw.get("stop_end") or "").strip(),
+        "reason": str(raw.get("reason") or raw.get("motivo") or "").strip(),
+        "time_range": str(raw.get("time_range") or "").strip(),
+        "updated_at": str(raw.get("updated_at") or created_at),
+    }
+
+
+def load_apontamento_logs(logs_path: Path) -> list[dict[str, Any]]:
+    if logs_path.exists():
+        payload = json.loads(logs_path.read_text(encoding="utf-8"))
+        items = payload.get("items", payload) if isinstance(payload, dict) else payload
+        logs = [_coerce_apontamento_log_record(item) for item in items if item]
+    else:
+        logs = []
+    return sorted(logs, key=lambda item: item["created_at"], reverse=True)[:240]
+
+
+def save_apontamento_logs(logs_path: Path, logs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    sanitized = [_coerce_apontamento_log_record(item) for item in logs if item]
+    logs_path.parent.mkdir(parents=True, exist_ok=True)
+    logs_path.write_text(json.dumps({"items": sanitized}, ensure_ascii=False, indent=2), encoding="utf-8")
+    return sorted(sanitized, key=lambda item: item["created_at"], reverse=True)[:240]
+
+
+def summarize_apontamento_logs(items: list[dict[str, Any]]) -> dict[str, Any]:
+    latest_by_machine: dict[str, dict[str, Any]] = {}
+    for item in sorted(items, key=lambda entry: entry.get("created_at") or "", reverse=True):
+        machine_code = str(item.get("machine_code") or "").strip().upper()
+        if machine_code and machine_code not in latest_by_machine:
+            latest_by_machine[machine_code] = item
+
+    running = 0
+    stopped = 0
+    finished = 0
+    for entry in latest_by_machine.values():
+        event_type = str(entry.get("event_type") or "").strip().lower()
+        if event_type in {"iniciar", "apontar"}:
+            running += 1
+        elif event_type == "parada":
+            stopped += 1
+        elif event_type == "finalizar":
+            finished += 1
+
+    return {
+        "total": len(items),
+        "machines_running": running,
+        "machines_stopped": stopped,
+        "machines_finished": finished,
+    }
+
+
 def load_production_rules(path: Path = PRODUCTION_RULES_PATH) -> dict[str, Any]:
     if not path.exists():
         return {"items": [], "generated_at": "", "resource_catalog": []}
@@ -412,6 +479,10 @@ class DataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def apontamento_logs(self) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def production_rules(self) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -425,6 +496,10 @@ class DataProvider(ABC):
 
     @abstractmethod
     def save_stock_movement(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_apontamento(self, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
     @abstractmethod
@@ -475,6 +550,9 @@ class MockProvider(DataProvider):
 
     def _stock_movements_path(self) -> Path:
         return self.data_dir / "stock_movements.json"
+
+    def _apontamento_logs_path(self) -> Path:
+        return self.data_dir / "apontamento_logs.json"
 
     def overview(self, company_code: str | None = None) -> dict[str, Any]:
         return self._read_json("overview.json")
@@ -598,6 +676,10 @@ class MockProvider(DataProvider):
             },
         }
 
+    def apontamento_logs(self) -> dict[str, Any]:
+        items = load_apontamento_logs(self._apontamento_logs_path())
+        return {"items": items, "summary": summarize_apontamento_logs(items)}
+
     def production_rules(self) -> dict[str, Any]:
         return load_production_rules()
 
@@ -675,6 +757,22 @@ class MockProvider(DataProvider):
         )
         persisted = save_stock_movements(self._stock_movements_path(), [next_item, *load_stock_movements(self._stock_movements_path())])
         return {"status": "saved", "movement": next_item, "items": persisted}
+
+    def save_apontamento(self, payload: dict[str, Any]) -> dict[str, Any]:
+        next_item = _coerce_apontamento_log_record(
+            {
+                **payload,
+                "created_at": payload.get("created_at") or datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        persisted = save_apontamento_logs(self._apontamento_logs_path(), [next_item, *load_apontamento_logs(self._apontamento_logs_path())])
+        return {
+            "status": "saved",
+            "entry": next_item,
+            "items": persisted,
+            "summary": summarize_apontamento_logs(persisted),
+        }
 
     def authenticate_user(self, username: str, password: str) -> dict[str, Any] | None:
         users = load_app_users(self._users_path())
@@ -1311,6 +1409,13 @@ class PostgresProvider(DataProvider):
             },
         }
 
+    def apontamento_logs(self) -> dict[str, Any]:
+        payload = (self._get_app_document(APP_STATE_APONTAMENTO_LOGS_KEY) or {}).get("payload_json")
+        items = payload.get("items", payload) if isinstance(payload, dict) else payload
+        normalized = [_coerce_apontamento_log_record(item) for item in items if item] if isinstance(items, list) else []
+        normalized = sorted(normalized, key=lambda item: item["created_at"], reverse=True)[:240]
+        return {"items": normalized, "summary": summarize_apontamento_logs(normalized)}
+
     def production_rules(self) -> dict[str, Any]:
         payload = (self._get_app_document(APP_STATE_PRODUCTION_RULES_KEY) or {}).get("payload_json")
         if isinstance(payload, dict):
@@ -1392,6 +1497,35 @@ class PostgresProvider(DataProvider):
         persisted_item = self._upsert_stock_movement_record(next_item)
         persisted = self._fetchall(queries.APP_STOCK_MOVEMENTS_SELECT_SQL)
         return {"status": "saved", "movement": persisted_item, "items": persisted}
+
+    def save_apontamento(self, payload: dict[str, Any]) -> dict[str, Any]:
+        next_item = _coerce_apontamento_log_record(
+            {
+                **payload,
+                "created_at": payload.get("created_at") or datetime.now(timezone.utc).isoformat(),
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+            }
+        )
+        current = self.apontamento_logs().get("items", [])
+        persisted = [next_item, *[item for item in current if item.get("id") != next_item["id"]]]
+        persisted = sorted(persisted, key=lambda item: item["created_at"], reverse=True)[:240]
+        self._upsert_app_document(
+            APP_STATE_APONTAMENTO_LOGS_KEY,
+            {"items": persisted},
+            source_label="ops.apontamento",
+            source_hash=hashlib.sha256(json.dumps(persisted, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest(),
+            doc_type="json",
+            meta={
+                "updated_via": "app_apontamento",
+                "count": len(persisted),
+            },
+        )
+        return {
+            "status": "saved",
+            "entry": next_item,
+            "items": persisted,
+            "summary": summarize_apontamento_logs(persisted),
+        }
 
     def authenticate_user(self, username: str, password: str) -> dict[str, Any] | None:
         normalized = str(username or "").strip().lower()

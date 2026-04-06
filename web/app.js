@@ -135,6 +135,7 @@ let romaneioSyncTimerId = null;
 let romaneioSyncPollId = null;
 let romaneioSyncDeadlineAt = 0;
 let romaneioSyncPollInFlight = false;
+let liveElapsedTickerId = null;
 
 const PARADAS_PLANEJADAS = [
   { code: "P1", label: "Cafe", minutes: 10 },
@@ -258,6 +259,18 @@ function parseDateValue(value) {
   if (/^\d{4}-\d{2}-\d{2}$/.test(text)) {
     return new Date(`${text}T12:00:00${APP_FIXED_OFFSET}`);
   }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}$/.test(text)) {
+    return new Date(`${text}:00${APP_FIXED_OFFSET}`);
+  }
+  if (/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}:\d{2}$/.test(text)) {
+    return new Date(`${text}${APP_FIXED_OFFSET}`);
+  }
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}$/.test(text)) {
+    return new Date(`${text.replace(" ", "T")}:00${APP_FIXED_OFFSET}`);
+  }
+  if (/^\d{4}-\d{2}-\d{2} \d{2}:\d{2}:\d{2}(?:\.\d+)?$/.test(text)) {
+    return new Date(`${text.replace(" ", "T").replace(/\.\d+$/, "")}${APP_FIXED_OFFSET}`);
+  }
   const parsed = new Date(text);
   if (Number.isNaN(parsed.getTime())) {
     return null;
@@ -331,6 +344,14 @@ function startOfToday() {
 
 function getAppTodayDateKey() {
   const parts = getAppTimeParts(new Date());
+  if (!parts) {
+    return "";
+  }
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function toAppDateKey(value) {
+  const parts = getAppTimeParts(value);
   if (!parts) {
     return "";
   }
@@ -611,19 +632,20 @@ function refreshHorizontalScroller(shell) {
   const atStart = viewport.scrollLeft <= 6;
   const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 6;
   const buttonWidth = 56;
+  const viewportPadding = window.innerWidth <= 1080 ? 10 : 22;
 
   shell.classList.toggle("is-scrollable", hasOverflow);
   leftButton.disabled = !hasOverflow || atStart;
   rightButton.disabled = !hasOverflow || atEnd;
   const rect = shell.getBoundingClientRect();
   const inView = hasOverflow && rect.bottom > 24 && rect.top < window.innerHeight - 24;
-  const topPosition = clamp(window.innerHeight / 2, 96, window.innerHeight - 96);
-  const leftPosition = clamp(rect.left + 18, 18, Math.max(window.innerWidth - buttonWidth - 18, 18));
-  const rightPosition = clamp(
-    rect.right - buttonWidth - 18,
-    leftPosition + buttonWidth + 12,
-    Math.max(window.innerWidth - buttonWidth - 18, leftPosition + buttonWidth + 12),
-  );
+  const visibleTop = clamp(Math.max(rect.top, 108), 108, Math.max(window.innerHeight - 108, 108));
+  const visibleBottom = clamp(Math.min(rect.bottom, window.innerHeight - 108), visibleTop, Math.max(window.innerHeight - 108, visibleTop));
+  const topPosition = clamp((visibleTop + visibleBottom) / 2, 108, window.innerHeight - 108);
+  const visibleLeft = clamp(rect.left, viewportPadding, window.innerWidth - buttonWidth - viewportPadding);
+  const visibleRight = clamp(rect.right - buttonWidth, visibleLeft + buttonWidth + 18, window.innerWidth - buttonWidth - viewportPadding);
+  const leftPosition = clamp(visibleLeft + 12, viewportPadding, Math.max(window.innerWidth - buttonWidth - viewportPadding, viewportPadding));
+  const rightPosition = clamp(visibleRight - 12, leftPosition + buttonWidth + 18, Math.max(window.innerWidth - buttonWidth - viewportPadding, leftPosition + buttonWidth + 18));
 
   shell.classList.toggle("nav-in-view", inView);
   leftButton.style.top = `${topPosition}px`;
@@ -798,6 +820,35 @@ function minutesFromClock(value) {
 
 function durationBetweenClocks(start, end) {
   return Math.max(minutesFromClock(end) - minutesFromClock(start), 0);
+}
+
+function formatElapsedDuration(totalMs) {
+  const totalSeconds = Math.max(Math.floor(Number(totalMs || 0) / 1000), 0);
+  const hours = Math.floor(totalSeconds / 3600);
+  const minutes = Math.floor((totalSeconds % 3600) / 60);
+  const seconds = totalSeconds % 60;
+  return `${String(hours).padStart(2, "0")}:${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function updateLiveElapsedDisplays(root = document) {
+  root.querySelectorAll("[data-live-elapsed-from]").forEach((node) => {
+    const sourceValue = node.getAttribute("data-live-elapsed-from");
+    const parsed = parseIsoDate(sourceValue);
+    if (!parsed) {
+      node.textContent = "--:--:--";
+      return;
+    }
+    node.textContent = formatElapsedDuration(Date.now() - parsed.getTime());
+  });
+}
+
+function ensureLiveElapsedTicker() {
+  if (liveElapsedTickerId) {
+    return;
+  }
+  liveElapsedTickerId = window.setInterval(() => {
+    updateLiveElapsedDisplays();
+  }, 1000);
 }
 
 function buildLocalIsoForClock(clockValue, baseDate = new Date()) {
@@ -1241,7 +1292,7 @@ function refreshOperationalViews() {
   ["montagem", "producao", "extrusao"].forEach((moduleKey) => renderHourlyModule(moduleKey));
 }
 
-function runOperationalQuickAction(moduleKey, context, eventType, selectedQueueItem = null) {
+async function runOperationalQuickAction(moduleKey, context, eventType, selectedQueueItem = null) {
   const operator = state.currentUser?.full_name || state.currentUser?.username || "Equipe do turno";
   const activeItem = selectedQueueItem
     || context.resourceState.activeProgrammingItem
@@ -1307,7 +1358,7 @@ function runOperationalQuickAction(moduleKey, context, eventType, selectedQueueI
   }
 
   const entry = createApontamentoEntry(payload);
-  saveApontamentoLogs([entry, ...state.apontamentoLogs]);
+  await persistApontamentoEntry(entry);
   state.apontamentoSelecionado = machineLabel;
   if (selectedQueueItem?.queue_key) {
     state.apontamentoFilaSelecionada = selectedQueueItem.queue_key;
@@ -1325,6 +1376,64 @@ function calculateStopDuration(entry) {
     return 0;
   }
   return Math.max(end - start, 0);
+}
+
+function resolveApontamentoSession(logs, opCode = "") {
+  const filtered = (Array.isArray(logs) ? logs : [])
+    .filter((entry) => !opCode || String(entry.op_code || "").trim().toUpperCase() === String(opCode || "").trim().toUpperCase())
+    .slice()
+    .sort((left, right) => new Date(left.created_at || 0) - new Date(right.created_at || 0));
+
+  let activeStart = null;
+  let pointedPieces = 0;
+  let scrapPieces = 0;
+  let stopMinutes = 0;
+  let lastReason = "";
+
+  filtered.forEach((entry) => {
+    const eventType = String(entry.event_type || "").toLowerCase();
+    if (eventType === "iniciar") {
+      activeStart = entry;
+      pointedPieces = 0;
+      scrapPieces = 0;
+      stopMinutes = 0;
+      lastReason = entry.reason || "";
+      return;
+    }
+    if (!activeStart) {
+      return;
+    }
+    if (eventType === "apontar") {
+      pointedPieces += Number(entry.pieces || 0);
+      scrapPieces += Number(entry.scrap || 0);
+      lastReason = entry.reason || lastReason;
+      return;
+    }
+    if (eventType === "parada") {
+      stopMinutes += calculateStopDuration(entry);
+      lastReason = entry.reason || lastReason;
+      return;
+    }
+    if (eventType === "finalizar") {
+      activeStart = null;
+      pointedPieces = 0;
+      scrapPieces = 0;
+      stopMinutes = 0;
+      lastReason = entry.reason || lastReason;
+    }
+  });
+
+  const startedAt = activeStart?.created_at || "";
+  const startedDate = startedAt ? parseIsoDate(startedAt) : null;
+  return {
+    isActive: Boolean(activeStart),
+    startedAt,
+    elapsedMs: startedDate ? Date.now() - startedDate.getTime() : 0,
+    pointedPieces,
+    scrapPieces,
+    stopMinutes,
+    lastReason,
+  };
 }
 
 function getHourlyIntervalDefaults(interval) {
@@ -1460,6 +1569,10 @@ function renderHourlyHero(context) {
   if (!wrapper) {
     return;
   }
+  const hasLiveCycle = context.resourceState.status.key === "running" && context.resourceState.latest?.created_at;
+  const progressPercent = context.objectivePieces > 0
+    ? clamp(Math.round((context.realizedPieces / context.objectivePieces) * 100), 0, 100)
+    : 0;
   wrapper.innerHTML = `
     <article class="hourly-hero-copy">
       <small class="hourly-kicker">H-H padrão do turno ${helpTip(context.definition.queueCopy)}</small>
@@ -1470,12 +1583,30 @@ function renderHourlyHero(context) {
         <span>${number.format(context.queueTotal)} peças na carteira</span>
         <span class="hourly-status-chip ${context.resourceState.status.key}">${context.resourceState.status.label}</span>
       </div>
+      <div class="hourly-supervisor-strip">
+        <article class="hourly-supervisor-pill state-${context.resourceState.status.key}">
+          <small>Ritmo real</small>
+          <strong>${number.format(context.resourceState.hourlyRate)} pç/h</strong>
+          <span>${context.resourceState.elapsedLabel}</span>
+        </article>
+        <article class="hourly-supervisor-pill">
+          <small>Próxima disponibilidade</small>
+          <strong>${formatDateTimeWithFallback(context.resourceState.expectedFinishAt, "Sem previsão")}</strong>
+          <span>${number.format(context.resourceState.remainingPieces)} peças restantes</span>
+        </article>
+        <article class="hourly-supervisor-pill">
+          <small>Avanço do lote</small>
+          <strong>${progressPercent}%</strong>
+          <div class="flow-progress"><span style="width:${progressPercent}%;"></span></div>
+        </article>
+      </div>
     </article>
     <section class="hourly-kpi-grid">
       <div class="hourly-kpi hourly-kpi--live">
         <small>Execução atual</small>
         <strong>${context.resourceState.activeOpCode || "Sem OP"}</strong>
         <span>${context.resourceState.statusDetail}</span>
+        <em ${hasLiveCycle ? `data-live-elapsed-from="${context.resourceState.latest.created_at}"` : ""}>${hasLiveCycle ? formatElapsedDuration(Date.now() - new Date(context.resourceState.latest.created_at).getTime()) : "00:00:00"}</em>
       </div>
       <div class="hourly-kpi">
         <small>Objetivo do recurso</small>
@@ -1511,6 +1642,12 @@ function renderHourlyHero(context) {
         <small>Programações</small>
         <strong>${number.format(context.programmingItems.length)}</strong>
         <span>Slots já carregados em ${context.resource.label}</span>
+      </div>
+      <div class="hourly-kpi hourly-kpi--progress">
+        <small>Gestão do recurso</small>
+        <strong>${context.resource.lineCode}</strong>
+        <div class="flow-progress"><span style="width:${progressPercent}%;"></span></div>
+        <span>${number.format(context.realizedPieces)} de ${number.format(context.objectivePieces)} peças no turno</span>
       </div>
     </section>
   `;
@@ -1648,6 +1785,9 @@ function renderHourlySidebar(context) {
   } else {
     const rule = context.definition.action === "produzir" ? getProductionRule(context.focusItem) : null;
     const machineHints = getRecommendedResourceOptions(context.focusItem, context.definition.action, context.moduleKey).slice(0, 3);
+    const leadProgress = context.resourceState.objectivePieces > 0
+      ? clamp(Math.round((context.resourceState.realizedPieces / context.resourceState.objectivePieces) * 100), 0, 100)
+      : 0;
     focus.innerHTML = `
       <small>Item líder do recurso</small>
       <strong>${context.focusItem.sku} · ${context.focusItem.produto}</strong>
@@ -1674,6 +1814,10 @@ function renderHourlySidebar(context) {
           <strong>${formatDateTimeWithFallback(context.resourceState.expectedFinishAt, "Sem previsão")}</strong>
         </div>
       </div>
+      <div class="hourly-focus-progress">
+        <div class="flow-progress"><span style="width:${leadProgress}%;"></span></div>
+        <em>${number.format(context.resourceState.realizedPieces)} apontadas · ${number.format(context.resourceState.remainingPieces)} restantes no recurso</em>
+      </div>
       ${machineHints.length ? `
         <div class="hourly-focus-machine-hints">
           ${machineHints.map((option) => `<span class="tag info">${option.code}${option.pieces_per_hour ? ` · ${number.format(option.pieces_per_hour)} pç/h` : ""}</span>`).join("")}
@@ -1691,10 +1835,10 @@ function renderHourlySidebar(context) {
     `;
     focus.querySelector(`#${context.definition.focusId}-quick-save`)?.addEventListener("click", () => saveHourlyLeader(context.moduleKey));
     focus.querySelector(`#${context.definition.focusId}-open-form`)?.addEventListener("click", () => prefillHourlySlot(context.moduleKey));
-    focus.querySelector(`#${context.definition.focusId}-start`)?.addEventListener("click", () => runOperationalQuickAction(context.moduleKey, context, "iniciar"));
-    focus.querySelector(`#${context.definition.focusId}-point`)?.addEventListener("click", () => runOperationalQuickAction(context.moduleKey, context, "apontar"));
-    focus.querySelector(`#${context.definition.focusId}-stop`)?.addEventListener("click", () => runOperationalQuickAction(context.moduleKey, context, "parada"));
-    focus.querySelector(`#${context.definition.focusId}-finish`)?.addEventListener("click", () => runOperationalQuickAction(context.moduleKey, context, "finalizar"));
+    focus.querySelector(`#${context.definition.focusId}-start`)?.addEventListener("click", async () => { await runOperationalQuickAction(context.moduleKey, context, "iniciar"); });
+    focus.querySelector(`#${context.definition.focusId}-point`)?.addEventListener("click", async () => { await runOperationalQuickAction(context.moduleKey, context, "apontar"); });
+    focus.querySelector(`#${context.definition.focusId}-stop`)?.addEventListener("click", async () => { await runOperationalQuickAction(context.moduleKey, context, "parada"); });
+    focus.querySelector(`#${context.definition.focusId}-finish`)?.addEventListener("click", async () => { await runOperationalQuickAction(context.moduleKey, context, "finalizar"); });
   }
 
   queue.innerHTML = context.queueItems.slice(0, 6).map((item) => {
@@ -1882,6 +2026,17 @@ function saveApontamentoLogs(items) {
   window.localStorage.setItem(APONTAMENTO_LOGS_STORAGE_KEY, JSON.stringify(sanitized));
 }
 
+async function persistApontamentoEntry(entry) {
+  try {
+    const response = await postJson("/api/pcp/apontamento/save", entry);
+    saveApontamentoLogs(response.items || [response.entry || entry, ...state.apontamentoLogs]);
+    return response.entry || entry;
+  } catch (error) {
+    saveApontamentoLogs([entry, ...state.apontamentoLogs]);
+    throw new Error(`${error.message} O registro foi mantido localmente até a próxima sincronização.`);
+  }
+}
+
 function ensureUsersStorage() {
   const stored = safeJsonParse(window.localStorage.getItem(APP_USERS_STORAGE_KEY) || "null", null);
   const users = Array.isArray(stored) ? stored.filter(Boolean) : [];
@@ -1996,7 +2151,7 @@ function applyShellState() {
   const operatorButton = document.getElementById("apontamento-operator-mode");
   const pill = document.getElementById("apontamento-session-pill");
   if (operatorButton) {
-    operatorButton.textContent = state.apontamentoOperatorMode ? "Sair do modo operador" : "Entrar em modo operador";
+    operatorButton.textContent = state.apontamentoOperatorMode ? "Voltar à visão do gestor" : "Abrir posto do operador";
   }
   if (pill) {
     pill.textContent = state.apontamentoOperatorMode ? "Modo operador" : "Modo gestor";
@@ -2871,7 +3026,7 @@ function renderTimelineChart(containerId, romaneios) {
 
   const grouped = new Map();
   romaneios.forEach((item) => {
-    const key = item.previsao_saida_at ? String(item.previsao_saida_at).split("T")[0] : "__sem_previsao__";
+    const key = toAppDateKey(item.previsao_saida_at) || "__sem_previsao__";
     const current = grouped.get(key) || { count: 0, units: 0 };
     current.count += 1;
     current.units += Number(item.quantidade_total) || 0;
@@ -2928,7 +3083,11 @@ function renderInsights(payload) {
   const semPrevisao = romaneios.filter((item) => item.previsao_saida_status === "sem_previsao");
   const nextDelivery = romaneios
     .filter((item) => item.previsao_saida_at)
-    .sort((left, right) => String(left.previsao_saida_at).localeCompare(String(right.previsao_saida_at)))[0];
+    .sort((left, right) => {
+      const leftTime = parseDateValue(left.previsao_saida_at)?.getTime() || Number.POSITIVE_INFINITY;
+      const rightTime = parseDateValue(right.previsao_saida_at)?.getTime() || Number.POSITIVE_INFINITY;
+      return leftTime - rightTime;
+    })[0];
   const actionTotals = Object.entries(
     painel.reduce((acc, item) => {
       const key = item.acao || "Analisar";
@@ -3645,6 +3804,7 @@ function renderApontamento() {
   const stageStatus = document.getElementById("apontamento-stage-status");
   const queueCount = document.getElementById("apontamento-queue-count");
   const screenTabs = document.getElementById("apontamento-screen-tabs");
+  const shellMetrics = document.getElementById("apontamento-shell-metrics");
   const machineGrid = document.getElementById("apontamento-machine-grid");
   const hourTable = document.getElementById("apontamento-hour-table");
   const flowList = document.getElementById("apontamento-flow-list");
@@ -3653,7 +3813,7 @@ function renderApontamento() {
   const logList = document.getElementById("apontamento-log-list");
   const form = document.getElementById("apontamento-form");
 
-  if (!queueList || !stagePanel || !stageStatus || !queueCount || !screenTabs || !machineGrid || !hourTable || !flowList || !lossList || !operatorPanel || !logList || !form) {
+  if (!queueList || !stagePanel || !stageStatus || !queueCount || !screenTabs || !shellMetrics || !machineGrid || !hourTable || !flowList || !lossList || !operatorPanel || !logList || !form) {
     return;
   }
 
@@ -3673,6 +3833,29 @@ function renderApontamento() {
     state.apontamentoFilaSelecionada = queueItems[0]?.queue_key || null;
   }
   const selectedQueueItem = queueItems.find((item) => item.queue_key === state.apontamentoFilaSelecionada) || null;
+  const selectedMachineCodes = new Set(getMachineCodeAliases(selectedMachine.maquina));
+  const machineLogs = state.apontamentoLogs
+    .filter((entry) => selectedMachineCodes.has(String(entry.machine_code || "").toUpperCase()))
+    .slice(0, 20);
+  const selectedOpCode = selectedQueueItem?.op_code || selectedMachine.activeOpCode || "";
+  const activeSession = resolveApontamentoSession(machineLogs, selectedOpCode);
+  const plannedPieces = Number(selectedQueueItem?.quantity_planned || selectedMachine.lote || 0);
+  const producedPieces = activeSession.isActive
+    ? Math.max(Number(selectedMachine.somaTurno || 0), activeSession.pointedPieces)
+    : Number(selectedMachine.somaTurno || 0);
+  const progressRatio = plannedPieces > 0 ? clamp(producedPieces / plannedPieces, 0, 1) : 0;
+  const progressPercent = Math.round(progressRatio * 100);
+  const machineStateKey = activeSession.isActive
+    ? "running"
+    : String(selectedQueueItem?.status_key || "").toLowerCase() || String(selectedMachine.status || "").toLowerCase().replace(/\s+/g, "_");
+  const currentShiftWindow = `${HORA_HORA_INTERVALS[0].start} - ${HORA_HORA_INTERVALS[HORA_HORA_INTERVALS.length - 1].end}`;
+  const sessionPill = document.getElementById("apontamento-session-pill");
+  if (sessionPill) {
+    sessionPill.textContent = state.apontamentoOperatorMode
+      ? `${selectedMachine.maquina} · posto operador`
+      : `${selectedMachine.maquina} · torre PCP`;
+    sessionPill.className = `status-badge ${state.apontamentoOperatorMode ? "ready" : "info"}`;
+  }
 
   const screens = [
     { key: "resumo", label: "Resumo" },
@@ -3696,8 +3879,8 @@ function renderApontamento() {
     operatorField.value = state.currentUser.full_name || state.currentUser.username;
   }
   const opField = form.elements.namedItem("op_code");
-  if (opField && selectedQueueItem) {
-    opField.value = selectedQueueItem.op_code;
+  if (opField && (selectedQueueItem || selectedMachine.activeOpCode)) {
+    opField.value = selectedQueueItem?.op_code || selectedMachine.activeOpCode;
   }
 
   screenTabs.innerHTML = "";
@@ -3715,6 +3898,34 @@ function renderApontamento() {
   });
   stageStatus.textContent = screens.find((item) => item.key === state.apontamentoScreen)?.label || "Resumo";
   queueCount.textContent = number.format(queueItems.length);
+  shellMetrics.innerHTML = `
+    <article class="aponta-shell-card ${activeSession.isActive ? "is-live" : ""}">
+      <small>Estação ativa</small>
+      <strong>${selectedMachine.maquina}</strong>
+      <span>${selectedMachine.produto}</span>
+      <em>${selectedMachine.status} · turno ${currentShiftWindow}</em>
+    </article>
+    <article class="aponta-shell-card ${activeSession.isActive ? "is-live" : ""}">
+      <small>OP em curso</small>
+      <strong>${selectedOpCode || "Sem OP assumida"}</strong>
+      <span>${selectedQueueItem ? `${selectedQueueItem.sku} · ${selectedQueueItem.produto}` : "Assuma uma ordem para abrir a mesa do operador."}</span>
+      <em>${activeSession.isActive ? `Cronômetro em tempo real` : "Aguardando início da operação"}</em>
+    </article>
+    <article class="aponta-shell-card apunta-shell-card--timer ${activeSession.isActive ? "is-live" : ""}">
+      <small>Cronômetro</small>
+      <strong ${activeSession.isActive ? `data-live-elapsed-from="${activeSession.startedAt}"` : ""}>${activeSession.isActive ? formatElapsedDuration(activeSession.elapsedMs) : "--:--:--"}</strong>
+      <span>${activeSession.isActive ? "Produção ativa nesta estação" : "Sem ciclo ativo neste momento"}</span>
+      <em>${activeSession.stopMinutes ? `${number.format(activeSession.stopMinutes)} min de parada no ciclo atual` : "Sem parada aberta no ciclo atual"}</em>
+    </article>
+    <article class="aponta-shell-card apunta-shell-card--progress">
+      <small>Meta x realizado</small>
+      <strong>${progressPercent}%</strong>
+      <span>${number.format(producedPieces)} / ${number.format(plannedPieces || 0)} peças</span>
+      <div class="aponta-shell-progress">
+        <span style="width:${progressPercent}%;"></span>
+      </div>
+    </article>
+  `;
 
   queueList.innerHTML = "";
   if (!queueItems.length) {
@@ -3726,8 +3937,13 @@ function renderApontamento() {
           <small>${item.status} · ${formatDateTimeWithFallback(item.planned_start_at, "Agora")}</small>
           <strong>${item.op_code}</strong>
           <span>${item.sku} · ${item.produto}</span>
-          <em>${number.format(item.quantity_planned || 0)} un · ${item.machine_hint} · ${number.format(item.realized_pieces || 0)} apontadas</em>
-          <button type="button" class="btn btn-secondary btn-xs">Assumir</button>
+          <div class="aponta-queue-metrics">
+            <b>${number.format(item.quantity_planned || 0)} un planejadas</b>
+            <b>${number.format(item.realized_pieces || 0)} un apontadas</b>
+            <b>${item.machine_hint}</b>
+          </div>
+          <em>${item.notes || "Abrir estação, iniciar OP e seguir a rotina do turno."}</em>
+          <button type="button" class="btn btn-secondary btn-xs">Assumir OP</button>
         </article>
       `);
       card.addEventListener("click", () => {
@@ -3735,6 +3951,7 @@ function renderApontamento() {
         if (item.machine_hint && machines.some((machine) => machine.maquina === item.machine_hint)) {
           state.apontamentoSelecionado = item.machine_hint;
         }
+        state.apontamentoScreen = "resumo";
         renderApontamento();
       });
       card.querySelector("button").addEventListener("click", (event) => {
@@ -3743,6 +3960,7 @@ function renderApontamento() {
         if (item.machine_hint && machines.some((machine) => machine.maquina === item.machine_hint)) {
           state.apontamentoSelecionado = item.machine_hint;
         }
+        state.apontamentoScreen = "resumo";
         renderApontamento();
       });
       queueList.appendChild(card);
@@ -3754,7 +3972,7 @@ function renderApontamento() {
     .filter((item) => matchesSearch([item.maquina, item.produto, item.status], searchQuery))
     .forEach((item) => {
       const card = el(`
-        <article class="aponta-machine-card ${item.maquina === selectedMachine.maquina ? "selected" : ""}">
+        <article class="aponta-machine-card ${item.maquina === selectedMachine.maquina ? "selected" : ""} ${String(item.status || "").toLowerCase().includes("exec") ? "is-live" : ""}">
           <header>
             <div>
               <small>${item.maquina}</small>
@@ -3762,6 +3980,12 @@ function renderApontamento() {
             </div>
             <span class="tag ${item.tone}">${item.status}</span>
           </header>
+          <div class="aponta-machine-live">
+            <span>${item.activeOpCode || "Sem OP carregada"}</span>
+            <strong ${item.latest?.created_at && String(item.status || "").toLowerCase().includes("exec") ? `data-live-elapsed-from="${item.latest.created_at}"` : ""}>
+              ${item.latest?.created_at && String(item.status || "").toLowerCase().includes("exec") ? formatElapsedDuration(Date.now() - new Date(item.latest.created_at).getTime()) : "00:00:00"}
+            </strong>
+          </div>
           <div class="aponta-machine-stats">
             <div>
               <span>Restante</span>
@@ -3780,7 +4004,7 @@ function renderApontamento() {
               <b>${number.format(item.lote)}</b>
             </div>
           </div>
-          <em>Previsão inicial de término: ${formatDateTimeWithFallback(item.previstoTermino, "Sem previsão confiável")}</em>
+          <em>${item.activeOpCode ? `${item.activeOpCode} · término ${formatDateTimeWithFallback(item.previstoTermino, "Sem previsão confiável")}` : `Previsão inicial de término: ${formatDateTimeWithFallback(item.previstoTermino, "Sem previsão confiável")}`}</em>
         </article>
       `);
       card.addEventListener("click", () => {
@@ -3794,11 +4018,6 @@ function renderApontamento() {
       });
       machineGrid.appendChild(card);
     });
-
-  const selectedMachineCodes = new Set(getMachineCodeAliases(selectedMachine.maquina));
-  const machineLogs = state.apontamentoLogs
-    .filter((entry) => selectedMachineCodes.has(String(entry.machine_code || "").toUpperCase()))
-    .slice(0, 10);
 
   hourTable.innerHTML = "";
   buildApontamentoTableRows()
@@ -3821,26 +4040,34 @@ function renderApontamento() {
     });
 
   operatorPanel.innerHTML = `
-    <div class="aponta-operator-card">
+    <div class="aponta-operator-card ${activeSession.isActive ? "is-live" : ""}">
       <small>Máquina selecionada</small>
       <strong>${selectedMachine.maquina}</strong>
       <span>${selectedMachine.produto}</span>
+      <em>${selectedMachine.status}</em>
     </div>
-    <div class="aponta-operator-card">
+    <div class="aponta-operator-card ${activeSession.isActive ? "is-live" : ""}">
       <small>OP atual</small>
-      <strong>${selectedQueueItem?.op_code || "Sem OP assumida"}</strong>
+      <strong>${selectedOpCode || "Sem OP assumida"}</strong>
       <span>${selectedQueueItem ? `${number.format(selectedQueueItem.quantity_planned || 0)} un planejadas` : "Escolha uma atividade na fila"}</span>
+      <em>${selectedQueueItem?.sku || "Sem SKU carregado"}</em>
     </div>
-    <div class="aponta-operator-card">
+    <div class="aponta-operator-card ${activeSession.isActive ? "is-live" : ""}">
       <small>Status</small>
-      <strong>${selectedMachine.status}</strong>
+      <strong>${activeSession.isActive ? "Ciclo ativo" : selectedMachine.status}</strong>
       <span>${number.format(selectedMachine.pecasRestantes || 0)} peças restantes</span>
+      <em ${activeSession.isActive ? `data-live-elapsed-from="${activeSession.startedAt}"` : ""}>${activeSession.isActive ? formatElapsedDuration(activeSession.elapsedMs) : "Aguardando início"}</em>
     </div>
     <div class="aponta-action-row">
       <button type="button" class="btn btn-primary btn-xs" data-event="iniciar">Iniciar OP</button>
       <button type="button" class="btn btn-secondary btn-xs" data-event="apontar">Apontar produção</button>
       <button type="button" class="btn btn-secondary btn-xs" data-event="parada">Registrar parada</button>
       <button type="button" class="btn btn-secondary btn-xs" data-event="finalizar">Finalizar atividade</button>
+    </div>
+    <div class="aponta-reason-strip">
+      ${PARADAS_NAO_PLANEJADAS.slice(0, 6).map((item) => `
+        <button type="button" class="btn btn-secondary btn-xs" data-loss-reason="${escapeHtmlAttr(item.label)}">${item.label}</button>
+      `).join("")}
     </div>
   `;
   operatorPanel.querySelectorAll("[data-event]").forEach((button) => {
@@ -3853,7 +4080,20 @@ function renderApontamento() {
         }
       }
       const context = getHourlyModuleContext(selectedMachine.moduleKey || selectedQueueItem?.module_key || "montagem");
-      runOperationalQuickAction(context.moduleKey, context, eventType, selectedQueueItem);
+      runOperationalQuickAction(context.moduleKey, context, eventType, selectedQueueItem).catch((error) => {
+        setElementStatus("apontamento-status", error.message, "error");
+      });
+    });
+  });
+  operatorPanel.querySelectorAll("[data-loss-reason]").forEach((button) => {
+    button.addEventListener("click", () => {
+      prefillApontamentoForm({
+        maquina: selectedMachine.maquina,
+        event_type: "parada",
+        op_code: selectedOpCode,
+        reason: button.getAttribute("data-loss-reason") || "",
+        screen: "paradas",
+      });
     });
   });
 
@@ -3885,7 +4125,7 @@ function renderApontamento() {
       </div>
       <div class="aponta-stage-list">
         ${apontamentoLosses.map((item) => `
-          <div class="aponta-stage-row">
+          <div class="aponta-stage-row" data-loss-row="${escapeHtmlAttr(item.motivo)}">
             <strong>${item.motivo}</strong>
             <span>${item.impacto}</span>
             <em>${item.detalhe}</em>
@@ -3914,27 +4154,48 @@ function renderApontamento() {
     `;
   } else {
     stagePanel.innerHTML = `
-      <div class="aponta-stage-copy">
-        <small>Execução ativa</small>
-        <strong>${selectedQueueItem?.op_code || "Sem OP selecionada"}</strong>
-        <span>${selectedQueueItem ? `${selectedQueueItem.sku} · ${selectedQueueItem.produto}` : "Assuma uma atividade na fila para iniciar o apontamento."}</span>
+      <div class="aponta-stage-hero state-${machineStateKey}">
+        <div class="aponta-stage-copy">
+          <small>Mesa da operação</small>
+          <strong>${selectedOpCode || "Sem OP selecionada"}</strong>
+          <span>${selectedQueueItem ? `${selectedQueueItem.sku} · ${selectedQueueItem.produto}` : "Assuma uma atividade na fila para iniciar o apontamento."}</span>
+          <em>${selectedMachine.maquina} · ${activeSession.lastReason || "Próxima ação: iniciar a operação ou assumir uma OP da fila."}</em>
+        </div>
+        <div class="aponta-stage-live">
+          <small>Cronômetro da estação</small>
+          <strong ${activeSession.isActive ? `data-live-elapsed-from="${activeSession.startedAt}"` : ""}>${activeSession.isActive ? formatElapsedDuration(activeSession.elapsedMs) : "--:--:--"}</strong>
+          <span>${activeSession.isActive ? "Operação em curso" : "Ciclo ainda não iniciado"}</span>
+        </div>
+        <div class="aponta-stage-progress">
+          <small>Progresso do lote</small>
+          <strong>${progressPercent}%</strong>
+          <div class="aponta-shell-progress"><span style="width:${progressPercent}%;"></span></div>
+        </div>
       </div>
       <div class="aponta-stage-metrics">
         <div class="mini-card">
           <small>Quantidade planejada</small>
-          <strong>${number.format(selectedQueueItem?.quantity_planned || 0)}</strong>
+          <strong>${number.format(plannedPieces || 0)}</strong>
         </div>
         <div class="mini-card">
           <small>Produção no turno</small>
-          <strong>${number.format(selectedMachine.somaTurno || 0)}</strong>
+          <strong>${number.format(producedPieces)}</strong>
         </div>
         <div class="mini-card">
           <small>Refugo acumulado</small>
-          <strong>${number.format(selectedMachine.totalScrap || 0)}</strong>
+          <strong>${number.format(Math.max(selectedMachine.totalScrap || 0, activeSession.scrapPieces || 0))}</strong>
         </div>
         <div class="mini-card">
           <small>Disponível em</small>
           <strong>${formatDateTimeWithFallback(selectedQueueItem?.available_at, "Sem disponibilidade")}</strong>
+        </div>
+        <div class="mini-card">
+          <small>Paradas no ciclo</small>
+          <strong>${number.format(activeSession.stopMinutes || 0)} min</strong>
+        </div>
+        <div class="mini-card">
+          <small>Restante</small>
+          <strong>${number.format(Math.max(plannedPieces - producedPieces, 0))}</strong>
         </div>
       </div>
       <div class="aponta-stage-list">
@@ -3951,6 +4212,18 @@ function renderApontamento() {
       </div>
     `;
   }
+
+  stagePanel.querySelectorAll("[data-loss-row]").forEach((row) => {
+    row.addEventListener("click", () => {
+      prefillApontamentoForm({
+        maquina: selectedMachine.maquina,
+        event_type: "parada",
+        op_code: selectedOpCode,
+        reason: row.getAttribute("data-loss-row") || "",
+        screen: "paradas",
+      });
+    });
+  });
 
   flowList.innerHTML = "";
   apontamentoFlows.forEach((item) => {
@@ -4210,21 +4483,26 @@ function renderSources(items) {
       group.items.forEach((item) => {
         const cssStatusClass = statusClass(item.freshness_status);
         const canSync = item.is_active && item.contract_status === "known";
-        const reasonCopy = item.contract_status === "pending"
-          ? "Contrato pendente de implantação"
+        const notesText = String(item.notes || "").toLowerCase();
+        const presentation = item.contract_status === "pending"
+          ? { badge: "PENDENTE", tone: "warning", reason: "Contrato pendente de implantação." }
           : item.is_active
-            ? "Fonte operacional ativa"
-            : (item.notes || "Fonte desativada para a rotina");
+            ? { badge: "ATIVA", tone: cssStatusClass, reason: item.notes || "Fonte operacional ativa." }
+            : notesText.includes("homolog")
+              ? { badge: "HOMOLOG", tone: "info", reason: item.notes || "Fonte em homologação operacional." }
+              : notesText.includes("conting")
+                ? { badge: "CONTINGÊNCIA", tone: "missing", reason: item.notes || "Fonte mantida apenas para contingência." }
+                : { badge: "INATIVA", tone: "missing", reason: item.notes || "Fonte fora da rotina ativa." };
         const card = el(`
           <div class="source-card">
             <div class="source-card-copy">
               <small>${item.source_area} · ${item.source_code}</small>
               <strong>${item.source_name}</strong>
               <em>${item.last_success_at ? `Última carga ${formatDateTimeWithFallback(item.last_success_at, "Sem carga validada")}` : "Sem carga validada ainda"}</em>
-              <span class="muted">${reasonCopy}</span>
+              <span class="muted">${presentation.reason}</span>
             </div>
             <div class="source-card-actions">
-              <span class="tag ${cssStatusClass}">${item.freshness_status}</span>
+              <span class="tag ${presentation.tone}">${presentation.badge}</span>
               ${canSync ? `<button type="button" class="btn btn-secondary btn-xs" data-source-code="${item.source_code}">Sincronizar</button>` : ""}
             </div>
           </div>
@@ -4928,7 +5206,7 @@ function buildKanbanModel(data) {
 
   const grouped = new Map();
   romaneios.forEach((romaneio) => {
-    const key = romaneio.previsao_saida_at ? String(romaneio.previsao_saida_at).split("T")[0] : "__sem_previsao__";
+    const key = toAppDateKey(romaneio.previsao_saida_at) || "__sem_previsao__";
     if (!grouped.has(key)) {
       grouped.set(key, []);
     }
@@ -5003,8 +5281,9 @@ function buildKanbanModel(data) {
       if (deficit > 0) {
         summary.riskCards += 1;
       }
-      if (romaneio.previsao_saida_at && (!summary.nextDate || romaneio.previsao_saida_at < summary.nextDate)) {
-        summary.nextDate = romaneio.previsao_saida_at;
+      const nextDateKey = toAppDateKey(romaneio.previsao_saida_at);
+      if (nextDateKey && (!summary.nextDate || nextDateKey < summary.nextDate)) {
+        summary.nextDate = nextDateKey;
       }
 
       return {
@@ -5066,7 +5345,7 @@ function renderKanbanSummary(model) {
     [
       "Próxima saída",
       model.summary.nextDate ? formatDateWithFallback(model.summary.nextDate, "Sem previsão") : "Sem data",
-      model.summary.nextDate ? formatDateTimeWithFallback(model.summary.nextDate, "Sem data") : "Nenhum compromisso confirmado",
+      model.summary.nextDate ? `Compromisso em ${formatDateWithFallback(model.summary.nextDate, "Sem data")}` : "Nenhum compromisso confirmado",
     ],
   ];
 
@@ -6389,7 +6668,7 @@ async function salvarProgramacao(event) {
   }
 }
 
-function salvarApontamento(event) {
+async function salvarApontamento(event) {
   event.preventDefault();
   const form = event.currentTarget;
   try {
@@ -6400,7 +6679,7 @@ function salvarApontamento(event) {
 
     const entry = createApontamentoEntry(payload);
 
-    saveApontamentoLogs([entry, ...state.apontamentoLogs]);
+    await persistApontamentoEntry(entry);
     state.apontamentoSelecionado = payload.maquina;
     state.apontamentoScreen = payload.event_type === "parada" ? "paradas" : "historico";
     refreshOperationalViews();
@@ -6519,6 +6798,7 @@ async function carregarTudo() {
     users,
     stockMovements,
     productionRules,
+    apontamentoLogsPayload,
   ] = await Promise.all([
     safeApi("/api/pcp/overview", { totals: {}, top_criticos: [] }, warnings),
     safeApi("/api/pcp/alerts", { items: [] }, warnings),
@@ -6537,6 +6817,7 @@ async function carregarTudo() {
     safeApi("/api/pcp/users", { items: state.users || [] }, warnings),
     safeApi("/api/pcp/stock-movements", { items: [], summary: {} }, warnings),
     safeApi("/api/pcp/production-rules", { items: [], resource_catalog: [] }, warnings),
+    safeApi("/api/pcp/apontamento/logs", { items: state.apontamentoLogs || [], summary: {} }, warnings),
   ]);
 
   renderOverview(overview);
@@ -6555,6 +6836,7 @@ async function carregarTudo() {
   state.datasets.painel = Array.isArray(painel.items) ? painel.items : [];
   state.integrations = Array.isArray(integrations.items) ? integrations.items : [];
   state.stockMovements = Array.isArray(stockMovements.items) ? stockMovements.items : [];
+  saveApontamentoLogs(Array.isArray(apontamentoLogsPayload.items) ? apontamentoLogsPayload.items : state.apontamentoLogs);
   saveUsers(mergeUsersWithDefault(users.items || []));
   refreshRomaneiosWorkspace();
   renderKanban(kanban);
