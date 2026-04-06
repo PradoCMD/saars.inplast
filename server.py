@@ -23,6 +23,7 @@ DATA_DIR = ROOT / "data"
 WEB_DIR = ROOT / "web"
 SETTINGS = Settings.from_env()
 PROVIDER = build_provider(SETTINGS, DATA_DIR)
+ROMANEIO_WEBHOOK_SOURCE_CODE = "romaneio_sankhya_webhook"
 
 
 def content_type_for(path: Path) -> str:
@@ -317,7 +318,7 @@ def _consolidate_parsed_romaneios(records: list[dict]) -> list[dict]:
         consolidated.append(merged)
     return consolidated
 
-def sync_parsed_romaneios(records: list[dict]) -> dict:
+def sync_parsed_romaneios(records: list[dict], source_code: str = ROMANEIO_PDF_SOURCE_CODE) -> dict:
     results: list[dict] = []
     errors: list[dict] = []
     successful_records: list[dict] = []
@@ -329,7 +330,7 @@ def sync_parsed_romaneios(records: list[dict]) -> dict:
     for parsed in consolidated_records:
         try:
             payload, meta = build_romaneio_event(parsed)
-            ingest = PROVIDER.ingest_romaneio_event(ROMANEIO_PDF_SOURCE_CODE, payload, meta)
+            ingest = PROVIDER.ingest_romaneio_event(source_code, payload, meta)
             ingest_status = str((ingest or {}).get("status") or "").lower()
             file_names = parsed.get("files") or ([] if not parsed.get("file") else [parsed.get("file")])
             if ingest_status in {"processed", "duplicate_ignored", "noop", "success", "saved"}:
@@ -515,7 +516,7 @@ def refresh_romaneios_from_integration(payload: dict | None = None) -> dict:
         parsed_records = normalize_webhook_romaneios(webhook_payload)
         if not parsed_records:
             raise RuntimeError("O webhook não retornou nenhum romaneio aproveitável para ingestão.")
-        response = sync_parsed_romaneios(parsed_records)
+        response = sync_parsed_romaneios(parsed_records, source_code=ROMANEIO_WEBHOOK_SOURCE_CODE)
         PROVIDER.save_integration(
             {
                 "id": integration_id,
@@ -627,7 +628,7 @@ class PcpApiHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/pcp/romaneios-kanban/sync":
                 payload = self.read_json_body()
                 records = payload if isinstance(payload, list) else payload.get("records") or []
-                self.send_json(HTTPStatus.OK, sync_parsed_romaneios(records))
+                self.send_json(HTTPStatus.OK, sync_parsed_romaneios(records, source_code=ROMANEIO_WEBHOOK_SOURCE_CODE))
                 return
 
             if parsed.path == "/api/pcp/romaneios/upload":
@@ -648,7 +649,7 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                     except Exception as exc:  # noqa: BLE001
                         file_errors.append({"file_name": name, "error": str(exc)})
 
-                response = sync_parsed_romaneios(parsed_records)
+                response = sync_parsed_romaneios(parsed_records, source_code=ROMANEIO_PDF_SOURCE_CODE)
                 response["uploaded_files"] = len(files)
                 if file_errors:
                     response["errors"] = response.get("errors", []) + file_errors

@@ -2485,9 +2485,9 @@ values
     'INPLAST',
     'known',
     true,
-    false,
-    'Fonte alvo do go-live. Deve substituir a demanda vinda do legado Excel/PDF.',
-    '{"endpoint_hint":"/webhook/pcp/sankhya-romaneio","parser_contract":"demanda_romaneio_event","go_live_mode":"shadow"}'::jsonb
+    true,
+    'Fonte oficial ativa de romaneios via Sankhya webhook.',
+    '{"endpoint_hint":"/webhook/pcp/sankhya-romaneio","parser_contract":"demanda_romaneio_event","go_live_mode":"active"}'::jsonb
 ),
 (
     'romaneio_pcp_atual',
@@ -2498,8 +2498,8 @@ values
     'INPLAST',
     'known',
     true,
-    true,
-    'Fonte atual derivada da planilha/rotina existente.',
+    false,
+    'Fluxo legado de pasta/planilha mantido apenas para contingência e PDF manual.',
     '{"folder_hint":"\\\\SRV\\ti\\Automacao AI\\Automacao Logistica x PCP","parser_contract":"demanda_romaneio"}'::jsonb
 ),
 (

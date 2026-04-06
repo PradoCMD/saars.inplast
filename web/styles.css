@@ -1184,6 +1184,9 @@
   .x-scroll-shell .modern-table {
       min-width: 100%;
   }
+  .x-scroll-shell--table .modern-table.x-scroll-track {
+      min-width: max(1460px, 100%);
+  }
   .x-scroll-nav {
       position: fixed;
       top: 50vh;
@@ -1191,8 +1194,8 @@
       width: 56px;
       height: 56px;
       border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.28);
-      background: linear-gradient(180deg, rgba(255,255,255,0.24), rgba(226,232,240,0.16));
+      border: 1px solid rgba(255,255,255,0.38);
+      background: linear-gradient(180deg, rgba(255,255,255,0.34), rgba(237,242,247,0.22));
       color: var(--text-primary);
       display: inline-flex;
       align-items: center;
@@ -1210,8 +1213,8 @@
       pointer-events: auto;
   }
   .x-scroll-nav:hover {
-      border-color: rgba(255,255,255,0.42);
-      background: linear-gradient(180deg, rgba(255,255,255,0.3), rgba(226,232,240,0.2));
+      border-color: rgba(255,255,255,0.58);
+      background: linear-gradient(180deg, rgba(255,255,255,0.42), rgba(237,242,247,0.28));
       transform: translateY(-50%) scale(1.04);
   }
   .x-scroll-nav:disabled {
@@ -1928,6 +1931,43 @@
   .kanban-quickbar-copy span {
       font-size: 0.82rem;
       color: var(--text-secondary);
+  }
+
+  .kanban-quickbar-actions {
+      display: flex;
+      align-items: center;
+      justify-content: flex-end;
+      gap: 12px;
+      flex-wrap: wrap;
+  }
+
+  .kanban-sync-state {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 250px;
+      padding: 10px 14px;
+      border-radius: 16px;
+      background: linear-gradient(135deg, rgba(255,255,255,0.16), rgba(226,232,240,0.08));
+      border: 1px solid rgba(255,255,255,0.16);
+  }
+
+  .kanban-sync-state small {
+      font-size: 0.7rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: rgba(255,255,255,0.72);
+  }
+
+  .kanban-sync-state strong {
+      font-size: 1.2rem;
+      color: rgba(255,255,255,0.96);
+  }
+
+  .kanban-sync-state span {
+      font-size: 0.8rem;
+      color: rgba(255,255,255,0.8);
+      line-height: 1.45;
   }
 
   .kanban-layout {

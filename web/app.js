@@ -95,6 +95,7 @@ const APP_SIDEBAR_STORAGE_KEY = "pcp_sidebar_collapsed_v1";
 const APP_APONTAMENTO_MODE_STORAGE_KEY = "pcp_apontamento_operator_mode_v1";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
+const ROMANEIO_SYNC_MAX_SECONDS = 210;
 const DEFAULT_ROOT_USER = {
   id: "user-root",
   username: "root",
@@ -129,6 +130,11 @@ const HORA_HORA_INTERVALS = [
   start,
   end,
 }));
+
+let romaneioSyncTimerId = null;
+let romaneioSyncPollId = null;
+let romaneioSyncDeadlineAt = 0;
+let romaneioSyncPollInFlight = false;
 
 const PARADAS_PLANEJADAS = [
   { code: "P1", label: "Cafe", minutes: 10 },
@@ -321,6 +327,27 @@ function startOfToday() {
     return new Date();
   }
   return new Date(`${parts.year}-${parts.month}-${parts.day}T00:00:00${APP_FIXED_OFFSET}`);
+}
+
+function getAppTodayDateKey() {
+  const parts = getAppTimeParts(new Date());
+  if (!parts) {
+    return "";
+  }
+  return `${parts.year}-${parts.month}-${parts.day}`;
+}
+
+function diffAppDateKeys(leftKey, rightKey) {
+  const leftMatch = String(leftKey || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  const rightMatch = String(rightKey || "").match(/^(\d{4})-(\d{2})-(\d{2})$/);
+  if (!leftMatch || !rightMatch) {
+    return Number.NaN;
+  }
+  const [, leftYear, leftMonth, leftDay] = leftMatch;
+  const [, rightYear, rightMonth, rightDay] = rightMatch;
+  const leftUtc = Date.UTC(Number(leftYear), Number(leftMonth) - 1, Number(leftDay));
+  const rightUtc = Date.UTC(Number(rightYear), Number(rightMonth) - 1, Number(rightDay));
+  return Math.round((leftUtc - rightUtc) / DAY_MS);
 }
 
 function parseIsoDate(value) {
@@ -1930,6 +1957,88 @@ function setElementStatus(id, message, tone) {
   if (tone) target.classList.add(tone);
 }
 
+function formatCountdownClock(totalSeconds) {
+  const safeSeconds = Math.max(Number(totalSeconds) || 0, 0);
+  const minutes = Math.floor(safeSeconds / 60);
+  const seconds = safeSeconds % 60;
+  return `${String(minutes).padStart(2, "0")}:${String(seconds).padStart(2, "0")}`;
+}
+
+function setRomaneioSyncButtonsBusy(isBusy) {
+  [
+    document.getElementById("refresh-romaneios"),
+    document.getElementById("integration-run-now"),
+    document.getElementById("kanban-sync-run-now"),
+  ].forEach((button) => {
+    if (!button) {
+      return;
+    }
+    if (!button.dataset.defaultLabel) {
+      button.dataset.defaultLabel = button.textContent.trim();
+    }
+    button.disabled = Boolean(isBusy);
+    if (button.id === "kanban-sync-run-now") {
+      button.textContent = isBusy ? "Sincronizando..." : button.dataset.defaultLabel;
+    }
+  });
+}
+
+function updateRomaneioSyncStatus(message, tone = "", countdownLabel = formatCountdownClock(ROMANEIO_SYNC_MAX_SECONDS)) {
+  ["romaneio-refresh-status", "integration-status", "kanban-sync-status"].forEach((id) => {
+    setElementStatus(id, message, tone);
+  });
+  const countdown = document.getElementById("kanban-sync-countdown");
+  if (countdown) {
+    countdown.textContent = countdownLabel;
+  }
+}
+
+function stopRomaneioSyncFeedback(message = "", tone = "", countdownLabel = "Pronto") {
+  if (romaneioSyncTimerId) {
+    window.clearInterval(romaneioSyncTimerId);
+    romaneioSyncTimerId = null;
+  }
+  if (romaneioSyncPollId) {
+    window.clearInterval(romaneioSyncPollId);
+    romaneioSyncPollId = null;
+  }
+  romaneioSyncDeadlineAt = 0;
+  romaneioSyncPollInFlight = false;
+  setRomaneioSyncButtonsBusy(false);
+  updateRomaneioSyncStatus(message, tone, countdownLabel);
+}
+
+function startRomaneioSyncFeedback(baseMessage = "Sincronizando com o Sankhya. Esse processo pode levar até 3:30 min.") {
+  stopRomaneioSyncFeedback();
+  romaneioSyncDeadlineAt = Date.now() + (ROMANEIO_SYNC_MAX_SECONDS * 1000);
+  setRomaneioSyncButtonsBusy(true);
+
+  const tick = () => {
+    const secondsLeft = Math.max(Math.ceil((romaneioSyncDeadlineAt - Date.now()) / 1000), 0);
+    updateRomaneioSyncStatus(baseMessage, "", formatCountdownClock(secondsLeft));
+    if (secondsLeft <= 0) {
+      stopRomaneioSyncFeedback("Janela estimada de sincronização encerrada. Confira os romaneios atualizados no Kanban.", "success");
+      carregarTudo().catch(() => {});
+    }
+  };
+
+  tick();
+  romaneioSyncTimerId = window.setInterval(tick, 1000);
+  romaneioSyncPollId = window.setInterval(async () => {
+    if (romaneioSyncPollInFlight) {
+      return;
+    }
+    romaneioSyncPollInFlight = true;
+    try {
+      await carregarTudo();
+    } catch (_error) {
+      // O contador continua rodando mesmo se uma recarga intermediária falhar.
+    } finally {
+      romaneioSyncPollInFlight = false;
+    }
+  }, 20000);
+}
+
 function updateMrpStatus(message, tone = "ready", title = "") {
   const badge = document.getElementById("mrp-status");
   if (!badge) return;
@@ -2398,8 +2507,14 @@ function describeTimelineBucket(dateKey) {
     };
   }
 
-  const date = new Date(`${dateKey}T12:00:00${APP_FIXED_OFFSET}`);
-  const diffDays = Math.round((date.getTime() - startOfToday().getTime()) / DAY_MS);
+  const diffDays = diffAppDateKeys(dateKey, getAppTodayDateKey());
+  if (!Number.isFinite(diffDays)) {
+    return {
+      label: formatDateWithFallback(dateKey, "Programado"),
+      subtitle: "Programado",
+      tone: "ok",
+    };
+  }
   if (diffDays < 0) {
     return {
       label: formatDateWithFallback(dateKey, "Atrasado"),
@@ -3773,13 +3888,18 @@ function renderSources(items) {
       group.items.forEach((item) => {
         const cssStatusClass = statusClass(item.freshness_status);
         const canSync = item.is_active && item.contract_status === "known";
+        const reasonCopy = item.contract_status === "pending"
+          ? "Contrato pendente de implantação"
+          : item.is_active
+            ? "Fonte operacional ativa"
+            : (item.notes || "Fonte desativada para a rotina");
         const card = el(`
           <div class="source-card">
             <div class="source-card-copy">
               <small>${item.source_area} · ${item.source_code}</small>
               <strong>${item.source_name}</strong>
               <em>${item.last_success_at ? `Última carga ${formatDateTimeWithFallback(item.last_success_at, "Sem carga validada")}` : "Sem carga validada ainda"}</em>
-              <span class="muted">${item.contract_status === "pending" ? "Contrato pendente de implantação" : item.is_active ? "Fonte operacional ativa" : "Fonte desativada para a rotina"}</span>
+              <span class="muted">${reasonCopy}</span>
             </div>
             <div class="source-card-actions">
               <span class="tag ${cssStatusClass}">${item.freshness_status}</span>
@@ -4145,29 +4265,37 @@ async function salvarIntegracao(event) {
 }
 
 async function atualizarRomaneiosViaWebhook(integrationId = "") {
-  const statusIds = ["romaneio-refresh-status", "integration-status", "romaneio-dropzone-status"];
-  statusIds.forEach((id) => setElementStatus(id, "Atualizando romaneios via integração..."));
+  const runningMessage = "Sincronizando com o Sankhya. Esse processo pode levar até 3:30 min.";
+  setElementStatus("romaneio-dropzone-status", runningMessage);
+  startRomaneioSyncFeedback(runningMessage);
   try {
     const response = await postJson("/api/pcp/romaneios/refresh", integrationId ? { integration_id: integrationId } : {});
     if (Array.isArray(response.refreshed_romaneios) && response.refreshed_romaneios.length) {
       state.romaneioSelecionado = String(response.refreshed_romaneios[0]);
     }
-    await carregarTudo();
     const refreshStatus = String(response.status || "").toLowerCase();
     if (["accepted", "queued", "started", "processing", "running"].includes(refreshStatus)) {
       const acceptedMessage = response.message || "Atualização aceita. O n8n seguirá processando em segundo plano.";
-      statusIds.forEach((id) => setElementStatus(id, acceptedMessage, "success"));
+      updateRomaneioSyncStatus(
+        `${acceptedMessage} Sincronizando com o Sankhya. Esse processo pode levar até 3:30 min.`,
+        "",
+        formatCountdownClock(ROMANEIO_SYNC_MAX_SECONDS),
+      );
+      carregarTudo().catch(() => {});
       return response;
     }
+    await carregarTudo();
     const successCount = Number(response.count || response.received_records || 0);
     const errorCount = Array.isArray(response.errors) ? response.errors.length : 0;
     const message = errorCount
       ? `${successCount} romaneio(s) processados e ${errorCount} com erro.`
       : `${successCount} romaneio(s) atualizados pelo webhook.`;
-    statusIds.forEach((id) => setElementStatus(id, message, errorCount ? "error" : "success"));
+    stopRomaneioSyncFeedback(message, errorCount ? "error" : "success");
+    setElementStatus("romaneio-dropzone-status", message, errorCount ? "error" : "success");
     return response;
   } catch (error) {
-    statusIds.forEach((id) => setElementStatus(id, error.message, "error"));
+    stopRomaneioSyncFeedback(error.message, "error", "Falha");
+    setElementStatus("romaneio-dropzone-status", error.message, "error");
     throw error;
   }
 }
@@ -4649,7 +4777,8 @@ function renderKanbanQuickbar(model) {
   const wrapper = document.getElementById("kanban-quickbar");
   const button = document.getElementById("kanban-sem-previsao-shortcut");
   const copy = document.getElementById("kanban-shortcut-copy");
-  if (!wrapper || !button || !copy) {
+  const syncStatus = document.getElementById("kanban-sync-status");
+  if (!wrapper || !button || !copy || !syncStatus) {
     return;
   }
 
@@ -4661,6 +4790,9 @@ function renderKanbanQuickbar(model) {
     count > 0
       ? `${count} romaneio(s) aguardam data final e ficam destacados em vermelho no board.`
       : "Nenhum romaneio está sem previsão no momento.";
+  if (!romaneioSyncDeadlineAt) {
+    syncStatus.textContent = "Acione a integração para atualizar os romaneios direto do Sankhya.";
+  }
   wrapper.classList.toggle("is-empty", count <= 0);
 }
 
@@ -6216,6 +6348,9 @@ document.getElementById("kanban-reset-filters")?.addEventListener("click", () =>
 });
 document.getElementById("kanban-sem-previsao-shortcut")?.addEventListener("click", () => {
   focusKanbanColumn("__sem_previsao__");
+});
+document.getElementById("kanban-sync-run-now")?.addEventListener("click", () => {
+  atualizarRomaneiosViaWebhook().catch(() => {});
 });
 document.getElementById("programming-action-filter")?.addEventListener("change", (event) => {
   state.programmingActionFilter = event.target.value || "";

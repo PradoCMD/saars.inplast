@@ -349,17 +349,18 @@ from (
 
 SOURCES_SQL = """
 select
-    source_code,
-    initcap(replace(source_code, '_', ' ')) as source_name,
-    source_area,
-    last_success_at,
-    is_active,
-    is_required,
-    contract_status,
-    case freshness_status
+    sources.source_code,
+    initcap(replace(sources.source_code, '_', ' ')) as source_name,
+    sources.source_area,
+    sources.last_success_at,
+    sources.is_active,
+    sources.is_required,
+    sources.contract_status,
+    registry.notes,
+    case sources.freshness_status
         when 'fresh' then 'ok'
         when 'stale' then 'warning'
-        else freshness_status
+        else sources.freshness_status
     end as freshness_status
 from (
     select
@@ -376,16 +377,19 @@ from (
         end as freshness_status
     from ops.vw_source_freshness
 ) sources
-where is_active or contract_status = 'known' or is_required
+join ops.source_registry registry
+  on registry.source_code = sources.source_code
+ and registry.source_area = sources.source_area
+where sources.is_active or sources.contract_status = 'known' or sources.is_required
 order by
-    case freshness_status
+    case sources.freshness_status
         when 'missing' then 1
         when 'stale' then 2
         when 'pending' then 4
         when 'inactive' then 5
         else 3
     end,
-    source_code
+    sources.source_code
 """
 
 ACTIVE_SYNC_STOCK_SOURCES_SQL = """
@@ -819,8 +823,12 @@ with chosen_source as (
     where source_area = 'demanda_romaneio'
       and contract_status = 'known'
     order by
-        case when source_code = 'romaneio_pcp_atual' then 0 else 1 end,
         case when is_active then 0 else 1 end,
+        case
+            when source_code = 'romaneio_sankhya_webhook' then 0
+            when source_code = 'romaneio_pcp_atual' then 1
+            else 2
+        end,
         source_id
     limit 1
 ),
@@ -864,8 +872,12 @@ with chosen_source as (
     where source_area = 'demanda_romaneio'
       and contract_status = 'known'
     order by
-        case when source_code = 'romaneio_pcp_atual' then 0 else 1 end,
         case when is_active then 0 else 1 end,
+        case
+            when source_code = 'romaneio_sankhya_webhook' then 0
+            when source_code = 'romaneio_pcp_atual' then 1
+            else 2
+        end,
         source_id
     limit 1
 )
