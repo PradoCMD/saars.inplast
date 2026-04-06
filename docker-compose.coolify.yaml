@@ -12,8 +12,6 @@ services:
       - "${PCP_POSTGRES_PORT:-55432}:5432"
     volumes:
       - pcp_postgres_data:/var/lib/postgresql/data
-      - ./database:/opt/pcp/database:ro
-      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
     healthcheck:
       test:
         [
@@ -25,25 +23,6 @@ services:
       retries: 10
       start_period: 10s
 
-  pcp-db-migrate:
-    image: postgres:16-alpine
-    restart: "no"
-    depends_on:
-      pcp-postgres:
-        condition: service_healthy
-    environment:
-      POSTGRES_DB: ${PCP_POSTGRES_DB:-inplast_pcp}
-      POSTGRES_USER: ${PCP_POSTGRES_SUPERUSER:-postgres}
-      PGPASSWORD: ${PCP_POSTGRES_SUPERPASSWORD}
-      PGHOST: pcp-postgres
-      PGPORT: 5432
-      PCP_APP_DB_PASSWORD: ${PCP_APP_DB_PASSWORD}
-      PCP_INTEGRATION_DB_PASSWORD: ${PCP_INTEGRATION_DB_PASSWORD}
-    volumes:
-      - ./database:/opt/pcp/database:ro
-      - ./docker/postgres/init:/docker-entrypoint-initdb.d:ro
-    command: ["/bin/sh", "/docker-entrypoint-initdb.d/01-bootstrap-pcp.sh"]
-
   pcp-saas:
     build:
       context: .
@@ -52,8 +31,6 @@ services:
     depends_on:
       pcp-postgres:
         condition: service_healthy
-      pcp-db-migrate:
-        condition: service_completed_successfully
     environment:
       PCP_HOST: 0.0.0.0
       PCP_PORT: ${PCP_PORT:-8765}
@@ -61,6 +38,10 @@ services:
       PCP_POSTGRES_HOST: ${PCP_POSTGRES_HOST:-pcp-postgres}
       PCP_POSTGRES_INTERNAL_PORT: ${PCP_POSTGRES_INTERNAL_PORT:-5432}
       PCP_POSTGRES_DB: ${PCP_POSTGRES_DB:-inplast_pcp}
+      PCP_POSTGRES_SUPERUSER: ${PCP_POSTGRES_SUPERUSER:-postgres}
+      PCP_POSTGRES_SUPERPASSWORD: ${PCP_POSTGRES_SUPERPASSWORD}
+      PCP_APP_DB_PASSWORD: ${PCP_APP_DB_PASSWORD}
+      PCP_INTEGRATION_DB_PASSWORD: ${PCP_INTEGRATION_DB_PASSWORD}
       PCP_DATABASE_URL: ${PCP_DATABASE_URL:-postgresql://pcp_app:${PCP_APP_DB_PASSWORD}@pcp-postgres:5432/${PCP_POSTGRES_DB:-inplast_pcp}}
       PCP_ACTIONS_DATABASE_URL: ${PCP_ACTIONS_DATABASE_URL:-postgresql://pcp_integration:${PCP_INTEGRATION_DB_PASSWORD}@pcp-postgres:5432/${PCP_POSTGRES_DB:-inplast_pcp}}
     expose:

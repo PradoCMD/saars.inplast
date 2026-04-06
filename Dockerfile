@@ -5,10 +5,13 @@ ENV PYTHONDONTWRITEBYTECODE=1 \
 
 WORKDIR /app
 
-RUN pip install --no-cache-dir "psycopg[binary]" pdfplumber
+RUN apt-get update \
+    && apt-get install -y --no-install-recommends postgresql-client \
+    && rm -rf /var/lib/apt/lists/* \
+    && pip install --no-cache-dir "psycopg[binary]" pdfplumber
 
 COPY . /app/
 
 EXPOSE 8765
 
-CMD ["python", "server.py"]
+CMD ["/bin/sh", "/app/docker/start-pcp.sh"]
