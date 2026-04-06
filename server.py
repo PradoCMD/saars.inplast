@@ -15,7 +15,7 @@ from urllib.request import Request, urlopen
 from backend import Settings, build_provider
 from backend.romaneio_integration import normalize_webhook_romaneios
 from backend.romaneio_pdf import SOURCE_CODE as ROMANEIO_PDF_SOURCE_CODE
-from backend.romaneio_pdf import build_romaneio_event, normalize_romaneio_identity, parse_romaneio_pdf_bytes
+from backend.romaneio_pdf import build_romaneio_event, normalize_document_kind, normalize_romaneio_identity, parse_romaneio_pdf_bytes
 
 
 ROOT = Path(__file__).resolve().parent
@@ -79,6 +79,83 @@ def _item_key(item: dict) -> str:
     return "|".join([sku, unidade, descricao])
 
 
+def _resolve_document_kind(values: set[str]) -> str:
+    normalized = {normalize_document_kind(value) for value in values if value}
+    if not normalized:
+        return "romaneio"
+    if "merged" in normalized:
+        return "merged"
+    effective = normalized - {"existing"}
+    if len(effective) > 1:
+        return "merged"
+    if effective:
+        return next(iter(effective))
+    return "existing" if "existing" in normalized else "romaneio"
+
+
+def _build_sync_document_kind_hint(parsed: dict) -> str:
+    return " ".join(
+        str(value).strip()
+        for value in (
+            parsed.get("document_kind"),
+            parsed.get("status"),
+            parsed.get("situacao"),
+            parsed.get("tipo_documento"),
+            parsed.get("tipoDocumento"),
+            parsed.get("faturamento_status"),
+            parsed.get("billing_status"),
+            parsed.get("file"),
+            parsed.get("file_name"),
+        )
+        if str(value or "").strip()
+    )
+
+
+def _normalize_sync_parsed_record(parsed: dict) -> dict | None:
+    if not isinstance(parsed, dict):
+        return None
+    if "pdf_romaneio" in parsed or "tabela_pedidos" in parsed or "tabela_itens_do_caminhao" in parsed:
+        normalized = normalize_webhook_romaneios(parsed)
+        return normalized[0] if normalized else None
+
+    ordem_carga = normalize_romaneio_identity(
+        parsed.get("ordem_carga")
+        or parsed.get("romaneio_identity")
+        or parsed.get("codigo_ordem_carga")
+        or parsed.get("codigoOrdemCarga")
+        or parsed.get("file")
+        or parsed.get("file_name")
+        or ""
+    )
+    if not ordem_carga:
+        return None
+
+    pedidos = parsed.get("pedidos") if isinstance(parsed.get("pedidos"), list) else []
+    itens = parsed.get("itens") if isinstance(parsed.get("itens"), list) else []
+    file_name = str(parsed.get("file") or parsed.get("file_name") or f"ROMANEIO {ordem_carga}.json").strip()
+    files = [str(item).strip() for item in (parsed.get("files") or []) if str(item or "").strip()]
+    if file_name and file_name not in files:
+        files.insert(0, file_name)
+
+    return {
+        **parsed,
+        "ordem_carga": ordem_carga,
+        "romaneio_identity": normalize_romaneio_identity(parsed.get("romaneio_identity") or ordem_carga),
+        "document_kind": normalize_document_kind(_build_sync_document_kind_hint(parsed)),
+        "empresa": str(parsed.get("empresa") or parsed.get("codigo_empresa") or parsed.get("codigoEmpresa") or "").strip(),
+        "nome_empresa": str(parsed.get("nome_empresa") or parsed.get("nomeEmpresa") or "").strip(),
+        "cidade": str(parsed.get("cidade") or (pedidos[0].get("cidade") if pedidos else "") or "").strip(),
+        "pedidos": pedidos,
+        "montante": _to_int(parsed.get("montante")) or len(pedidos),
+        "total_geral": round(_to_float(parsed.get("total_geral")) or sum(_to_float(pedido.get("valor_total")) for pedido in pedidos), 2),
+        "itens": itens,
+        "file": file_name,
+        "files": files,
+        "text_length": _to_int(parsed.get("text_length")),
+        "source_origin": str(parsed.get("source_origin") or "n8n_sync").strip() or "n8n_sync",
+    }
+
+
 def _merge_parsed_records(records: list[dict]) -> dict:
     if not records:
         return {}
@@ -92,7 +169,7 @@ def _merge_parsed_records(records: list[dict]) -> dict:
     document_kinds: set[str] = set()
 
     for parsed in records:
-        document_kinds.add(str(parsed.get("document_kind") or "romaneio"))
+        document_kinds.add(normalize_document_kind(parsed.get("document_kind") or "romaneio"))
         for file_name in parsed.get("files") or ([] if not parsed.get("file") else [parsed.get("file")]):
             if file_name and file_name not in file_names:
                 file_names.append(file_name)
@@ -170,7 +247,7 @@ def _merge_parsed_records(records: list[dict]) -> dict:
         "romaneio_identity": normalize_romaneio_identity(
             base.get("romaneio_identity") or base.get("ordem_carga") or base.get("file") or ""
         ),
-        "document_kind": next(iter(document_kinds)) if len(document_kinds) == 1 else "merged",
+        "document_kind": _resolve_document_kind(document_kinds),
         "empresa": str(base.get("empresa") or "").strip(),
         "nome_empresa": str(base.get("nome_empresa") or "").strip(),
         "pedidos": pedidos,
@@ -246,7 +323,8 @@ def sync_parsed_romaneios(records: list[dict]) -> dict:
     successful_records: list[dict] = []
     processed_files: list[str] = []
 
-    consolidated_records = _consolidate_parsed_romaneios(records)
+    normalized_records = [item for item in (_normalize_sync_parsed_record(record) for record in records) if item]
+    consolidated_records = _consolidate_parsed_romaneios(normalized_records)
 
     for parsed in consolidated_records:
         try:

@@ -41,6 +41,8 @@ const state = {
   romaneiosApi: [],
   romaneiosLocais: [],
   romaneiosFiltro: "",
+  romaneioSelectionMode: false,
+  selectedRomaneios: [],
   estoqueFiltro: "",
   estoqueBusca: "",
   globalSearch: "",
@@ -55,10 +57,12 @@ const state = {
   hourlySelections: {
     montagem: { resourceId: "montagem-01", focusSku: "" },
     producao: { resourceId: "producao-01", focusSku: "" },
+    extrusao: { resourceId: "extrusao-01", focusSku: "" },
   },
   hourlyPanels: {
     montagem: { sidebarCollapsed: false, tableCollapsed: false },
     producao: { sidebarCollapsed: false, tableCollapsed: false },
+    extrusao: { sidebarCollapsed: false, tableCollapsed: false },
   },
   apontamentoScreen: "resumo",
   apontamentoSelecionado: "Máquina 1",
@@ -70,6 +74,7 @@ const state = {
     programming: [],
     assembly: [],
     production: [],
+    extrusion: [],
     painel: [],
   },
   integrations: [],
@@ -149,6 +154,7 @@ const PARADAS_NAO_PLANEJADAS = [
 
 const HOURLY_MODULE_CONFIG = {
   montagem: {
+    moduleKey: "montagem",
     action: "montar",
     datasetKey: "assembly",
     tableId: "assembly-table",
@@ -160,6 +166,10 @@ const HOURLY_MODULE_CONFIG = {
     scheduleId: "assembly-schedule-list",
     legendId: "assembly-legend",
     statusId: "assembly-hourly-status",
+    shellId: "assembly-hourly-shell",
+    bottomPanelId: "assembly-bottom-panel",
+    toggleSidebarId: "assembly-toggle-sidebar",
+    toggleTableId: "assembly-toggle-table",
     title: "Montagem",
     queueCopy: "Carregue a esteira com base na fila de acabados pendentes e nas prioridades do romaneio.",
     resources: [
@@ -168,6 +178,7 @@ const HOURLY_MODULE_CONFIG = {
     ],
   },
   producao: {
+    moduleKey: "producao",
     action: "produzir",
     datasetKey: "production",
     tableId: "production-table",
@@ -179,15 +190,48 @@ const HOURLY_MODULE_CONFIG = {
     scheduleId: "production-schedule-list",
     legendId: "production-legend",
     statusId: "production-hourly-status",
-    title: "Producao",
-    queueCopy: "Distribua a carteira intermediaria pelas celulas e use a disponibilidade real do turno como trava da programacao.",
+    shellId: "production-hourly-shell",
+    bottomPanelId: "production-bottom-panel",
+    toggleSidebarId: "production-toggle-sidebar",
+    toggleTableId: "production-toggle-table",
+    title: "Injetoras",
+    queueCopy: "Distribua a carteira das injetoras pelas seis máquinas e use as regras do H-H para orientar a próxima programação do turno.",
     resources: Array.from({ length: 6 }, (_, index) => ({
       id: `producao-${String(index + 1).padStart(2, "0")}`,
-      label: `Celula ${String(index + 1).padStart(2, "0")}`,
+      label: `Injetora ${String(index + 1).padStart(2, "0")}`,
       lineCode: `INJ-${String(index + 1).padStart(2, "0")}`,
-      aliases: [`INJ-${String(index + 1).padStart(2, "0")}`, `EXTR-${String(index + 1).padStart(2, "0")}`, `PROD-${String(index + 1).padStart(2, "0")}`],
+      aliases: [`INJ-${String(index + 1).padStart(2, "0")}`, `MAQ-${String(index + 1).padStart(2, "0")}`, `PROD-${String(index + 1).padStart(2, "0")}`],
       workstationCode: `MAQ-0${index + 1}`,
-      machineLabel: `Maquina ${index + 1}`,
+      machineLabel: `Injetora ${index + 1}`,
+      operators: 1,
+    })),
+  },
+  extrusao: {
+    moduleKey: "extrusao",
+    action: "produzir",
+    datasetKey: "extrusion",
+    tableId: "extrusion-table",
+    heroId: "extrusion-hour-hero",
+    gridId: "extrusion-hour-grid",
+    resourceSwitcherId: "extrusion-resource-switcher",
+    focusId: "extrusion-focus-card",
+    queueId: "extrusion-queue-list",
+    scheduleId: "extrusion-schedule-list",
+    legendId: "extrusion-legend",
+    statusId: "extrusion-hourly-status",
+    shellId: "extrusion-hourly-shell",
+    bottomPanelId: "extrusion-bottom-panel",
+    toggleSidebarId: "extrusion-toggle-sidebar",
+    toggleTableId: "extrusion-toggle-table",
+    title: "Extrusão",
+    queueCopy: "Distribua a carteira de extrusão pelas três linhas e use a disponibilidade do turno como trava para o próximo carregamento.",
+    resources: Array.from({ length: 3 }, (_, index) => ({
+      id: `extrusao-${String(index + 1).padStart(2, "0")}`,
+      label: `Extrusora ${String(index + 1).padStart(2, "0")}`,
+      lineCode: `EXTR-${String(index + 1).padStart(2, "0")}`,
+      aliases: [`EXTR-${String(index + 1).padStart(2, "0")}`, `LINHA-EXTR-${String(index + 1).padStart(2, "0")}`],
+      workstationCode: `EXTR-MAQ-${String(index + 1).padStart(2, "0")}`,
+      machineLabel: `Extrusora ${index + 1}`,
       operators: 1,
     })),
   },
@@ -753,6 +797,34 @@ function buildProductionRulesState(payload) {
   return { items, resourceCatalog, bySku, byDescription };
 }
 
+function getProductionModuleKeyForItem(item) {
+  const resourceHints = [
+    item?.assembly_line_code,
+    item?.workstation_code,
+    item?.notes,
+    item?.machine_hint,
+  ]
+    .filter(Boolean)
+    .join(" ")
+    .toUpperCase();
+
+  if (resourceHints.includes("EXTR-")) {
+    return "extrusao";
+  }
+  if (resourceHints.includes("INJ-") || resourceHints.includes("MAQ-")) {
+    return "producao";
+  }
+  return getProductionRule(item) ? "producao" : "extrusao";
+}
+
+function splitProductionDatasets(items) {
+  const productionItems = Array.isArray(items) ? items : [];
+  return {
+    injetoras: productionItems.filter((item) => getProductionModuleKeyForItem(item) === "producao"),
+    extrusao: productionItems.filter((item) => getProductionModuleKeyForItem(item) === "extrusao"),
+  };
+}
+
 function getProductionRule(input) {
   const sku = typeof input === "string" ? input : input?.sku;
   const description = typeof input === "object" ? input?.produto || input?.descricao : "";
@@ -787,7 +859,7 @@ function chooseLeastLoadedResource(resources, action) {
   })[0] || resources[0] || null;
 }
 
-function getRecommendedResourceOptions(item, action) {
+function getRecommendedResourceOptions(item, action, moduleKey = null) {
   if (action === "produzir") {
     const rule = getProductionRule(item);
     if (rule?.resource_options?.length) {
@@ -805,7 +877,8 @@ function getRecommendedResourceOptions(item, action) {
           aliases: (state.productionRules.resourceCatalog.find((entry) => entry.code === option.code)?.aliases) || [option.code],
         }));
     }
-    return HOURLY_MODULE_CONFIG.producao.resources.map((resource, index) => ({
+    const resolvedModuleKey = moduleKey || getProductionModuleKeyForItem(item);
+    return HOURLY_MODULE_CONFIG[resolvedModuleKey].resources.map((resource, index) => ({
       code: resource.lineCode,
       label: resource.label,
       workstationCode: resource.workstationCode,
@@ -829,8 +902,8 @@ function getRecommendedResourceOptions(item, action) {
   }));
 }
 
-function getSuggestedProgrammingContext(item, action = "montar") {
-  const options = getRecommendedResourceOptions(item, action);
+function getSuggestedProgrammingContext(item, action = "montar", moduleKey = null) {
+  const options = getRecommendedResourceOptions(item, action, moduleKey);
   const primary = chooseLeastLoadedResource(options, action) || options[0] || {};
   const rule = action === "produzir" ? getProductionRule(item) : null;
   const noteParts = [];
@@ -894,14 +967,11 @@ function toggleHourlyPanel(moduleKey, panelKey) {
 }
 
 function syncHourlyModuleChrome(moduleKey) {
-  const shell =
-    document.getElementById(moduleKey === "montagem" ? "assembly-hourly-shell" : "production-hourly-shell");
-  const bottomPanel =
-    document.getElementById(moduleKey === "montagem" ? "assembly-bottom-panel" : "production-bottom-panel");
-  const sidebarToggle =
-    document.getElementById(moduleKey === "montagem" ? "assembly-toggle-sidebar" : "production-toggle-sidebar");
-  const tableToggle =
-    document.getElementById(moduleKey === "montagem" ? "assembly-toggle-table" : "production-toggle-table");
+  const definition = getHourlyModuleDefinition(moduleKey);
+  const shell = document.getElementById(definition.shellId);
+  const bottomPanel = document.getElementById(definition.bottomPanelId);
+  const sidebarToggle = document.getElementById(definition.toggleSidebarId);
+  const tableToggle = document.getElementById(definition.toggleTableId);
   const panelState = getHourlyPanelState(moduleKey);
 
   shell?.classList.toggle("sidebar-collapsed", panelState.sidebarCollapsed);
@@ -1041,6 +1111,7 @@ function getHourlyModuleContext(moduleKey) {
   const queueTotal = sumBy(queueItems, (item) => item.net_required);
 
   return {
+    moduleKey,
     definition,
     selection,
     resource,
@@ -1082,7 +1153,7 @@ function renderHourlyResourceSwitcher(context) {
   container.querySelectorAll("[data-resource-id]").forEach((button) => {
     button.addEventListener("click", () => {
       context.selection.resourceId = button.getAttribute("data-resource-id") || context.resource.id;
-      renderHourlyModule(context.definition.datasetKey === "assembly" ? "montagem" : "producao");
+      renderHourlyModule(context.moduleKey);
     });
   });
 }
@@ -1231,7 +1302,7 @@ function renderHourlyGrid(context) {
               <td><span class="hourly-status-chip ${row.entry ? "ready" : "idle"}">${row.rowStatus}</span></td>
               <td>
                 <div class="kanban-inline-actions">
-                  <button type="button" class="btn btn-secondary btn-xs" data-hourly-prefill="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-slot-index="${row.index}">
+                  <button type="button" class="btn btn-secondary btn-xs" data-hourly-prefill="${context.moduleKey}" data-slot-index="${row.index}">
                     ${row.entry ? "Ajustar" : "Pre-programar"}
                   </button>
                 </div>
@@ -1265,7 +1336,7 @@ function renderHourlySidebar(context) {
     focus.innerHTML = `<div class="hourly-focus-empty">Sem item priorizado para ${context.resource.label}. Assim que a fila carregar, este recurso poderá programar a próxima atividade.</div>`;
   } else {
     const rule = context.definition.action === "produzir" ? getProductionRule(context.focusItem) : null;
-    const machineHints = getRecommendedResourceOptions(context.focusItem, context.definition.action).slice(0, 3);
+    const machineHints = getRecommendedResourceOptions(context.focusItem, context.definition.action, context.moduleKey).slice(0, 3);
     focus.innerHTML = `
       <small>Item líder do recurso</small>
       <strong>${context.focusItem.sku} · ${context.focusItem.produto}</strong>
@@ -1291,12 +1362,12 @@ function renderHourlySidebar(context) {
         <button type="button" class="btn btn-secondary btn-sm" id="${context.definition.focusId}-open-form">Abrir Programação</button>
       </div>
     `;
-    focus.querySelector(`#${context.definition.focusId}-quick-save`)?.addEventListener("click", () => saveHourlyLeader(context.definition.datasetKey === "assembly" ? "montagem" : "producao"));
-    focus.querySelector(`#${context.definition.focusId}-open-form`)?.addEventListener("click", () => prefillHourlySlot(context.definition.datasetKey === "assembly" ? "montagem" : "producao"));
+    focus.querySelector(`#${context.definition.focusId}-quick-save`)?.addEventListener("click", () => saveHourlyLeader(context.moduleKey));
+    focus.querySelector(`#${context.definition.focusId}-open-form`)?.addEventListener("click", () => prefillHourlySlot(context.moduleKey));
   }
 
   queue.innerHTML = context.queueItems.slice(0, 6).map((item) => `
-    <article class="hourly-queue-card ${item.sku === context.focusItem?.sku ? "active" : ""}" data-hourly-focus="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-sku="${item.sku}" title="Selecionar ${item.sku}">
+    <article class="hourly-queue-card ${item.sku === context.focusItem?.sku ? "active" : ""}" data-hourly-focus="${context.moduleKey}" data-sku="${item.sku}" title="Selecionar ${item.sku}">
       <small>Fila priorizada</small>
       <strong>${item.sku} · ${item.produto}</strong>
       <span>${formatProductType(item.product_type)} · ${number.format(item.net_required || 0)} peças pendentes</span>
@@ -1311,7 +1382,7 @@ function renderHourlySidebar(context) {
         </div>
       </div>
       <div class="hourly-queue-actions">
-        <button type="button" class="btn btn-secondary btn-xs" data-hourly-program="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-sku="${item.sku}">Pre-programar</button>
+        <button type="button" class="btn btn-secondary btn-xs" data-hourly-program="${context.moduleKey}" data-sku="${item.sku}">Pre-programar</button>
       </div>
     </article>
   `).join("") || `<div class="hourly-focus-empty">Sem itens críticos nesta carteira com os filtros atuais.</div>`;
@@ -1343,7 +1414,7 @@ function renderHourlySidebar(context) {
       <span class="status-badge info">${number.format(context.programmingItems.length)}</span>
     </div>
     ${context.programmingItems.length ? context.programmingItems.map((entry) => `
-      <article class="hourly-schedule-card" data-hourly-entry="${context.definition.datasetKey === "assembly" ? "montagem" : "producao"}" data-entry-sku="${entry.sku}" title="Editar programação de ${entry.sku}">
+      <article class="hourly-schedule-card" data-hourly-entry="${context.moduleKey}" data-entry-sku="${entry.sku}" title="Editar programação de ${entry.sku}">
         <small>${entry.workstation_code || entry.assembly_line_code || context.resource.lineCode}</small>
         <strong>${entry.sku} · ${entry.produto}</strong>
         <span>${formatDateTimeWithFallback(entry.planned_start_at, "Sem início")} → ${formatDateTimeWithFallback(entry.available_at, "Sem disponibilidade")}</span>
@@ -1745,7 +1816,79 @@ function findLocalRomaneioBySelectionCode(code) {
 }
 
 function findApiRomaneioBySelectionCode(code) {
-  return state.romaneiosApi.find((item) => String(item.romaneio) === String(code)) || null;
+  const identity = normalizeRomaneioIdentity(code);
+  return state.romaneiosApi.find((item) => (
+    String(item.romaneio) === String(code)
+    || (identity && normalizeRomaneioIdentity(item.romaneio) === identity)
+  )) || null;
+}
+
+function isRomaneioSelected(code) {
+  return state.selectedRomaneios.includes(String(code));
+}
+
+function syncRomaneioSelectionState() {
+  const availableCodes = new Set(buildRomaneiosCollection().map((item) => String(item.selection_code)));
+  state.selectedRomaneios = state.selectedRomaneios.filter((code) => availableCodes.has(String(code)));
+  if (!state.romaneioSelectionMode) {
+    state.selectedRomaneios = [];
+  }
+}
+
+function renderRomaneioSelectionToolbar() {
+  syncRomaneioSelectionState();
+  const toggleButton = document.getElementById("romaneios-selection-toggle");
+  const selectAllButton = document.getElementById("romaneios-select-all");
+  const deleteButton = document.getElementById("romaneios-delete-selected");
+  const counter = document.getElementById("romaneios-selection-counter");
+  const filteredItems = buildRomaneiosCollection();
+  const selectedCount = state.selectedRomaneios.length;
+
+  if (toggleButton) {
+    toggleButton.textContent = state.romaneioSelectionMode ? "Cancelar seleção" : "Selecionar itens";
+    toggleButton.className = `btn ${state.romaneioSelectionMode ? "btn-primary" : "btn-secondary"} btn-xs`;
+  }
+  if (selectAllButton) {
+    selectAllButton.disabled = !state.romaneioSelectionMode || !filteredItems.length;
+    const allSelected = filteredItems.length > 0 && filteredItems.every((item) => isRomaneioSelected(item.selection_code));
+    selectAllButton.textContent = allSelected ? "Limpar todos" : "Marcar todos";
+  }
+  if (deleteButton) {
+    deleteButton.disabled = !state.romaneioSelectionMode || !selectedCount;
+  }
+  if (counter) {
+    counter.textContent = state.romaneioSelectionMode
+      ? `${number.format(selectedCount)} selecionado(s)`
+      : "Seleção desativada";
+  }
+}
+
+function toggleRomaneioSelectionMode() {
+  state.romaneioSelectionMode = !state.romaneioSelectionMode;
+  if (!state.romaneioSelectionMode) {
+    state.selectedRomaneios = [];
+  }
+  renderRomaneioSelectionToolbar();
+  renderRomaneios();
+}
+
+function toggleRomaneioSelection(code) {
+  const nextCode = String(code);
+  if (isRomaneioSelected(nextCode)) {
+    state.selectedRomaneios = state.selectedRomaneios.filter((item) => item !== nextCode);
+  } else {
+    state.selectedRomaneios = [...state.selectedRomaneios, nextCode];
+  }
+  renderRomaneioSelectionToolbar();
+  renderRomaneios();
+}
+
+function toggleAllRomaneiosSelection() {
+  const items = buildRomaneiosCollection();
+  const allSelected = items.length > 0 && items.every((item) => isRomaneioSelected(item.selection_code));
+  state.selectedRomaneios = allSelected ? [] : items.map((item) => String(item.selection_code));
+  renderRomaneioSelectionToolbar();
+  renderRomaneios();
 }
 
 function buildExistingRomaneioIdentityMap() {
@@ -2584,6 +2727,7 @@ function renderStagedRomaneios() {
 function renderRomaneios() {
   const wrapper = document.getElementById("romaneios-list");
   wrapper.innerHTML = "";
+  renderRomaneioSelectionToolbar();
 
   const items = buildRomaneiosCollection();
 
@@ -2593,11 +2737,17 @@ function renderRomaneios() {
     items.forEach((item) => {
       const isLocal = item.source_type !== "api";
       const isSelected = state.romaneioSelecionado === item.selection_code;
+      const isMarked = isRomaneioSelected(item.selection_code);
       const secondaryLine = isLocal
         ? `${number.format(resolveRomaneioQuantity(item))} unidades | ${item.pdf_name || "Romaneio digitado"}${item.pedido ? ` | Pedido ${item.pedido}` : ""}`
         : `${number.format(resolveRomaneioQuantity(item))} unidades | Saida ${formatDateTime(item.previsao_saida_at)}`;
       const row = el(`
         <article class="romaneio-row ${isLocal ? "local" : ""} ${isSelected ? "selected" : ""}">
+          ${state.romaneioSelectionMode ? `
+            <label class="romaneio-select-cell">
+              <input type="checkbox" ${isMarked ? "checked" : ""} data-action="select" />
+            </label>
+          ` : ""}
           <div>
             <small>${item.empresa}</small>
             <strong>${formatRomaneioCode(item.romaneio)}</strong>
@@ -2611,6 +2761,10 @@ function renderRomaneios() {
         </article>
       `);
       row.addEventListener("click", () => carregarRomaneio(item.selection_code));
+      row.querySelector('[data-action="select"]')?.addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleRomaneioSelection(item.selection_code);
+      });
       row.querySelector('[data-action="open"]').addEventListener("click", (event) => {
         event.stopPropagation();
         carregarRomaneio(item.selection_code);
@@ -2806,7 +2960,8 @@ function renderProgrammingRecommendation(item, quickCandidates = []) {
   }
 
   const action = String(item?.action || item?.suggestedAction || document.getElementById("programming-form")?.elements?.namedItem("action")?.value || "montar").toLowerCase();
-  const suggestion = getSuggestedProgrammingContext(item || {}, action);
+  const moduleKey = action === "produzir" ? getProductionModuleKeyForItem(item || {}) : "montagem";
+  const suggestion = getSuggestedProgrammingContext(item || {}, action, moduleKey);
   const options = suggestion.resourceOptions || [];
   const rule = suggestion.rule;
 
@@ -2889,6 +3044,7 @@ function renderProgramming(items) {
   const quickCandidates = [
     ...(state.datasets.assembly || []).map((item) => ({ ...item, suggestedAction: "montar" })),
     ...(state.datasets.production || []).map((item) => ({ ...item, suggestedAction: "produzir" })),
+    ...(state.datasets.extrusion || []).map((item) => ({ ...item, suggestedAction: "produzir" })),
   ]
     .filter((item) => matchesSearch([item.sku, item.produto, item.product_type], searchQuery))
     .sort((left, right) => (Number(right.net_required) || 0) - (Number(left.net_required) || 0))
@@ -2927,7 +3083,7 @@ function renderProgramming(items) {
     quickCandidates.forEach((item) => {
       const card = el(`
         <article class="programming-shortcut-card" title="Pré-preencher programação de ${item.sku}">
-          <small>${item.suggestedAction === "montar" ? "Fila de esteiras" : "Fila de produção"}</small>
+          <small>${item.suggestedAction === "montar" ? "Fila de esteiras" : getProductionModuleKeyForItem(item) === "extrusao" ? "Fila de extrusão" : "Fila de injetoras"}</small>
           <strong>${item.sku}</strong>
           <span>${item.produto}</span>
           <em>${number.format(item.net_required || 0)} un pend. · est. ${number.format(getOperationalStockForItem(item))}</em>
@@ -2935,7 +3091,7 @@ function renderProgramming(items) {
         </article>
       `);
       card.querySelector("button").addEventListener("click", () => {
-        const suggestion = getSuggestedProgrammingContext(item, item.suggestedAction);
+        const suggestion = getSuggestedProgrammingContext(item, item.suggestedAction, item.suggestedAction === "produzir" ? getProductionModuleKeyForItem(item) : "montagem");
         prefillProgrammingForm(
           { ...item, action: item.suggestedAction },
           {
@@ -2974,13 +3130,13 @@ function renderProgramming(items) {
         </tr>
       `);
       row.addEventListener("click", () => {
-        const suggestion = getSuggestedProgrammingContext(item, item.action);
+        const suggestion = getSuggestedProgrammingContext(item, item.action, item.action === "produzir" ? getProductionModuleKeyForItem(item) : "montagem");
         prefillProgrammingForm(item, { ...suggestion, switchTab: true });
         renderProgrammingRecommendation(item, quickCandidates);
       });
       row.querySelector('[data-action="edit"]').addEventListener("click", (event) => {
         event.stopPropagation();
-        const suggestion = getSuggestedProgrammingContext(item, item.action);
+        const suggestion = getSuggestedProgrammingContext(item, item.action, item.action === "produzir" ? getProductionModuleKeyForItem(item) : "montagem");
         prefillProgrammingForm(item, { ...suggestion, switchTab: true });
         renderProgrammingRecommendation(item, quickCandidates);
       });
@@ -2990,7 +3146,7 @@ function renderProgramming(items) {
 
   const lanes = [
     { key: "montar", label: "Montagem", subtitle: "Esteiras e postos finais" },
-    { key: "produzir", label: "Produção", subtitle: "Extrusoras e intermediários" },
+    { key: "produzir", label: "Produção", subtitle: "Injetoras e extrusão" },
     { key: "comprar", label: "Compras", subtitle: "Itens que bloqueiam a carteira" },
     { key: "analisar", label: "Acompanhar", subtitle: "Ajustes e exceções" },
   ];
@@ -3031,7 +3187,13 @@ function renderProgramming(items) {
           </article>
         `);
         card.addEventListener("click", () => {
-          prefillProgrammingForm(item, { ...getSuggestedProgrammingContext(item, item.action), switchTab: true });
+          prefillProgrammingForm(
+            item,
+            {
+              ...getSuggestedProgrammingContext(item, item.action, item.action === "produzir" ? getProductionModuleKeyForItem(item) : "montagem"),
+              switchTab: true,
+            },
+          );
           renderProgrammingRecommendation(item, quickCandidates);
         });
         laneBody.appendChild(card);
@@ -3408,6 +3570,7 @@ function renderMrpTable(targetId, items) {
     return;
   }
   const action = targetId === "assembly-table" ? "montar" : "produzir";
+  const moduleKey = targetId === "assembly-table" ? "montagem" : targetId === "extrusion-table" ? "extrusao" : "producao";
   const filtered = (Array.isArray(items) ? items : []).filter((item) =>
     matchesSearch([item.sku, item.produto, item.product_type], getGlobalSearchQuery()),
   );
@@ -3417,7 +3580,7 @@ function renderMrpTable(targetId, items) {
     tbody.appendChild(el(`<tr><td colspan="6" class="muted">Sem itens nesta fila com os dados atuais.</td></tr>`));
   } else {
     filtered.forEach((item, index) => {
-      const suggestion = getSuggestedProgrammingContext(item, action);
+      const suggestion = getSuggestedProgrammingContext(item, action, moduleKey);
       const row = el(`
         <tr class="interactive-row">
           <td>
@@ -4114,7 +4277,7 @@ function buildApontamentoQueue() {
       planned_start_at: item.planned_start_at,
       available_at: item.available_at,
       op_code: item.romaneio_reference || item.schedule_key || `OP-${item.sku}`,
-      machine_hint: item.workstation_code || item.assembly_line_code || getSuggestedProgrammingContext(item, item.action).assembly_line_code || "Máquina 1",
+      machine_hint: item.workstation_code || item.assembly_line_code || getSuggestedProgrammingContext(item, item.action, item.action === "produzir" ? getProductionModuleKeyForItem(item) : "montagem").assembly_line_code || "Máquina 1",
       notes: item.notes || "",
       status: item.planning_status || "programado",
     }));
@@ -4148,8 +4311,8 @@ function buildApontamentoQueue() {
       planned_start_at: new Date().toISOString(),
       available_at: addHoursToIso(new Date().toISOString(), 8),
       op_code: `OP-${item.sku}`,
-      machine_hint: getSuggestedProgrammingContext(item, "produzir").assembly_line_code || `Célula ${index + 1}`,
-      notes: "Sugestão automática da fila de produção.",
+      machine_hint: getSuggestedProgrammingContext(item, "produzir", "producao").assembly_line_code || `Injetora ${index + 1}`,
+      notes: "Sugestão automática da fila de injetoras.",
       status: "sugerido",
     })),
   ];
@@ -4473,16 +4636,57 @@ function renderKanbanSummary(model) {
   wrapper.appendChild(priorityBox);
 }
 
-function resolveKanbanInspectorContext(model, data) {
+function resolveSelectedKanbanCard(model) {
   const cards = flattenKanbanCards(model);
   if (!cards.length) {
-    return null;
+    return { cards: [], selectedCard: null };
   }
 
   const selectedCard =
     cards.find((card) => String(card.romaneio) === String(state.kanbanSelecionado)) ||
     cards[0];
   state.kanbanSelecionado = selectedCard.romaneio;
+  return { cards, selectedCard };
+}
+
+function renderKanbanQuickbar(model) {
+  const wrapper = document.getElementById("kanban-quickbar");
+  const button = document.getElementById("kanban-sem-previsao-shortcut");
+  const copy = document.getElementById("kanban-shortcut-copy");
+  if (!wrapper || !button || !copy) {
+    return;
+  }
+
+  const semPrevisaoColumn = model.columns.find((column) => column.key === "__sem_previsao__");
+  const count = Number(semPrevisaoColumn?.count || 0);
+  button.disabled = count <= 0;
+  button.textContent = count > 0 ? `Ir para Sem previsão (${count})` : "Sem previsão em dia";
+  copy.textContent =
+    count > 0
+      ? `${count} romaneio(s) aguardam data final e ficam destacados em vermelho no board.`
+      : "Nenhum romaneio está sem previsão no momento.";
+  wrapper.classList.toggle("is-empty", count <= 0);
+}
+
+function focusKanbanColumn(columnKey) {
+  const board = document.getElementById("kanban-board");
+  const lane = board?.querySelector(`[data-column-key="${columnKey}"]`);
+  if (!board || !lane) {
+    return;
+  }
+
+  const viewport = board.parentElement?.classList.contains("x-scroll-viewport") ? board.parentElement : board;
+  const targetLeft = Math.max(lane.offsetLeft - Math.max((viewport.clientWidth - lane.offsetWidth) / 2, 24), 0);
+  viewport.scrollTo({ left: targetLeft, behavior: "smooth" });
+  lane.classList.add("kanban-lane--focus");
+  window.setTimeout(() => lane.classList.remove("kanban-lane--focus"), 1500);
+}
+
+function resolveKanbanInspectorContext(model, data) {
+  const { cards, selectedCard } = resolveSelectedKanbanCard(model);
+  if (!cards.length || !selectedCard) {
+    return null;
+  }
 
   const productMap = Object.fromEntries((Array.isArray(data.products) ? data.products : []).map((item) => [item.sku, item]));
   const selectedIndex = cards.findIndex((card) => String(card.romaneio) === String(selectedCard.romaneio));
@@ -5010,6 +5214,7 @@ function renderKanban(data) {
     layout.classList.toggle("inspector-collapsed", viewMode === "board" && state.kanbanInspectorCollapsed);
   }
   renderKanbanSummary(model);
+  renderKanbanQuickbar(model);
   renderKanbanInspector(model, data, viewMode);
 
   const wrapper = document.getElementById("kanban-board"); // Updated ID
@@ -5023,8 +5228,9 @@ function renderKanban(data) {
   }
 
   model.columns.forEach((column) => {
+    const laneClassName = `kanban-lane${column.key === "__sem_previsao__" ? " kanban-lane--sem-previsao" : ""}`;
     const col = el(`
-      <div class="kanban-lane">
+      <div class="${laneClassName}" data-column-key="${column.key}">
         <div class="kanban-lane-header">
            <div style="display: flex; flex-direction: column;">
              <h3>${column.label}</h3>
@@ -5169,6 +5375,7 @@ function refreshRomaneiosWorkspace() {
   if (state.romaneioSelecionado && !merged.some((item) => item.selection_code === state.romaneioSelecionado)) {
     state.romaneioSelecionado = null;
   }
+  syncRomaneioSelectionState();
   renderRomaneioIntakeSummary();
   renderStagedRomaneios();
   renderRomaneios();
@@ -5187,10 +5394,11 @@ function removerRomaneioLocal(localId) {
   refreshRomaneiosWorkspace();
 }
 
-async function excluirRomaneio(code) {
+async function excluirRomaneio(code, options = {}) {
+  const { skipConfirm = false, skipReload = false, silent = false } = options;
   const localEntry = findLocalRomaneioBySelectionCode(code);
   if (localEntry) {
-    const confirmedLocal = window.confirm(`Deseja remover o romaneio local ${formatRomaneioCode(localEntry.romaneio)} da fila?`);
+    const confirmedLocal = skipConfirm || window.confirm(`Deseja remover o romaneio local ${formatRomaneioCode(localEntry.romaneio)} da fila?`);
     if (!confirmedLocal) {
       return;
     }
@@ -5203,14 +5411,16 @@ async function excluirRomaneio(code) {
     throw new Error("Romaneio não encontrado para exclusão.");
   }
 
-  const confirmed = window.confirm(
+  const confirmed = skipConfirm || window.confirm(
     `Deseja excluir o romaneio ${formatRomaneioCode(romaneio.romaneio)}? A carteira e os itens desse romaneio serão substituídos pela exclusão no sistema.`,
   );
   if (!confirmed) {
     return;
   }
 
-  setElementStatus("romaneio-dropzone-status", `Excluindo ${formatRomaneioCode(romaneio.romaneio)}...`);
+  if (!silent) {
+    setElementStatus("romaneio-dropzone-status", `Excluindo ${formatRomaneioCode(romaneio.romaneio)}...`);
+  }
   await postJson("/api/pcp/romaneios/delete", {
     romaneio: romaneio.romaneio,
     empresa: romaneio.empresa,
@@ -5218,8 +5428,54 @@ async function excluirRomaneio(code) {
     reason: "Operador confirmou exclusão do romaneio",
   });
   state.romaneioSelecionado = null;
-  await carregarTudo();
-  setElementStatus("romaneio-dropzone-status", `Romaneio ${formatRomaneioCode(romaneio.romaneio)} excluído com sucesso.`, "success");
+  if (!skipReload) {
+    await carregarTudo();
+  }
+  if (!silent) {
+    setElementStatus("romaneio-dropzone-status", `Romaneio ${formatRomaneioCode(romaneio.romaneio)} excluído com sucesso.`, "success");
+  }
+}
+
+async function excluirRomaneiosSelecionados() {
+  const selectedItems = buildRomaneiosCollection().filter((item) => isRomaneioSelected(item.selection_code));
+  if (!selectedItems.length) {
+    setElementStatus("romaneio-dropzone-status", "Selecione pelo menos um romaneio para excluir.", "error");
+    return;
+  }
+
+  const confirmed = window.confirm(
+    `Deseja excluir ${selectedItems.length} romaneio(s) selecionado(s)? Os romaneios locais serão removidos da fila e os romaneios do sistema serão zerados no backend.`,
+  );
+  if (!confirmed) {
+    return;
+  }
+
+  setElementStatus("romaneio-dropzone-status", `Excluindo ${selectedItems.length} romaneio(s) selecionado(s)...`);
+
+  const localIds = new Set(
+    selectedItems
+      .filter((item) => item.source_type !== "api")
+      .map((item) => item.selection_code),
+  );
+  if (localIds.size) {
+    saveLocalRomaneios(state.romaneiosLocais.filter((item) => !localIds.has(item.local_id)));
+  }
+
+  const apiItems = selectedItems.filter((item) => item.source_type === "api");
+  for (const item of apiItems) {
+    await excluirRomaneio(item.selection_code, { skipConfirm: true, skipReload: true, silent: true });
+  }
+
+  state.selectedRomaneios = [];
+  state.romaneioSelectionMode = false;
+
+  if (apiItems.length) {
+    await carregarTudo();
+  } else {
+    refreshRomaneiosWorkspace();
+  }
+
+  setElementStatus("romaneio-dropzone-status", `${selectedItems.length} romaneio(s) tratado(s) com sucesso.`, "success");
 }
 
 function confirmRomaneioReplacement(entry) {
@@ -5955,6 +6211,9 @@ document.getElementById("kanban-reset-filters")?.addEventListener("click", () =>
   const field = document.getElementById("kanban-status-filter");
   if (field) field.value = "todos";
   renderKanban(state.datasets.kanban);
+});
+document.getElementById("kanban-sem-previsao-shortcut")?.addEventListener("click", () => {
+  focusKanbanColumn("__sem_previsao__");
 });
 document.getElementById("programming-action-filter")?.addEventListener("change", (event) => {
   state.programmingActionFilter = event.target.value || "";

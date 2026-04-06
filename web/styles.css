@@ -974,6 +974,40 @@
       flex-direction: column;
       min-height: calc(100vh - 300px);
   }
+
+  .kanban-lane--sem-previsao {
+      background: linear-gradient(180deg, rgba(108, 23, 34, 0.68), rgba(17, 24, 39, 0.95));
+      border-color: rgba(248, 113, 113, 0.32);
+      box-shadow: inset 0 1px 0 rgba(255, 214, 214, 0.08);
+  }
+
+  .kanban-lane--sem-previsao .kanban-lane-header {
+      border-bottom-color: rgba(248, 113, 113, 0.18);
+      background: linear-gradient(180deg, rgba(161, 36, 53, 0.24), rgba(161, 36, 53, 0));
+  }
+
+  .kanban-lane--sem-previsao .kanban-lane-header h3 {
+      color: #ffe1e1;
+  }
+
+  .kanban-lane--sem-previsao .kanban-lane-count {
+      background: rgba(248, 113, 113, 0.2);
+      color: #fff1f1;
+  }
+
+  .kanban-lane--sem-previsao .kanban-card {
+      background: rgba(47, 22, 29, 0.84);
+      border-color: rgba(248, 113, 113, 0.18);
+  }
+
+  .kanban-lane--sem-previsao .k-qty {
+      background: rgba(248, 113, 113, 0.16);
+      color: #ffe1e1;
+  }
+
+  .kanban-lane--focus {
+      box-shadow: 0 0 0 1px rgba(248, 113, 113, 0.42), 0 0 0 12px rgba(248, 113, 113, 0.08);
+  }
   
   .kanban-lane-header {
       padding: 16px;
@@ -1838,6 +1872,48 @@
       flex-wrap: wrap;
       gap: 12px;
       align-items: center;
+  }
+
+  .kanban-quickbar {
+      display: flex;
+      align-items: center;
+      justify-content: space-between;
+      gap: 16px;
+      padding: 14px 18px;
+      position: sticky;
+      top: 10px;
+      z-index: 7;
+      background: linear-gradient(135deg, rgba(11, 38, 92, 0.86), rgba(28, 37, 56, 0.92));
+      border: 1px solid rgba(116, 161, 255, 0.18);
+      box-shadow: 0 18px 40px rgba(6, 12, 24, 0.26);
+  }
+
+  .kanban-quickbar.is-empty {
+      border-color: rgba(148, 163, 184, 0.16);
+  }
+
+  .kanban-quickbar-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 4px;
+      min-width: 0;
+  }
+
+  .kanban-quickbar-copy small {
+      font-size: 0.72rem;
+      text-transform: uppercase;
+      letter-spacing: 0.08em;
+      color: var(--text-muted);
+  }
+
+  .kanban-quickbar-copy strong {
+      font-size: 1rem;
+      color: var(--text-primary);
+  }
+
+  .kanban-quickbar-copy span {
+      font-size: 0.82rem;
+      color: var(--text-secondary);
   }
 
   .kanban-layout {
@@ -3057,6 +3133,12 @@
       .auth-highlights,
       .kanban-workbench-toolbar {
           grid-template-columns: 1fr;
+      }
+
+      .kanban-quickbar {
+          position: static;
+          flex-direction: column;
+          align-items: stretch;
       }
 
       .aponta-shell,

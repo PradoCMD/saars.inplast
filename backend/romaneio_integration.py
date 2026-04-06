@@ -4,7 +4,7 @@ import json
 import re
 from typing import Any
 
-from .romaneio_pdf import infer_document_kind, normalize_romaneio_identity
+from .romaneio_pdf import normalize_document_kind, normalize_romaneio_identity
 
 
 ROMANEIO_CODE_KEYS = (
@@ -128,11 +128,20 @@ def normalize_webhook_pedido(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def normalize_webhook_item(raw: dict[str, Any]) -> dict[str, Any] | None:
-    sku, descricao = split_product_label(raw.get("produto") or raw.get("descricao"))
+    explicit_sku = clean_text(raw.get("sku") or raw.get("codProduto") or raw.get("codigoProduto"))
+    sku, descricao = split_product_label(raw.get("produto") or raw.get("descricao") or raw.get("descricaoProduto"))
+    sku = explicit_sku or sku
+    descricao = clean_text(raw.get("descricao") or raw.get("descricaoProduto") or descricao)
     unidade = clean_text(raw.get("und") or raw.get("unidade") or "UN").upper() or "UN"
-    quantidade_neg = parse_number(raw.get("qtd_neg") or raw.get("quantidade_neg") or raw.get("qtdNeg"))
+    quantidade_neg = parse_number(
+        raw.get("qtd_neg")
+        or raw.get("quantidade_neg")
+        or raw.get("qtdNeg")
+        or raw.get("quantidade")
+        or raw.get("quantity_total")
+    )
     quantidade_vol = parse_number(raw.get("qtd_vol") or raw.get("quantidade_vol") or raw.get("qtdVol"))
-    quantity_total = quantidade_neg or quantidade_vol
+    quantity_total = parse_number(raw.get("quantity_total") or raw.get("quantidade") or quantidade_neg or quantidade_vol)
     if not sku and not descricao:
         return None
     produto = f"{sku} - {descricao}".strip(" -") if sku else descricao
@@ -147,6 +156,29 @@ def normalize_webhook_item(raw: dict[str, Any]) -> dict[str, Any] | None:
         "quantidade_vol": quantidade_vol,
         "quantity_total": quantity_total,
     }
+
+
+def _build_document_kind_hint(record: dict[str, Any], container: dict[str, Any]) -> str:
+    return " ".join(
+        clean_text(value)
+        for value in (
+            record.get("document_kind"),
+            container.get("document_kind"),
+            record.get("status"),
+            container.get("status"),
+            record.get("situacao"),
+            container.get("situacao"),
+            record.get("tipo_documento"),
+            record.get("tipoDocumento"),
+            container.get("tipo_documento"),
+            container.get("tipoDocumento"),
+            record.get("faturamento_status"),
+            record.get("billing_status"),
+            record.get("file_name"),
+            record.get("file"),
+        )
+        if clean_text(value)
+    )
 
 
 def normalize_webhook_romaneios(payload: Any) -> list[dict[str, Any]]:
@@ -187,9 +219,7 @@ def normalize_webhook_romaneios(payload: Any) -> list[dict[str, Any]]:
             {
                 "ordem_carga": romaneio_code,
                 "romaneio_identity": romaneio_code,
-                "document_kind": infer_document_kind(
-                    clean_text(record.get("document_kind") or container.get("document_kind") or record.get("file_name") or "romaneio")
-                ),
+                "document_kind": normalize_document_kind(_build_document_kind_hint(record, container)),
                 "empresa": clean_text(find_first_value(record, COMPANY_CODE_KEYS) or find_first_value(container, COMPANY_CODE_KEYS)),
                 "nome_empresa": clean_text(find_first_value(record, COMPANY_NAME_KEYS) or find_first_value(container, COMPANY_NAME_KEYS)),
                 "cidade": cidade,

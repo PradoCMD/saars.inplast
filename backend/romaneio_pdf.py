@@ -4,6 +4,7 @@ import hashlib
 import io
 import json
 import re
+import unicodedata
 from datetime import datetime, timezone
 from typing import Any
 
@@ -26,9 +27,49 @@ def normalize_romaneio_identity(value: Any) -> str:
     return match.group(1) if match else ""
 
 
-def infer_document_kind(value: Any) -> str:
-    text = clean_text(value).upper()
+def _normalize_kind_text(value: Any) -> str:
+    text = clean_text(value)
+    if not text:
+        return ""
+    return unicodedata.normalize("NFKD", text).encode("ascii", "ignore").decode("ascii").upper()
+
+
+def normalize_document_kind(value: Any) -> str:
+    text = _normalize_kind_text(value)
+    if not text:
+        return "romaneio"
+    if "MERGED" in text or "MISTO" in text or "CONSOLIDADO" in text:
+        return "merged"
+    if "EXISTING" in text or "EXISTENTE" in text:
+        return "existing"
+
+    pending_terms = (
+        "NAO FATURADO",
+        "NAO_FATURADO",
+        "PENDENTE",
+        "PEDIDO",
+        "ABERTO",
+    )
+    note_terms = (
+        "ROMANEIO NOTA",
+        "NOTA FISCAL",
+        "FATURADO",
+        "FATURADA",
+        "NOTA",
+    )
+
+    has_pending = any(term in text for term in pending_terms)
+    has_note = any(term in text for term in note_terms) or ("ROMANEIO" in text and "NOTA" in text)
+
+    if has_note and not has_pending:
+        return "romaneio_nota"
+    if has_pending:
+        return "romaneio"
     return "romaneio_nota" if ("ROMANEIO" in text and "NOTA" in text) else "romaneio"
+
+
+def infer_document_kind(value: Any) -> str:
+    return normalize_document_kind(value)
 
 
 def parse_num(value: Any) -> float:
