@@ -160,10 +160,10 @@ line_items as (
             )
             order by produto, sku
         ) as items
-    from (
+        from (
         select
             romaneio_code,
-            coalesce(nullif(sku, ''), produto) as line_key,
+            coalesce(nullif(regexp_replace(trim(sku), '\s+', '', 'g'), ''), lower(trim(produto))) as line_key,
             max(sku) as sku,
             max(produto) as produto,
             sum(quantidade) as quantidade,
@@ -177,7 +177,7 @@ line_items as (
                 else 'estoque'
             end as previsao_disponibilidade_status
         from mart.vw_romaneio_eta_line_current
-        group by romaneio_code, coalesce(nullif(sku, ''), produto)
+        group by romaneio_code, coalesce(nullif(regexp_replace(trim(sku), '\s+', '', 'g'), ''), lower(trim(produto)))
     ) grouped
     group by romaneio_code
 )
@@ -217,7 +217,7 @@ select
     end as previsao_disponibilidade_status
 from mart.vw_romaneio_eta_line_current
 where romaneio_code = %s
-group by coalesce(nullif(sku, ''), produto)
+group by coalesce(nullif(regexp_replace(trim(sku), '\s+', '', 'g'), ''), lower(trim(produto)))
 order by max(produto)
 """
 

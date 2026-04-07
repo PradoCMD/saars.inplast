@@ -46,7 +46,33 @@
     --border-light: 1px solid rgba(255, 255, 255, 0.1);
     --shadow-soft: 0 18px 45px rgba(3, 8, 24, 0.34);
     --shadow-glow: 0 0 20px var(--accent-glow);
-    --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+   --transition: all 0.3s cubic-bezier(0.25, 0.8, 0.25, 1);
+  }
+
+  body.light-theme {
+    --bg-base: #edf4ff;
+    --bg-base-2: #d7e5ff;
+    --bg-surface: rgba(255, 255, 255, 0.82);
+    --bg-panel: rgba(244, 248, 255, 0.88);
+    --bg-panel-strong: rgba(223, 233, 249, 0.96);
+    --accent-primary: #2f6fff;
+    --accent-secondary: #4f84ff;
+    --accent-glow: rgba(47, 111, 255, 0.2);
+    --text-primary: #14233b;
+    --text-secondary: #5f708b;
+    --text-muted: #8b9bb3;
+    --status-ok: #1e8a58;
+    --status-info: #2563eb;
+    --status-warning: #b7791f;
+    --status-high: #d9475f;
+    --status-missing: #7e8da5;
+    --border-light: 1px solid rgba(67, 93, 137, 0.14);
+    --shadow-soft: 0 18px 42px rgba(105, 135, 181, 0.16);
+    color-scheme: light;
+    background:
+      radial-gradient(circle at 12% 16%, rgba(92, 143, 255, 0.22), transparent 22%),
+      radial-gradient(circle at 84% 9%, rgba(103, 181, 255, 0.16), transparent 18%),
+      linear-gradient(135deg, #f1f6ff 0%, #dbe8ff 52%, #eef5ff 100%);
   }
   
   /* Reset & Base */
@@ -65,6 +91,116 @@
     color: var(--text-primary);
     -webkit-font-smoothing: antialiased;
     overflow: hidden; /* App container handles scroll */
+  }
+
+  body.light-theme .app-container {
+    background:
+      radial-gradient(circle at 12% 14%, rgba(120, 168, 255, 0.18), transparent 22%),
+      radial-gradient(circle at 84% 8%, rgba(108, 203, 255, 0.14), transparent 18%),
+      linear-gradient(135deg, rgba(245, 249, 255, 0.98) 0%, rgba(223, 235, 255, 0.98) 54%, rgba(237, 244, 255, 0.98) 100%);
+  }
+
+  body.light-theme .sidebar {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.92), rgba(234, 241, 252, 0.88)),
+      var(--bg-surface);
+    box-shadow: 16px 0 36px rgba(108, 132, 173, 0.08);
+  }
+
+  body.light-theme .nav-item:hover {
+    background: rgba(47, 111, 255, 0.08);
+  }
+
+  body.light-theme .nav-item.active {
+    background: linear-gradient(90deg, rgba(47, 111, 255, 0.16) 0%, rgba(47, 111, 255, 0.04) 100%);
+  }
+
+  body.light-theme .topbar {
+    background:
+      linear-gradient(90deg, rgba(251, 253, 255, 0.96), rgba(230, 239, 255, 0.94) 48%, rgba(248, 251, 255, 0.96)),
+      rgba(255, 255, 255, 0.84);
+    box-shadow: 0 16px 28px rgba(113, 138, 179, 0.12);
+  }
+
+  body.light-theme .search-bar input,
+  body.light-theme .btn-secondary,
+  body.light-theme .user-profile,
+  body.light-theme .status-card,
+  body.light-theme .modern-input {
+    background: rgba(255, 255, 255, 0.78);
+    border-color: rgba(88, 115, 159, 0.16);
+    box-shadow: inset 0 1px 0 rgba(255, 255, 255, 0.4);
+  }
+
+  body.light-theme .search-bar input:focus,
+  body.light-theme .modern-input:focus {
+    background: rgba(255, 255, 255, 0.96);
+  }
+
+  body.light-theme .glass-panel {
+    background:
+      radial-gradient(circle at top left, rgba(116, 159, 255, 0.16), transparent 28%),
+      linear-gradient(180deg, rgba(255, 255, 255, 0.86), rgba(231, 239, 252, 0.9)),
+      var(--bg-panel);
+    box-shadow: 0 18px 42px rgba(106, 132, 176, 0.12);
+  }
+
+  body.light-theme .auth-screen {
+    background:
+      radial-gradient(circle at top left, rgba(92, 143, 255, 0.18), transparent 32%),
+      radial-gradient(circle at bottom right, rgba(115, 204, 164, 0.12), transparent 28%),
+      rgba(241, 246, 255, 0.9);
+  }
+
+  body.light-theme .auth-brand-panel,
+  body.light-theme .auth-panel {
+    background:
+      linear-gradient(135deg, rgba(255, 255, 255, 0.94) 0%, rgba(232, 240, 252, 0.9) 100%);
+    box-shadow: 0 24px 48px rgba(105, 133, 175, 0.14);
+  }
+
+  body.light-theme .auth-highlight-card,
+  body.light-theme .auth-root-hint,
+  body.light-theme .hourly-kpi,
+  body.light-theme .hourly-hero-copy,
+  body.light-theme .hourly-kpi-grid,
+  body.light-theme .hourly-grid-card,
+  body.light-theme .hourly-focus-card,
+  body.light-theme .hourly-queue-card,
+  body.light-theme .hourly-schedule-card,
+  body.light-theme .hourly-legend-card,
+  body.light-theme .aponta-tablet-panel,
+  body.light-theme .aponta-shell-card,
+  body.light-theme .aponta-queue-card,
+  body.light-theme .aponta-stage-row,
+  body.light-theme .aponta-operator-card,
+  body.light-theme .aponta-machine-card {
+    background:
+      linear-gradient(180deg, rgba(255, 255, 255, 0.76), rgba(230, 239, 252, 0.92));
+    border-color: rgba(95, 123, 170, 0.14);
+  }
+
+  body.light-theme .x-scroll-nav {
+    border-color: rgba(84, 116, 168, 0.14);
+    background:
+      radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.52), transparent 30%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.92), rgba(227, 236, 249, 0.94));
+    color: #27426f;
+    box-shadow: 0 18px 38px rgba(105, 133, 175, 0.16);
+  }
+
+  body.light-theme .x-scroll-nav:hover {
+    border-color: rgba(65, 104, 171, 0.22);
+    background:
+      radial-gradient(circle at 18% 12%, rgba(255, 255, 255, 0.72), transparent 34%),
+      linear-gradient(135deg, rgba(255, 255, 255, 0.98), rgba(220, 232, 248, 0.98));
+  }
+
+  body.light-theme code {
+    background: rgba(47, 111, 255, 0.08);
+    color: #1f4fb8;
+    padding: 1px 5px;
+    border-radius: 8px;
   }
   
   h1, h2, h3, h4, h5, h6 {
@@ -387,6 +523,17 @@
     background: rgba(255, 255, 255, 0.1);
   }
 
+  .theme-toggle {
+    min-width: 124px;
+    justify-content: center;
+    white-space: nowrap;
+  }
+
+  .theme-toggle-icon {
+    font-size: 0.95rem;
+    line-height: 1;
+  }
+
   .btn-danger {
     background: linear-gradient(135deg, rgba(163, 30, 52, 0.96), rgba(127, 29, 29, 0.92));
     color: #fff5f5;
@@ -417,7 +564,7 @@
   .view-port {
     flex: 1;
     overflow-y: auto;
-    padding: 32px;
+    padding: 24px;
     position: relative;
     scroll-behavior: smooth;
   }
@@ -451,7 +598,7 @@
     -webkit-backdrop-filter: var(--glass-blur);
     border: 1px solid rgba(179, 213, 255, 0.1);
     border-radius: var(--radius-lg);
-    padding: 24px;
+    padding: 20px;
     box-shadow: 0 24px 60px rgba(4, 11, 25, 0.22);
     position: relative;
     overflow: hidden;
@@ -467,7 +614,7 @@
   }
   
   .panel-header {
-    margin-bottom: 20px;
+    margin-bottom: 16px;
     display: flex;
     justify-content: space-between;
     align-items: center;
@@ -506,13 +653,13 @@
   .grid-layout-2 {
     display: grid;
     grid-template-columns: 1fr 1fr;
-    gap: 24px;
+    gap: 20px;
   }
 
   .grid-layout-2-wide {
     display: grid;
     grid-template-columns: 1fr 2fr;
-    gap: 24px;
+    gap: 20px;
   }
 
   .header-titles {
@@ -522,7 +669,7 @@
   }
 
   .panel-header.compact {
-    margin-bottom: 14px;
+    margin-bottom: 12px;
     align-items: flex-start;
     gap: 12px;
   }
@@ -536,8 +683,8 @@
   .kanban-summary-grid {
     display: grid;
     grid-template-columns: repeat(auto-fit, minmax(190px, 1fr));
-    gap: 14px;
-    margin-bottom: 14px;
+    gap: 12px;
+    margin-bottom: 12px;
   }
 
   .kanban-summary-card {
@@ -545,9 +692,9 @@
     overflow: hidden;
     display: flex;
     flex-direction: column;
-    gap: 8px;
-    min-height: 138px;
-    padding: 18px;
+    gap: 6px;
+    min-height: 120px;
+    padding: 16px;
     border-radius: 20px;
     border: 1px solid rgba(195, 220, 255, 0.1);
     background: linear-gradient(160deg, rgba(255,255,255,0.09), rgba(12, 19, 33, 0.18));
@@ -1128,7 +1275,7 @@
       gap: 18px;
       overflow: visible;
       padding: 6px 8px 28px;
-      min-height: calc(100vh - 220px);
+      min-height: calc(100vh - 270px);
       height: auto;
       align-items: flex-start;
   }
@@ -1140,7 +1287,7 @@
       border: var(--border-light);
       display: flex;
       flex-direction: column;
-      min-height: calc(100vh - 300px);
+      min-height: calc(100vh - 360px);
   }
 
   .kanban-lane--sem-previsao {
@@ -1207,7 +1354,7 @@
       background: var(--bg-surface);
       border: 1px solid rgba(255,255,255,0.08);
       border-radius: var(--radius-sm);
-      padding: 16px;
+      padding: 14px;
       cursor: grab;
       position: relative;
       transition: var(--transition);
@@ -1218,7 +1365,61 @@
   .k-card-top { display: flex; justify-content: space-between; margin-bottom: 8px; }
   .k-sku { font-family: var(--font-heading); font-size: 1.1rem; font-weight: 700; color: var(--text-primary); }
   .k-qty { font-size: 0.85rem; color: var(--accent-primary); font-weight: 600; background: rgba(59, 130, 246, 0.15); padding: 2px 6px; border-radius: 4px; }
-  .k-title { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 12px; line-height: 1.3; }
+  .k-title { font-size: 0.85rem; color: var(--text-secondary); margin-bottom: 10px; line-height: 1.3; }
+  .k-product-preview {
+      margin-top: 10px;
+      margin-bottom: 10px;
+      padding: 10px;
+      border-radius: 14px;
+      background: rgba(255,255,255,0.04);
+      border: 1px solid rgba(255,255,255,0.06);
+      display: flex;
+      flex-direction: column;
+      gap: 8px;
+  }
+  .k-product-preview--empty {
+      color: var(--text-secondary);
+      font-size: 0.76rem;
+  }
+  .k-product-row {
+      display: flex;
+      justify-content: space-between;
+      align-items: flex-start;
+      gap: 10px;
+  }
+  .k-product-copy {
+      display: flex;
+      flex-direction: column;
+      gap: 2px;
+      min-width: 0;
+  }
+  .k-product-copy b {
+      font-size: 0.74rem;
+      color: rgba(229, 240, 255, 0.9);
+      letter-spacing: 0.04em;
+  }
+  .k-product-copy span {
+      color: var(--text-secondary);
+      font-size: 0.76rem;
+      line-height: 1.35;
+      display: -webkit-box;
+      -webkit-line-clamp: 2;
+      -webkit-box-orient: vertical;
+      overflow: hidden;
+  }
+  .k-product-row small {
+      color: var(--text-primary);
+      font-size: 0.76rem;
+      font-weight: 700;
+      white-space: nowrap;
+      padding-top: 1px;
+  }
+  .k-product-more {
+      padding-top: 2px;
+      color: var(--text-muted);
+      font-size: 0.72rem;
+      border-top: 1px solid rgba(255,255,255,0.06);
+  }
   
   .k-card-bottom { display: flex; justify-content: space-between; align-items: center; border-top: 1px solid rgba(255,255,255,0.05); padding-top: 12px; }
   .k-date { font-size: 0.75rem; color: var(--text-muted); display: flex; align-items: center; gap: 4px; }
@@ -1391,7 +1592,7 @@
       box-shadow: 0 28px 64px rgba(6, 12, 24, 0.34);
   }
   .x-scroll-nav:disabled {
-      opacity: 0.58 !important;
+      opacity: 0.66 !important;
       pointer-events: auto;
       cursor: default;
       border-color: rgba(214, 232, 255, 0.18);
@@ -1414,11 +1615,11 @@
       font-size: 0.75rem;
       text-transform: uppercase;
       letter-spacing: 0.05em;
-      padding: 12px 16px;
+      padding: 10px 14px;
       border-bottom: 1px solid rgba(255,255,255,0.1);
   }
   .modern-table td {
-      padding: 16px;
+      padding: 13px 14px;
       font-size: 0.85rem;
       border-bottom: 1px solid rgba(255,255,255,0.03);
       vertical-align: middle;
@@ -1430,7 +1631,7 @@
   /* Utilities */
   .scroll-y { overflow-y: auto; max-height: calc(100vh - 120px); }
   .sticky { position: static; top: auto; z-index: 1; background: var(--bg-panel); padding-bottom: 16px; border-bottom: 1px solid rgba(255,255,255,0.05); margin-bottom: 16px;}
-  .mt-4 { margin-top: 24px; }
+  .mt-4 { margin-top: 18px; }
   
   .modern-input {
       width: 100%;
@@ -1484,11 +1685,11 @@
   }
 
   .section-copy {
-      margin-top: 8px;
+      margin-top: 6px;
       color: var(--text-secondary);
       max-width: 720px;
-      line-height: 1.5;
-      font-size: 0.95rem;
+      line-height: 1.45;
+      font-size: 0.9rem;
   }
 
   .romaneio-intake-grid {
@@ -1905,6 +2106,8 @@
       align-items: stretch;
       justify-content: center;
       padding: 40px;
+      overflow-y: auto;
+      overscroll-behavior: contain;
       background:
           radial-gradient(circle at top left, rgba(59, 130, 246, 0.18), transparent 30%),
           radial-gradient(circle at bottom right, rgba(34, 197, 94, 0.14), transparent 30%),
@@ -1922,6 +2125,7 @@
       grid-template-columns: 1.2fr 0.8fr;
       gap: 28px;
       align-items: stretch;
+      margin: auto 0;
   }
 
   .auth-brand-panel {
@@ -2803,7 +3007,7 @@
   .hourly-shell {
       display: grid;
       grid-template-columns: minmax(0, 1.28fr) minmax(320px, 0.92fr);
-      gap: 24px;
+      gap: 18px;
       align-items: start;
       transition: grid-template-columns 220ms ease;
   }
@@ -2816,7 +3020,7 @@
   .hourly-sidebar {
       display: flex;
       flex-direction: column;
-      gap: 18px;
+      gap: 14px;
       min-height: 100%;
   }
 
@@ -2828,7 +3032,7 @@
       display: flex;
       justify-content: space-between;
       align-items: flex-start;
-      gap: 18px;
+      gap: 14px;
   }
 
   .hourly-kicker {
@@ -2858,8 +3062,8 @@
       display: inline-flex;
       flex-direction: column;
       gap: 3px;
-      min-width: 118px;
-      padding: 12px 14px;
+      min-width: 108px;
+      padding: 10px 12px;
       border-radius: 18px;
       border: 1px solid rgba(255, 255, 255, 0.08);
       background: rgba(255, 255, 255, 0.03);
@@ -2925,7 +3129,7 @@
   .hourly-hero {
       display: grid;
       grid-template-columns: minmax(240px, 1.1fr) minmax(0, 1.4fr);
-      gap: 18px;
+      gap: 14px;
   }
 
   .hourly-hero-copy,
@@ -2941,10 +3145,10 @@
   }
 
   .hourly-hero-copy {
-      padding: 22px;
+      padding: 18px;
       display: flex;
       flex-direction: column;
-      gap: 10px;
+      gap: 8px;
       background:
         radial-gradient(circle at top right, rgba(80,120,255,0.14), transparent 42%),
         rgba(255, 255, 255, 0.03);
@@ -2967,14 +3171,14 @@
   }
 
   .hourly-kpi-grid {
-      padding: 16px;
+      padding: 14px;
       display: grid;
       grid-template-columns: repeat(3, minmax(0, 1fr));
-      gap: 12px;
+      gap: 10px;
   }
 
   .hourly-kpi {
-      padding: 14px 16px;
+      padding: 12px 14px;
       border-radius: 18px;
       background: rgba(18, 24, 36, 0.48);
       border: 1px solid rgba(255, 255, 255, 0.08);
@@ -2999,12 +3203,12 @@
   }
 
   .hourly-grid-card {
-      padding: 16px 18px 18px;
+      padding: 12px 14px 14px;
       overflow: hidden;
   }
 
   .hourly-grid-card .panel-header {
-      margin-bottom: 14px;
+      margin-bottom: 10px;
   }
 
   .hourly-grid-card .modern-table {
@@ -3012,13 +3216,13 @@
   }
 
   .hourly-grid-card .modern-table td {
-      padding: 12px 14px;
+      padding: 10px 12px;
       font-size: 0.82rem;
       vertical-align: top;
   }
 
   .hourly-grid-card .modern-table th {
-      padding: 11px 14px;
+      padding: 9px 12px;
       white-space: nowrap;
   }
 
@@ -3076,10 +3280,10 @@
   .hourly-queue-card,
   .hourly-schedule-card,
   .hourly-legend-card {
-      padding: 16px 18px;
+      padding: 14px 16px;
       display: flex;
       flex-direction: column;
-      gap: 8px;
+      gap: 6px;
   }
 
   .hourly-focus-card {
@@ -3119,7 +3323,7 @@
   }
 
   .hourly-focus-empty {
-      padding: 20px;
+      padding: 16px;
       border-radius: 18px;
       border: 1px dashed rgba(255,255,255,0.12);
       color: var(--text-secondary);
@@ -3132,7 +3336,7 @@
   .hourly-legend {
       display: flex;
       flex-direction: column;
-      gap: 12px;
+      gap: 10px;
   }
 
   .hourly-queue-card {
@@ -3647,7 +3851,7 @@
 
   .aponta-shell {
       grid-template-columns: minmax(260px, 0.85fr) minmax(0, 1.15fr);
-      gap: 22px;
+      gap: 18px;
       border-radius: 28px;
       border: 1px solid rgba(151, 238, 176, 0.16);
       box-shadow: 0 22px 64px rgba(4, 10, 24, 0.28);
@@ -3665,19 +3869,19 @@
   .aponta-shell-metrics {
       display: grid;
       grid-template-columns: repeat(4, minmax(0, 1fr));
-      gap: 14px;
+      gap: 12px;
       align-self: stretch;
   }
 
   .aponta-shell-card {
-      padding: 16px 18px;
+      padding: 14px 16px;
       border-radius: 22px;
       border: 1px solid rgba(255, 255, 255, 0.1);
       background: linear-gradient(180deg, rgba(255, 255, 255, 0.08), rgba(12, 16, 24, 0.18));
       display: flex;
       flex-direction: column;
       gap: 8px;
-      min-height: 144px;
+      min-height: 124px;
       position: relative;
       overflow: hidden;
   }
@@ -3783,7 +3987,7 @@
   .aponta-operator-panel {
       grid-template-columns: repeat(3, minmax(0, 1fr));
       gap: 12px;
-      margin-bottom: 18px;
+      margin-bottom: 14px;
   }
 
   .aponta-operator-card {
@@ -3834,8 +4038,8 @@
   .aponta-stage-hero {
       display: grid;
       grid-template-columns: minmax(0, 1.3fr) repeat(2, minmax(180px, 0.85fr));
-      gap: 14px;
-      padding: 16px;
+      gap: 12px;
+      padding: 14px;
       border-radius: 22px;
       border: 1px solid rgba(255, 255, 255, 0.08);
       background: linear-gradient(145deg, rgba(113, 198, 255, 0.14), rgba(255, 255, 255, 0.04));
@@ -3988,6 +4192,15 @@
 
       .auth-screen {
           padding: 18px;
+          align-items: flex-start;
+      }
+
+      .auth-panel {
+          order: -1;
+      }
+
+      .auth-brand-panel {
+          padding: 26px;
       }
 
       .source-card {
@@ -4007,6 +4220,74 @@
       .detail-toolbar {
           width: 100%;
           justify-content: flex-start;
+      }
+  }
+
+  @media (max-width: 720px) {
+      body {
+          overflow: auto;
+      }
+
+      .auth-screen {
+          padding: 12px;
+      }
+
+      .auth-shell {
+          gap: 14px;
+          min-height: calc(100vh - 24px);
+      }
+
+      .auth-brand-panel,
+      .auth-panel {
+          padding: 22px;
+          border-radius: 22px;
+      }
+
+      .auth-brand-panel {
+          gap: 18px;
+      }
+
+      .auth-logo {
+          width: min(220px, 58%);
+      }
+
+      .auth-copy h1 {
+          font-size: clamp(1.8rem, 9vw, 2.5rem);
+          line-height: 1.02;
+      }
+
+      .auth-copy p {
+          font-size: 0.92rem;
+          line-height: 1.55;
+      }
+
+      .auth-highlights {
+          display: none;
+      }
+
+      .auth-form {
+          gap: 12px;
+      }
+
+      .auth-submit {
+          min-height: 50px;
+      }
+
+      .view-port {
+          padding: 16px;
+      }
+
+      .glass-panel {
+          padding: 16px;
+      }
+
+      .panel-header {
+          margin-bottom: 12px;
+      }
+
+      .hourly-shell,
+      .aponta-shell {
+          gap: 14px;
       }
   }
   .hourly-bottom-panel {

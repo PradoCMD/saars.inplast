@@ -86,6 +86,7 @@ const state = {
   users: [],
   mrpRunning: false,
   lastOverviewSnapshotAt: null,
+  theme: "dark",
 };
 
 const LOCAL_ROMANEIOS_STORAGE_KEY = "pcp_local_romaneios_v2";
@@ -96,6 +97,7 @@ const APP_SESSION_STORAGE_KEY = "pcp_app_session_v1";
 const APP_SIDEBAR_STORAGE_KEY = "pcp_sidebar_collapsed_v1";
 const APP_APONTAMENTO_MODE_STORAGE_KEY = "pcp_apontamento_operator_mode_v1";
 const APP_PANEL_COLLAPSE_STORAGE_KEY = "pcp_panel_collapsed_v1";
+const APP_THEME_STORAGE_KEY = "pcp_theme_v1";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ROMANEIO_SYNC_MAX_SECONDS = 210;
@@ -640,8 +642,16 @@ function refreshHorizontalScroller(shell) {
     || shell.closest(".main-content")?.getBoundingClientRect()
     || { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
   const sidebarRect = document.querySelector(".sidebar")?.getBoundingClientRect();
-  const safeLeftEdge = Math.max(hostRect.left + 18, (sidebarRect?.right || 0) + 18, viewportPadding);
-  const safeRightEdge = Math.min(hostRect.right - 18, window.innerWidth - viewportPadding);
+  const safeLeftEdge = clamp(
+    Math.max(hostRect.left + 18, (sidebarRect?.right || 0) + 18, viewportPadding),
+    viewportPadding,
+    window.innerWidth - buttonWidth - viewportPadding,
+  );
+  const safeRightEdge = clamp(
+    Math.min(hostRect.right - buttonWidth - 18, window.innerWidth - buttonWidth - viewportPadding),
+    safeLeftEdge,
+    window.innerWidth - buttonWidth - viewportPadding,
+  );
 
   shell.classList.toggle("is-scrollable", hasOverflow);
   shell.classList.toggle("at-start", atStart);
@@ -649,20 +659,21 @@ function refreshHorizontalScroller(shell) {
   leftButton.disabled = !hasOverflow || atStart;
   rightButton.disabled = !hasOverflow || atEnd;
   const rect = shell.getBoundingClientRect();
-  const inView = hasOverflow && rect.bottom > 24 && rect.top < window.innerHeight - 24;
-  const topAnchorTop = clamp(hostRect.top + 96, 108, window.innerHeight - 108);
-  const topAnchorBottom = clamp(hostRect.bottom - 96, 108, window.innerHeight - 108);
-  const topPosition = clamp((topAnchorTop + topAnchorBottom) / 2, 108, window.innerHeight - 108);
-  const leftPosition = clamp(rect.left + 18, safeLeftEdge, Math.max(safeRightEdge - buttonWidth, safeLeftEdge));
-  const rightPosition = clamp(window.innerWidth - rect.right + 18, viewportPadding, Math.max(window.innerWidth - safeLeftEdge - buttonWidth, viewportPadding));
+  const visibleTop = Math.max(rect.top, hostRect.top + 18);
+  const visibleBottom = Math.min(rect.bottom, hostRect.bottom - 18);
+  const visibleHeight = Math.max(0, visibleBottom - visibleTop);
+  const inView = hasOverflow && visibleHeight >= 48 && rect.right > safeLeftEdge && rect.left < safeRightEdge + buttonWidth;
+  const minTop = clamp(hostRect.top + 84, 94, window.innerHeight - 94);
+  const maxTop = clamp(hostRect.bottom - 84, minTop, window.innerHeight - 94);
+  const topPosition = clamp(visibleTop + (visibleHeight / 2), minTop, maxTop);
 
   shell.classList.toggle("nav-in-view", inView);
   leftButton.style.top = `${topPosition}px`;
   rightButton.style.top = `${topPosition}px`;
-  leftButton.style.left = `${leftPosition}px`;
+  leftButton.style.left = `${safeLeftEdge}px`;
   leftButton.style.right = "auto";
-  rightButton.style.left = "auto";
-  rightButton.style.right = `${rightPosition}px`;
+  rightButton.style.left = `${safeRightEdge}px`;
+  rightButton.style.right = "auto";
 }
 
 function ensureHorizontalScroller(node, shellClass = "") {
@@ -2311,6 +2322,40 @@ function loadOperatorModePreference() {
 
 function saveOperatorModePreference(value) {
   window.localStorage.setItem(APP_APONTAMENTO_MODE_STORAGE_KEY, value ? "1" : "0");
+}
+
+function loadThemePreference() {
+  return window.localStorage.getItem(APP_THEME_STORAGE_KEY) === "light" ? "light" : "dark";
+}
+
+function saveThemePreference(theme) {
+  window.localStorage.setItem(APP_THEME_STORAGE_KEY, theme === "light" ? "light" : "dark");
+}
+
+function applyTheme(theme = "dark") {
+  state.theme = theme === "light" ? "light" : "dark";
+  document.body.classList.toggle("light-theme", state.theme === "light");
+  document.body.classList.toggle("dark-theme", state.theme !== "light");
+  const themeButton = document.getElementById("theme-toggle");
+  const themeLabel = document.getElementById("theme-toggle-label");
+  const themeIcon = themeButton?.querySelector(".theme-toggle-icon");
+  if (themeButton) {
+    themeButton.setAttribute("aria-label", state.theme === "light" ? "Ativar tema escuro" : "Ativar tema claro");
+    themeButton.title = state.theme === "light" ? "Ativar tema escuro" : "Ativar tema claro";
+  }
+  if (themeLabel) {
+    themeLabel.textContent = state.theme === "light" ? "Tema escuro" : "Tema claro";
+  }
+  if (themeIcon) {
+    themeIcon.textContent = state.theme === "light" ? "☾" : "☀︎";
+  }
+}
+
+function toggleTheme() {
+  const nextTheme = state.theme === "light" ? "dark" : "light";
+  applyTheme(nextTheme);
+  saveThemePreference(nextTheme);
+  refreshHorizontalScrollers();
 }
 
 function applyShellState() {
@@ -5407,6 +5452,62 @@ function kanbanStatusPriority(value) {
   return 4;
 }
 
+function normalizeRomaneioItemIdentity(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .replace(/\s+/g, " ")
+    .trim()
+    .toUpperCase();
+}
+
+function consolidateRomaneioItems(items = []) {
+  const merged = new Map();
+
+  (Array.isArray(items) ? items : []).forEach((rawItem) => {
+    const sku = normalizeRomaneioItemIdentity(rawItem?.sku);
+    const produto = String(rawItem?.produto || rawItem?.descricao || rawItem?.sku || "").trim();
+    const unidade = normalizeRomaneioItemIdentity(rawItem?.unidade || "UN") || "UN";
+    const key = `${sku || normalizeRomaneioItemIdentity(produto)}|${unidade}`;
+    if (!key.replace(/\|/g, "")) {
+      return;
+    }
+
+    const normalized = {
+      ...rawItem,
+      sku: sku || String(rawItem?.sku || "").trim(),
+      produto,
+      descricao: String(rawItem?.descricao || produto || rawItem?.sku || "").trim(),
+      unidade: unidade || "UN",
+      quantidade: Number(rawItem?.quantidade || 0) || 0,
+      quantidade_pendente: Number(rawItem?.quantidade_pendente || 0) || 0,
+      quantidade_atendida_estoque: Number(rawItem?.quantidade_atendida_estoque || 0) || 0,
+    };
+
+    if (!merged.has(key)) {
+      merged.set(key, normalized);
+      return;
+    }
+
+    const current = merged.get(key);
+    current.quantidade += normalized.quantidade;
+    current.quantidade_pendente += normalized.quantidade_pendente;
+    current.quantidade_atendida_estoque += normalized.quantidade_atendida_estoque;
+    if ((!current.produto || current.produto.length < normalized.produto.length) && normalized.produto) {
+      current.produto = normalized.produto;
+    }
+    if ((!current.descricao || current.descricao.length < normalized.descricao.length) && normalized.descricao) {
+      current.descricao = normalized.descricao;
+    }
+  });
+
+  return Array.from(merged.values()).sort((left, right) => {
+    const rightPending = Number(right.quantidade_pendente || right.quantidade || 0) || 0;
+    const leftPending = Number(left.quantidade_pendente || left.quantidade || 0) || 0;
+    return rightPending - leftPending;
+  });
+}
+
 function buildKanbanModel(data) {
   const products = Array.isArray(data.products) ? data.products : [];
   const searchQuery = getGlobalSearchQuery();
@@ -5471,7 +5572,7 @@ function buildKanbanModel(data) {
       });
 
     const cards = columnItems.map((romaneio) => {
-      const items = Array.isArray(romaneio.items) ? romaneio.items : [];
+      const items = consolidateRomaneioItems(Array.isArray(romaneio.items) ? romaneio.items : []);
       let deficit = 0;
       let riskItems = 0;
       const previewItems = [];
@@ -5692,6 +5793,42 @@ function focusKanbanColumn(columnKey) {
   viewport.scrollTo({ left: targetLeft, behavior: "smooth" });
   lane.classList.add("kanban-lane--focus");
   window.setTimeout(() => lane.classList.remove("kanban-lane--focus"), 1500);
+}
+
+function buildKanbanCardItemsPreview(items = []) {
+  const previewItems = (Array.isArray(items) ? items : [])
+    .slice()
+    .sort((left, right) => {
+      const rightDemand = Number(right?.quantidade_pendente ?? right?.quantidade ?? 0) || 0;
+      const leftDemand = Number(left?.quantidade_pendente ?? left?.quantidade ?? 0) || 0;
+      return rightDemand - leftDemand;
+    })
+    .slice(0, 3);
+
+  if (!previewItems.length) {
+    return `<div class="k-product-preview k-product-preview--empty"><span>Sem itens detalhados no romaneio.</span></div>`;
+  }
+
+  const rows = previewItems
+    .map((item) => {
+      const quantity = Number(item?.quantidade_pendente ?? item?.quantidade ?? 0) || 0;
+      const label = item?.produto || item?.descricao || item?.sku || "-";
+      return `
+        <div class="k-product-row">
+          <div class="k-product-copy">
+            <b>${item?.sku || "-"}</b>
+            <span>${label}</span>
+          </div>
+          <small>${number.format(quantity)}</small>
+        </div>
+      `;
+    })
+    .join("");
+
+  const remaining = Math.max((Array.isArray(items) ? items.length : 0) - previewItems.length, 0);
+  const footer = remaining > 0 ? `<div class="k-product-more">+${remaining} item(ns) no romaneio</div>` : "";
+
+  return `<div class="k-product-preview">${rows}${footer}</div>`;
 }
 
 function resolveKanbanInspectorContext(model, data) {
@@ -6258,6 +6395,7 @@ function renderKanban(data) {
     const colBody = col.querySelector('.kanban-lane-body');
 
     column.cards.forEach((cardData) => {
+      const productsPreview = buildKanbanCardItemsPreview(cardData.items || []);
       const card = el(`
         <div class="kanban-card" data-romaneio="${cardData.romaneio}" title="Arraste para mudar a data">
           <div class="k-card-top">
@@ -6273,6 +6411,7 @@ function renderKanban(data) {
             <span class="k-coverage-fill ${cardData.deficit > 0 ? "high" : "ok"}" style="width:${cardData.coveragePct}%"></span>
           </div>
           <div class="k-coverage-copy">${cardData.coveragePct}% coberto agora · déficit ${number.format(cardData.deficit)}</div>
+          ${productsPreview}
           <div class="k-card-bottom">
             <div class="k-date">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
@@ -7240,6 +7379,7 @@ document.getElementById("user-form-reset")?.addEventListener("click", resetUserF
 document.getElementById("login-form")?.addEventListener("submit", autenticarUsuario);
 document.getElementById("logout-button")?.addEventListener("click", logoutUsuario);
 document.getElementById("sidebar-toggle")?.addEventListener("click", () => toggleSidebar());
+document.getElementById("theme-toggle")?.addEventListener("click", () => toggleTheme());
 document.getElementById("assembly-toggle-sidebar")?.addEventListener("click", () => toggleHourlyPanel("montagem", "sidebarCollapsed"));
 document.getElementById("assembly-toggle-table")?.addEventListener("click", () => toggleHourlyPanel("montagem", "tableCollapsed"));
 document.getElementById("production-toggle-sidebar")?.addEventListener("click", () => toggleHourlyPanel("producao", "sidebarCollapsed"));
@@ -7297,6 +7437,7 @@ state.sidebarCollapsed = loadSidebarPreference();
 state.apontamentoOperatorMode = loadOperatorModePreference();
 state.collapsedPanels = loadCollapsedPanelsPreference();
 state.apontamentoLogs = loadApontamentoLogs();
+applyTheme(loadThemePreference());
 bootstrapSessionAndData().catch((error) => {
   setElementStatus("login-status", error.message, "error");
   renderAuthState();
