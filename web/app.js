@@ -64,10 +64,12 @@ const state = {
     producao: { sidebarCollapsed: false, tableCollapsed: false },
     extrusao: { sidebarCollapsed: false, tableCollapsed: false },
   },
+  collapsedPanels: {},
   apontamentoScreen: "resumo",
   apontamentoSelecionado: "Máquina 1",
   apontamentoFilaSelecionada: null,
   apontamentoOperatorMode: false,
+  apontamentoSyncBusy: false,
   apontamentoLogs: [],
   datasets: {
     kanban: { products: [], romaneios: [] },
@@ -93,6 +95,7 @@ const APP_USERS_STORAGE_KEY = "pcp_app_users_v1";
 const APP_SESSION_STORAGE_KEY = "pcp_app_session_v1";
 const APP_SIDEBAR_STORAGE_KEY = "pcp_sidebar_collapsed_v1";
 const APP_APONTAMENTO_MODE_STORAGE_KEY = "pcp_apontamento_operator_mode_v1";
+const APP_PANEL_COLLAPSE_STORAGE_KEY = "pcp_panel_collapsed_v1";
 
 const DAY_MS = 24 * 60 * 60 * 1000;
 const ROMANEIO_SYNC_MAX_SECONDS = 210;
@@ -632,28 +635,34 @@ function refreshHorizontalScroller(shell) {
   const atStart = viewport.scrollLeft <= 6;
   const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 6;
   const buttonWidth = 56;
-  const viewportPadding = window.innerWidth <= 1080 ? 10 : 22;
+  const viewportPadding = window.innerWidth <= 1080 ? 12 : 24;
+  const hostRect = shell.closest(".view-port")?.getBoundingClientRect()
+    || shell.closest(".main-content")?.getBoundingClientRect()
+    || { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
+  const sidebarRect = document.querySelector(".sidebar")?.getBoundingClientRect();
+  const safeLeftEdge = Math.max(hostRect.left + 18, (sidebarRect?.right || 0) + 18, viewportPadding);
+  const safeRightEdge = Math.min(hostRect.right - 18, window.innerWidth - viewportPadding);
 
   shell.classList.toggle("is-scrollable", hasOverflow);
+  shell.classList.toggle("at-start", atStart);
+  shell.classList.toggle("at-end", atEnd);
   leftButton.disabled = !hasOverflow || atStart;
   rightButton.disabled = !hasOverflow || atEnd;
   const rect = shell.getBoundingClientRect();
   const inView = hasOverflow && rect.bottom > 24 && rect.top < window.innerHeight - 24;
-  const visibleTop = clamp(Math.max(rect.top, 108), 108, Math.max(window.innerHeight - 108, 108));
-  const visibleBottom = clamp(Math.min(rect.bottom, window.innerHeight - 108), visibleTop, Math.max(window.innerHeight - 108, visibleTop));
-  const topPosition = clamp((visibleTop + visibleBottom) / 2, 108, window.innerHeight - 108);
-  const visibleLeft = clamp(rect.left, viewportPadding, window.innerWidth - buttonWidth - viewportPadding);
-  const visibleRight = clamp(rect.right - buttonWidth, visibleLeft + buttonWidth + 18, window.innerWidth - buttonWidth - viewportPadding);
-  const leftPosition = clamp(visibleLeft + 12, viewportPadding, Math.max(window.innerWidth - buttonWidth - viewportPadding, viewportPadding));
-  const rightPosition = clamp(visibleRight - 12, leftPosition + buttonWidth + 18, Math.max(window.innerWidth - buttonWidth - viewportPadding, leftPosition + buttonWidth + 18));
+  const topAnchorTop = clamp(hostRect.top + 96, 108, window.innerHeight - 108);
+  const topAnchorBottom = clamp(hostRect.bottom - 96, 108, window.innerHeight - 108);
+  const topPosition = clamp((topAnchorTop + topAnchorBottom) / 2, 108, window.innerHeight - 108);
+  const leftPosition = clamp(rect.left + 18, safeLeftEdge, Math.max(safeRightEdge - buttonWidth, safeLeftEdge));
+  const rightPosition = clamp(window.innerWidth - rect.right + 18, viewportPadding, Math.max(window.innerWidth - safeLeftEdge - buttonWidth, viewportPadding));
 
   shell.classList.toggle("nav-in-view", inView);
   leftButton.style.top = `${topPosition}px`;
   rightButton.style.top = `${topPosition}px`;
   leftButton.style.left = `${leftPosition}px`;
   leftButton.style.right = "auto";
-  rightButton.style.left = `${rightPosition}px`;
-  rightButton.style.right = "auto";
+  rightButton.style.left = "auto";
+  rightButton.style.right = `${rightPosition}px`;
 }
 
 function ensureHorizontalScroller(node, shellClass = "") {
@@ -766,6 +775,92 @@ function applyHorizontalScrollEnhancements(root = document) {
 
 function refreshHorizontalScrollers(root = document) {
   root.querySelectorAll(".x-scroll-shell").forEach((shell) => refreshHorizontalScroller(shell));
+}
+
+function loadCollapsedPanelsPreference() {
+  return safeJsonParse(window.localStorage.getItem(APP_PANEL_COLLAPSE_STORAGE_KEY) || "{}", {});
+}
+
+function saveCollapsedPanelsPreference(payload) {
+  window.localStorage.setItem(APP_PANEL_COLLAPSE_STORAGE_KEY, JSON.stringify(payload || {}));
+}
+
+function slugifyPanelKey(value) {
+  return String(value || "")
+    .normalize("NFD")
+    .replace(/[\u0300-\u036f]/g, "")
+    .toLowerCase()
+    .replace(/[^a-z0-9]+/g, "-")
+    .replace(/^-+|-+$/g, "");
+}
+
+function shouldEnablePanelCollapse(panel) {
+  return panel
+    && panel.classList.contains("glass-panel")
+    && !panel.classList.contains("kanban-quickbar")
+    && !panel.classList.contains("auth-panel");
+}
+
+function buildPanelCollapseKey(panel, index) {
+  if (!panel) {
+    return "";
+  }
+  if (panel.dataset.panelCollapseKey) {
+    return panel.dataset.panelCollapseKey;
+  }
+  const view = panel.closest(".view-module")?.id || state.currentView || "app";
+  const title = panel.querySelector(".panel-header h2, .panel-header h3, .panel-header strong")?.textContent || panel.id || `panel-${index}`;
+  const key = `${view}:${slugifyPanelKey(panel.id || title || `panel-${index}`)}`;
+  panel.dataset.panelCollapseKey = key;
+  return key;
+}
+
+function syncCollapsiblePanel(panel, forceValue = null) {
+  const key = buildPanelCollapseKey(panel, Array.from(document.querySelectorAll(".glass-panel")).indexOf(panel));
+  if (!key) {
+    return;
+  }
+  const collapsed = typeof forceValue === "boolean" ? forceValue : Boolean(state.collapsedPanels[key]);
+  state.collapsedPanels[key] = collapsed;
+  panel.classList.toggle("panel-collapsed", collapsed);
+  const button = panel.querySelector("[data-panel-collapse-toggle]");
+  if (button) {
+    button.textContent = collapsed ? "Mostrar quadro" : "Recolher quadro";
+    button.className = `btn ${collapsed ? "btn-primary" : "btn-secondary"} btn-xs panel-collapse-toggle`;
+    button.setAttribute("aria-expanded", collapsed ? "false" : "true");
+  }
+}
+
+function toggleCollapsiblePanel(panel) {
+  const key = buildPanelCollapseKey(panel, Array.from(document.querySelectorAll(".glass-panel")).indexOf(panel));
+  if (!key) {
+    return;
+  }
+  syncCollapsiblePanel(panel, !state.collapsedPanels[key]);
+  saveCollapsedPanelsPreference(state.collapsedPanels);
+  refreshHorizontalScrollers();
+}
+
+function applyPanelCollapseEnhancements(root = document) {
+  const panels = Array.from(root.querySelectorAll(".glass-panel")).filter(shouldEnablePanelCollapse);
+  panels.forEach((panel, index) => {
+    const header = panel.querySelector(":scope > .panel-header");
+    if (!header) {
+      return;
+    }
+
+    buildPanelCollapseKey(panel, index);
+    if (!header.querySelector("[data-panel-collapse-toggle]")) {
+      const toggle = document.createElement("button");
+      toggle.type = "button";
+      toggle.dataset.panelCollapseToggle = "true";
+      toggle.className = "btn btn-secondary btn-xs panel-collapse-toggle";
+      toggle.addEventListener("click", () => toggleCollapsiblePanel(panel));
+      header.appendChild(toggle);
+    }
+    header.classList.add("has-panel-toggle");
+    syncCollapsiblePanel(panel);
+  });
 }
 
 function toDatetimeLocalValue(value) {
@@ -1961,6 +2056,7 @@ function renderHourlyModule(moduleKey) {
   renderHourlyGrid(context);
   renderHourlySidebar(context);
   applyHorizontalScrollEnhancements();
+  applyPanelCollapseEnhancements();
 }
 
 async function saveHourlyLeader(moduleKey) {
@@ -2028,6 +2124,85 @@ function saveApontamentoLogs(items) {
     .slice(0, 60);
   state.apontamentoLogs = sanitized;
   window.localStorage.setItem(APONTAMENTO_LOGS_STORAGE_KEY, JSON.stringify(sanitized));
+}
+
+function summarizeApontamentoLogsClient(items = state.apontamentoLogs) {
+  const latestByMachine = new Map();
+  const normalized = Array.isArray(items) ? items : [];
+  normalized
+    .slice()
+    .sort((left, right) => new Date(right.created_at || 0) - new Date(left.created_at || 0))
+    .forEach((item) => {
+      const machineCode = String(item.machine_code || "").trim().toUpperCase();
+      if (machineCode && !latestByMachine.has(machineCode)) {
+        latestByMachine.set(machineCode, item);
+      }
+    });
+
+  let running = 0;
+  let stopped = 0;
+  let finished = 0;
+  latestByMachine.forEach((item) => {
+    const type = String(item.event_type || "").trim().toLowerCase();
+    if (type === "parada") {
+      stopped += 1;
+    } else if (type === "finalizar") {
+      finished += 1;
+    } else if (type) {
+      running += 1;
+    }
+  });
+
+  return {
+    total: normalized.length,
+    machines_running: running,
+    machines_stopped: stopped,
+    machines_finished: finished,
+    pending_sync: normalized.filter((item) => String(item.integration_status || "pending").toLowerCase() === "pending").length,
+    synced: normalized.filter((item) => String(item.integration_status || "").toLowerCase() === "synced").length,
+    failed_sync: normalized.filter((item) => String(item.integration_status || "").toLowerCase() === "failed").length,
+  };
+}
+
+function resolveIntegrationByType(type, activeOnly = false) {
+  const items = Array.isArray(state.integrations) ? state.integrations : [];
+  const matches = items.filter((item) => item.integration_type === type);
+  if (!matches.length) {
+    return null;
+  }
+  if (activeOnly) {
+    return matches.find((item) => item.active) || null;
+  }
+  return matches.find((item) => item.active) || matches[0] || null;
+}
+
+function formatIntegrationTypeLabel(type) {
+  const mapping = {
+    n8n_webhook_romaneios: "Romaneios | Sankhya",
+    n8n_webhook_apontamento: "Apontamento | Sankhya",
+  };
+  return mapping[String(type || "").trim()] || String(type || "Integração");
+}
+
+function applyIntegrationFormPreset(form) {
+  if (!form) {
+    return;
+  }
+  const type = String(form.elements.namedItem("integration_type")?.value || "n8n_webhook_romaneios");
+  const nameField = form.elements.namedItem("name");
+  const urlField = form.elements.namedItem("webhook_url");
+  const bodyField = form.elements.namedItem("request_body_json");
+  if (!form.dataset.editingIntegrationId && nameField && !String(nameField.value || "").trim()) {
+    nameField.value = type === "n8n_webhook_apontamento" ? "Apontamento Sankhya" : "Romaneios Sankhya";
+  }
+  if (urlField) {
+    urlField.placeholder = type === "n8n_webhook_apontamento"
+      ? "https://seu-n8n/webhook/apontamento"
+      : "https://seu-n8n/webhook/romaneios";
+  }
+  if (!form.dataset.editingIntegrationId && bodyField && !String(bodyField.value || "").trim()) {
+    bodyField.value = "{}";
+  }
 }
 
 async function persistApontamentoEntry(entry) {
@@ -3800,6 +3975,7 @@ function renderProgramming(items) {
     || filtered[0]
     || null;
   renderProgrammingRecommendation(draftMatch, quickCandidates);
+  applyPanelCollapseEnhancements();
 }
 
 function renderApontamento() {
@@ -3816,8 +3992,10 @@ function renderApontamento() {
   const operatorPanel = document.getElementById("apontamento-operator-panel");
   const logList = document.getElementById("apontamento-log-list");
   const form = document.getElementById("apontamento-form");
+  const syncPill = document.getElementById("apontamento-sync-pill");
+  const syncButton = document.getElementById("apontamento-sync-run");
 
-  if (!queueList || !stagePanel || !stageStatus || !queueCount || !screenTabs || !shellMetrics || !machineGrid || !hourTable || !flowList || !lossList || !operatorPanel || !logList || !form) {
+  if (!queueList || !stagePanel || !stageStatus || !queueCount || !screenTabs || !shellMetrics || !machineGrid || !hourTable || !flowList || !lossList || !operatorPanel || !logList || !form || !syncPill || !syncButton) {
     return;
   }
 
@@ -3853,6 +4031,8 @@ function renderApontamento() {
     ? "running"
     : String(selectedQueueItem?.status_key || "").toLowerCase() || String(selectedMachine.status || "").toLowerCase().replace(/\s+/g, "_");
   const currentShiftWindow = `${HORA_HORA_INTERVALS[0].start} - ${HORA_HORA_INTERVALS[HORA_HORA_INTERVALS.length - 1].end}`;
+  const apontamentoSummary = summarizeApontamentoLogsClient(state.apontamentoLogs);
+  const apontamentoIntegration = resolveIntegrationByType("n8n_webhook_apontamento", true);
   const sessionPill = document.getElementById("apontamento-session-pill");
   if (sessionPill) {
     sessionPill.textContent = state.apontamentoOperatorMode
@@ -3860,6 +4040,18 @@ function renderApontamento() {
       : `${selectedMachine.maquina} · torre PCP`;
     sessionPill.className = `status-badge ${state.apontamentoOperatorMode ? "ready" : "info"}`;
   }
+  if (apontamentoSummary.failed_sync > 0) {
+    syncPill.textContent = `${number.format(apontamentoSummary.failed_sync)} com falha`;
+    syncPill.className = "status-badge high";
+  } else if (apontamentoSummary.pending_sync > 0) {
+    syncPill.textContent = `${number.format(apontamentoSummary.pending_sync)} pendente(s)`;
+    syncPill.className = "status-badge warning";
+  } else {
+    syncPill.textContent = "Sincronização em dia";
+    syncPill.className = "status-badge ready";
+  }
+  syncButton.disabled = state.apontamentoSyncBusy || !apontamentoIntegration || (apontamentoSummary.pending_sync <= 0 && apontamentoSummary.failed_sync <= 0);
+  syncButton.textContent = state.apontamentoSyncBusy ? "Sincronizando..." : "Sincronizar apontamentos";
 
   const screens = [
     { key: "resumo", label: "Resumo" },
@@ -3928,6 +4120,12 @@ function renderApontamento() {
       <div class="aponta-shell-progress">
         <span style="width:${progressPercent}%;"></span>
       </div>
+    </article>
+    <article class="aponta-shell-card apunta-shell-card--sync ${state.apontamentoSyncBusy ? "is-live" : ""}">
+      <small>Integração Sankhya</small>
+      <strong>${state.apontamentoSyncBusy ? "ENVIANDO" : number.format(apontamentoSummary.pending_sync)}</strong>
+      <span>${apontamentoIntegration ? "Webhook pronto para gravar os apontamentos do turno no Sankhya." : "Cadastre a integração de apontamento para habilitar o envio ao Sankhya."}</span>
+      <em>${apontamentoSummary.synced ? `${number.format(apontamentoSummary.synced)} registro(s) já conciliados` : "Nenhum apontamento conciliado neste ciclo."}</em>
     </article>
   `;
 
@@ -4272,6 +4470,7 @@ function renderApontamento() {
       );
     });
   }
+  applyPanelCollapseEnhancements();
 }
 
 function renderMrpTable(targetId, items) {
@@ -4552,6 +4751,7 @@ function resetIntegrationForm() {
   if (form.elements.namedItem("request_body_json")) {
     form.elements.namedItem("request_body_json").value = "{}";
   }
+  applyIntegrationFormPreset(form);
 }
 
 function populateIntegrationForm(item) {
@@ -4614,7 +4814,7 @@ function renderIntegrations(items) {
   });
 
   if (!integrations.length) {
-    list.appendChild(emptyState("Nenhuma integração cadastrada. Configure o webhook do n8n para atualizar os romaneios."));
+    list.appendChild(emptyState("Nenhuma integração cadastrada. Configure os webhooks do n8n para romaneios e apontamentos."));
     resetIntegrationForm();
     return;
   }
@@ -4624,7 +4824,7 @@ function renderIntegrations(items) {
     const card = el(`
       <div class="source-card integration-card">
         <div class="source-card-copy">
-          <small>${item.integration_type}</small>
+          <small>${formatIntegrationTypeLabel(item.integration_type)}</small>
           <strong>${item.name}</strong>
           <em>${item.webhook_url || "Webhook ainda não configurado"}</em>
           <span class="muted">${item.last_error || (item.last_synced_at ? `Último refresh ${formatDateTimeWithFallback(item.last_synced_at, "agora")}` : "Sem refresh executado")}</span>
@@ -4638,10 +4838,14 @@ function renderIntegrations(items) {
     `);
     card.querySelector('[data-action="edit"]')?.addEventListener("click", () => {
       populateIntegrationForm(item);
+      applyIntegrationFormPreset(document.getElementById("integration-form"));
       setElementStatus("integration-status", `Editando ${item.name}.`);
     });
     card.querySelector('[data-action="run"]')?.addEventListener("click", () => {
-      atualizarRomaneiosViaWebhook(item.id).catch((error) => {
+      const runner = item.integration_type === "n8n_webhook_apontamento"
+        ? atualizarApontamentosViaWebhook
+        : atualizarRomaneiosViaWebhook;
+      runner(item.id).catch((error) => {
         setElementStatus("integration-status", error.message, "error");
       });
     });
@@ -4653,6 +4857,7 @@ function renderIntegrations(items) {
   if (!editingId) {
     populateIntegrationForm(integrations[0]);
   }
+  applyIntegrationFormPreset(currentForm);
 }
 
 function renderPainel(items) {
@@ -4901,6 +5106,26 @@ async function atualizarRomaneiosViaWebhook(integrationId = "") {
     stopRomaneioSyncFeedback(error.message, "error", "Falha");
     setElementStatus("romaneio-dropzone-status", error.message, "error");
     throw error;
+  }
+}
+
+async function atualizarApontamentosViaWebhook(integrationId = "") {
+  state.apontamentoSyncBusy = true;
+  renderApontamento();
+  try {
+    const response = await postJson("/api/pcp/apontamento/dispatch", integrationId ? { integration_id: integrationId } : {});
+    await carregarTudo();
+    const tone = response.status === "error" ? "error" : "success";
+    const message = response.message || `${number.format(response.count || 0)} apontamento(s) enviados ao Sankhya.`;
+    setElementStatus("apontamento-status", message, tone);
+    setElementStatus("integration-status", message, tone);
+    return response;
+  } catch (error) {
+    setElementStatus("apontamento-status", error.message, "error");
+    throw error;
+  } finally {
+    state.apontamentoSyncBusy = false;
+    renderApontamento();
   }
 }
 
@@ -5433,7 +5658,8 @@ function renderKanbanQuickbar(model) {
   const button = document.getElementById("kanban-sem-previsao-shortcut");
   const copy = document.getElementById("kanban-shortcut-copy");
   const syncStatus = document.getElementById("kanban-sync-status");
-  if (!wrapper || !button || !copy || !syncStatus) {
+  const syncButton = document.getElementById("kanban-sync-run-now");
+  if (!wrapper || !button || !copy || !syncStatus || !syncButton) {
     return;
   }
 
@@ -5441,6 +5667,8 @@ function renderKanbanQuickbar(model) {
   const count = Number(semPrevisaoColumn?.count || 0);
   button.disabled = count <= 0;
   button.textContent = count > 0 ? `Ir para Sem previsão (${count})` : "Sem previsão em dia";
+  button.className = `btn ${count > 0 ? "btn-danger" : "btn-secondary"}`;
+  syncButton.className = `btn btn-primary${count > 0 ? " soft-glow" : ""}`;
   copy.textContent =
     count > 0
       ? `${count} romaneio(s) aguardam data final e ficam destacados em vermelho no board.`
@@ -5449,6 +5677,7 @@ function renderKanbanQuickbar(model) {
     syncStatus.textContent = "Acione a integração para atualizar os romaneios direto do Sankhya.";
   }
   wrapper.classList.toggle("is-empty", count <= 0);
+  wrapper.classList.toggle("is-alert", count > 0);
 }
 
 function focusKanbanColumn(columnKey) {
@@ -5574,7 +5803,7 @@ function syncKanbanInspectorHeader(viewMode, selectedCard) {
 
   if (viewMode === "workbench") {
     title.textContent = "Workbench Logístico";
-    copy.textContent = "Espelha as visões da planilha: consulta por romaneio, até o romaneio e necessidade geral.";
+    copy.textContent = "Leitura logística do Sankhya: consulta por romaneio, saldo até o romaneio e necessidade geral.";
   } else {
     title.textContent = "Detalhes do Romaneio";
     copy.textContent = "Leitura operacional do romaneio selecionado, com produtos, cobertura, pendências e ações rápidas.";
@@ -5802,7 +6031,7 @@ function buildKanbanWorkbenchInspector(context) {
           <div>
             <small>Workbench logístico</small>
             <strong>${formatRomaneioCode(selectedCard.romaneio)}</strong>
-            <span>Leitura operacional no formato da planilha: consulta por romaneio, saldo até o romaneio e necessidade geral.</span>
+            <span>Leitura operacional do Sankhya: consulta por romaneio, saldo até o romaneio e necessidade geral.</span>
           </div>
           <span class="tag ${selectedCard.statusTone}">${selectedCard.statusLabel}</span>
         </div>
@@ -5851,7 +6080,7 @@ function buildKanbanWorkbenchInspector(context) {
       <section class="kanban-table-card">
         <div class="panel-header compact">
           <h3>Consulta por Romaneio</h3>
-          <span class="section-copy">Mesma visão da planilha: estoque, demanda e pendência do romaneio selecionado.</span>
+          <span class="section-copy">Visão operacional do Sankhya: estoque, demanda e pendência do romaneio selecionado.</span>
         </div>
         <table class="modern-table dense-table">
           <thead>
@@ -6007,6 +6236,7 @@ function renderKanban(data) {
   if (!model.columns.length) {
     wrapper.appendChild(emptyState("Nenhum romaneio ativo para a matriz logística."));
     applyHorizontalScrollEnhancements();
+    applyPanelCollapseEnhancements();
     return;
   }
 
@@ -6131,6 +6361,7 @@ function renderKanban(data) {
   });
 
   applyHorizontalScrollEnhancements();
+  applyPanelCollapseEnhancements();
 }
 
 async function carregarRomaneio(code) {
@@ -6886,6 +7117,7 @@ async function carregarTudo() {
     alerts: alerts.items,
   });
   applyHorizontalScrollEnhancements();
+  applyPanelCollapseEnhancements();
 
   const mrpStatus = document.getElementById("mrp-status");
   if (mrpStatus && !state.mrpRunning) {
@@ -6996,6 +7228,9 @@ document.getElementById("kanban-sem-previsao-shortcut")?.addEventListener("click
 document.getElementById("kanban-sync-run-now")?.addEventListener("click", () => {
   atualizarRomaneiosViaWebhook().catch(() => {});
 });
+document.getElementById("apontamento-sync-run")?.addEventListener("click", () => {
+  atualizarApontamentosViaWebhook().catch(() => {});
+});
 document.getElementById("programming-action-filter")?.addEventListener("change", (event) => {
   state.programmingActionFilter = event.target.value || "";
   renderProgramming(state.datasets.programming);
@@ -7040,6 +7275,12 @@ document.getElementById("integration-run-now")?.addEventListener("click", () => 
   atualizarRomaneiosViaWebhook().catch(() => {});
 });
 document.getElementById("integration-form")?.addEventListener("submit", salvarIntegracao);
+document.getElementById("integration-form")?.elements?.namedItem("integration_type")?.addEventListener("change", () => {
+  const form = document.getElementById("integration-form");
+  if (form) {
+    applyIntegrationFormPreset(form);
+  }
+});
 document.getElementById("integration-form-reset")?.addEventListener("click", () => {
   resetIntegrationForm();
   setElementStatus("integration-status", "Formulário de integração limpo.", "success");
@@ -7054,6 +7295,7 @@ configurarRomaneioIntake();
 ensureUsersStorage();
 state.sidebarCollapsed = loadSidebarPreference();
 state.apontamentoOperatorMode = loadOperatorModePreference();
+state.collapsedPanels = loadCollapsedPanelsPreference();
 state.apontamentoLogs = loadApontamentoLogs();
 bootstrapSessionAndData().catch((error) => {
   setElementStatus("login-status", error.message, "error");
@@ -7080,6 +7322,8 @@ function switchTab(hash) {
   }
 
   applyShellState();
+  applyPanelCollapseEnhancements(targetModule || document);
+  refreshHorizontalScrollers(targetModule || document);
   window.scrollTo(0, 0);
 }
 

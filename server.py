@@ -394,28 +394,46 @@ def _parse_json_config_field(value, fallback):
     return json.loads(text)
 
 
-def _resolve_romaneio_integration(integration_id: str | None = None) -> dict:
+def _resolve_integration(integration_type: str, integration_id: str | None = None) -> dict:
     items = (PROVIDER.integrations() or {}).get("items") or []
     candidates = [
         item
         for item in items
-        if item.get("integration_type") == "n8n_webhook_romaneios"
+        if item.get("integration_type") == integration_type
         and (integration_id is None or str(item.get("id")) == str(integration_id))
     ]
     if integration_id and not candidates:
-        raise RuntimeError("Integração de romaneios não encontrada.")
+        raise RuntimeError("Integração não encontrada.")
     active = next((item for item in candidates if item.get("active")), None) if candidates else None
     if active:
         return active
     if integration_id and candidates:
         return candidates[0]
-    raise RuntimeError("Nenhuma integração ativa de romaneios foi cadastrada.")
+    raise RuntimeError("Nenhuma integração ativa foi cadastrada.")
 
 
-def _call_integration_webhook(integration: dict) -> tuple[int, dict | list]:
+def _resolve_romaneio_integration(integration_id: str | None = None) -> dict:
+    try:
+        return _resolve_integration("n8n_webhook_romaneios", integration_id)
+    except RuntimeError as exc:
+        raise RuntimeError("Nenhuma integração ativa de romaneios foi cadastrada.") from exc
+
+
+def _resolve_apontamento_integration(integration_id: str | None = None) -> dict:
+    try:
+        return _resolve_integration("n8n_webhook_apontamento", integration_id)
+    except RuntimeError as exc:
+        raise RuntimeError("Nenhuma integração ativa de apontamento foi cadastrada.") from exc
+
+
+def _call_integration_webhook(
+    integration: dict,
+    payload_override: dict | list | None = None,
+    timeout_seconds: int | None = None,
+) -> tuple[int, dict | list]:
     webhook_url = str(integration.get("webhook_url") or "").strip()
     if not webhook_url:
-        raise RuntimeError("Webhook da integração de romaneios não configurado.")
+        raise RuntimeError("Webhook da integração não configurado.")
 
     method = str(integration.get("method") or "POST").strip().upper() or "POST"
     headers = {"Accept": "application/json"}
@@ -428,7 +446,7 @@ def _call_integration_webhook(integration: dict) -> tuple[int, dict | list]:
     if auth_type == "bearer" and auth_value:
         headers["Authorization"] = f"Bearer {auth_value}"
 
-    body_payload = _parse_json_config_field(integration.get("request_body_json"), {})
+    body_payload = payload_override if payload_override is not None else _parse_json_config_field(integration.get("request_body_json"), {})
     body_bytes = None
     if method != "GET":
         headers["Content-Type"] = "application/json"
@@ -436,7 +454,7 @@ def _call_integration_webhook(integration: dict) -> tuple[int, dict | list]:
 
     request = Request(webhook_url, data=body_bytes, headers=headers, method=method)
     try:
-        with urlopen(request, timeout=SETTINGS.n8n_romaneios_webhook_timeout_seconds) as response:
+        with urlopen(request, timeout=timeout_seconds or SETTINGS.n8n_romaneios_webhook_timeout_seconds) as response:
             status_code = getattr(response, "status", None) or response.getcode()
             raw_body = response.read().decode("utf-8") if response else ""
     except HTTPError as exc:
@@ -450,7 +468,7 @@ def _call_integration_webhook(integration: dict) -> tuple[int, dict | list]:
     try:
         return status_code, json.loads(raw_body)
     except json.JSONDecodeError as exc:
-        raise RuntimeError("Webhook de romaneios retornou uma resposta que não é JSON válido.") from exc
+        raise RuntimeError("Webhook retornou uma resposta que não é JSON válido.") from exc
 
 
 def _is_async_refresh_ack(payload: dict | list) -> bool:
@@ -550,6 +568,82 @@ def refresh_romaneios_from_integration(payload: dict | None = None) -> dict:
         raise
 
 
+def dispatch_apontamento_to_integration(payload: dict | None = None) -> dict:
+    request_payload = payload or {}
+    integration = _resolve_apontamento_integration(str(request_payload.get("integration_id") or "").strip() or None)
+    integration_id = integration.get("id")
+    synced_at = datetime.utcnow().isoformat() + "Z"
+    pending_only = str(request_payload.get("pending_only", "true")).strip().lower() not in {"0", "false", "nao", "não", "off"}
+    export_payload = PROVIDER.apontamento_export(pending_only=pending_only)
+    exported_count = int(export_payload.get("exported_count") or 0)
+
+    if exported_count <= 0:
+        PROVIDER.save_integration(
+            {
+                "id": integration_id,
+                "last_status": "idle",
+                "last_synced_at": synced_at,
+                "last_error": "",
+            }
+        )
+        return {
+            "status": "idle",
+            "count": 0,
+            "message": "Nenhum apontamento pendente para sincronizar com o Sankhya.",
+            "integration": {
+                "id": integration_id,
+                "name": integration.get("name"),
+                "integration_type": integration.get("integration_type"),
+            },
+        }
+
+    base_payload = _parse_json_config_field(integration.get("request_body_json"), {})
+    webhook_payload = {**base_payload, **export_payload} if isinstance(base_payload, dict) else export_payload
+
+    try:
+        webhook_status, webhook_response = _call_integration_webhook(
+            integration,
+            payload_override=webhook_payload,
+            timeout_seconds=SETTINGS.n8n_apontamento_webhook_timeout_seconds,
+        )
+        if isinstance(webhook_response, dict) and isinstance(webhook_response.get("items"), list):
+            PROVIDER.save_apontamento_sync_status(webhook_response)
+        PROVIDER.save_integration(
+            {
+                "id": integration_id,
+                "last_status": "accepted" if _is_async_refresh_ack(webhook_response) else "success",
+                "last_synced_at": synced_at,
+                "last_error": "",
+            }
+        )
+        return {
+            "status": "accepted" if _is_async_refresh_ack(webhook_response) else "success",
+            "count": exported_count,
+            "webhook_status_code": webhook_status,
+            "message": (
+                webhook_response.get("message")
+                if isinstance(webhook_response, dict)
+                else f"{exported_count} apontamento(s) enviados ao fluxo de integração."
+            ) or f"{exported_count} apontamento(s) enviados ao fluxo de integração.",
+            "integration": {
+                "id": integration_id,
+                "name": integration.get("name"),
+                "integration_type": integration.get("integration_type"),
+            },
+            "response": webhook_response,
+        }
+    except Exception as exc:  # noqa: BLE001
+        PROVIDER.save_integration(
+            {
+                "id": integration_id,
+                "last_status": "error",
+                "last_synced_at": synced_at,
+                "last_error": str(exc),
+            }
+        )
+        raise
+
+
 class PcpApiHandler(BaseHTTPRequestHandler):
     server_version = "PCPSaaSReference/1.1"
 
@@ -609,6 +703,15 @@ class PcpApiHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/pcp/apontamento/save":
                 payload = self.read_json_body()
                 self.send_json(HTTPStatus.OK, PROVIDER.save_apontamento(payload))
+                return
+
+            if parsed.path == "/api/pcp/apontamento/sync-status":
+                payload = self.read_json_body()
+                self.send_json(HTTPStatus.OK, PROVIDER.save_apontamento_sync_status(payload))
+                return
+            if parsed.path == "/api/pcp/apontamento/dispatch":
+                payload = self.read_json_body()
+                self.send_json(HTTPStatus.OK, dispatch_apontamento_to_integration(payload))
                 return
 
             if parsed.path == "/api/pcp/auth/login":
@@ -781,6 +884,11 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 self.send_json(HTTPStatus.OK, PROVIDER.apontamento_logs())
                 return
 
+            if path == "/api/pcp/apontamento/export":
+                pending_only = (query.get("pending_only", [""])[0] or "").strip().lower() in {"1", "true", "yes", "sim"}
+                self.send_json(HTTPStatus.OK, PROVIDER.apontamento_export(pending_only))
+                return
+
             if path == "/api/pcp/production-rules":
                 self.send_json(HTTPStatus.OK, PROVIDER.production_rules())
                 return
@@ -853,7 +961,7 @@ class PcpApiHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     server = ThreadingHTTPServer((SETTINGS.host, SETTINGS.port), PcpApiHandler)
-    print(f"PCP SaaS reference server running on http://{SETTINGS.host}:{SETTINGS.port} [{SETTINGS.data_mode}]")
+    print(f"PCP SaaS running on http://{SETTINGS.host}:{SETTINGS.port} [{SETTINGS.data_mode}]")
     try:
         server.serve_forever()
     except KeyboardInterrupt:

@@ -38,6 +38,9 @@ class Settings:
     n8n_romaneios_webhook_url: str | None
     n8n_romaneios_webhook_token: str | None
     n8n_romaneios_webhook_timeout_seconds: int
+    n8n_apontamento_webhook_url: str | None
+    n8n_apontamento_webhook_token: str | None
+    n8n_apontamento_webhook_timeout_seconds: int
 
     @classmethod
     def from_env(cls) -> "Settings":
@@ -73,5 +76,10 @@ class Settings:
             n8n_romaneios_webhook_token=(os.getenv("PCP_N8N_ROMANEIOS_WEBHOOK_TOKEN") or "").strip() or None,
             n8n_romaneios_webhook_timeout_seconds=int(
                 (os.getenv("PCP_N8N_ROMANEIOS_WEBHOOK_TIMEOUT_SECONDS") or "180").strip() or "180"
+            ),
+            n8n_apontamento_webhook_url=(os.getenv("PCP_N8N_APONTAMENTO_WEBHOOK_URL") or "").strip() or None,
+            n8n_apontamento_webhook_token=(os.getenv("PCP_N8N_APONTAMENTO_WEBHOOK_TOKEN") or "").strip() or None,
+            n8n_apontamento_webhook_timeout_seconds=int(
+                (os.getenv("PCP_N8N_APONTAMENTO_WEBHOOK_TIMEOUT_SECONDS") or "90").strip() or "90"
             ),
         )

@@ -2525,7 +2525,7 @@ values
     'known',
     true,
     false,
-    'Fluxo legado de pasta/planilha mantido apenas para contingência e PDF manual.',
+    'Fluxo legado desativado. Os romaneios oficiais devem ser sincronizados apenas pelo Sankhya.',
     '{"folder_hint":"\\\\SRV\\ti\\Automacao AI\\Automacao Logistica x PCP","parser_contract":"demanda_romaneio"}'::jsonb
 ),
 (

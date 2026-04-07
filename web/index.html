@@ -265,7 +265,7 @@
             <div class="module-header">
               <div class="header-titles">
                 <h2>Matriz Kanban de Romaneios</h2>
-                <p>Gerencie a carteira logística com a mesma lógica da planilha: consulta por romaneio, até o romaneio e necessidade geral.</p>
+                <p>Gerencie a carteira logística com leitura operacional do Sankhya: consulta por romaneio, saldo até o romaneio e necessidade geral.</p>
               </div>
               <div class="filter-controls kanban-toolbar">
                 <select id="kanban-view-mode" class="input-mini">
@@ -760,6 +760,8 @@
               <div class="filter-controls aponta-toolbar">
                 <span id="apontamento-session-pill" class="status-badge info">Modo gestor</span>
                 <button id="apontamento-operator-mode" type="button" class="btn btn-secondary">Entrar em modo operador</button>
+                <span id="apontamento-sync-pill" class="status-badge info">Sem sync pendente</span>
+                <button id="apontamento-sync-run" type="button" class="btn btn-primary">Sincronizar apontamentos</button>
               </div>
             </div>
 
@@ -1165,13 +1167,19 @@
               <div class="panel-header">
                 <div>
                   <h3>Cadastro de Integração</h3>
-                  <p class="section-copy">Mantenha aqui a URL, autenticação e payload do webhook de atualização dos romaneios.</p>
+                  <p class="section-copy">Mantenha aqui a URL, autenticação e payload dos webhooks operacionais do Sankhya.</p>
                 </div>
               </div>
               <form id="integration-form" class="users-form">
                 <input type="hidden" name="id" />
-                <input type="hidden" name="integration_type" value="n8n_webhook_romaneios" />
                 <div class="input-grid">
+                  <div class="input-group full-width">
+                    <label>Tipo de integração</label>
+                    <select name="integration_type" class="modern-input">
+                      <option value="n8n_webhook_romaneios">Romaneios | Sankhya</option>
+                      <option value="n8n_webhook_apontamento">Apontamento | Sankhya</option>
+                    </select>
+                  </div>
                   <div class="input-group">
                     <label>Nome</label>
                     <input type="text" name="name" class="modern-input" placeholder="Romaneios N8N" required />

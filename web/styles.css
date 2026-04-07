@@ -386,6 +386,23 @@
   .btn-secondary:hover {
     background: rgba(255, 255, 255, 0.1);
   }
+
+  .btn-danger {
+    background: linear-gradient(135deg, rgba(163, 30, 52, 0.96), rgba(127, 29, 29, 0.92));
+    color: #fff5f5;
+    border: 1px solid rgba(252, 165, 165, 0.22);
+    box-shadow: 0 10px 24px rgba(127, 29, 29, 0.22);
+  }
+
+  .btn-danger:hover {
+    background: linear-gradient(135deg, rgba(185, 28, 28, 0.98), rgba(153, 27, 27, 0.94));
+    transform: translateY(-1px);
+    box-shadow: 0 14px 28px rgba(127, 29, 29, 0.28);
+  }
+
+  .soft-glow {
+    box-shadow: 0 18px 38px rgba(47, 121, 255, 0.26);
+  }
   
   .avatar {
     width: 36px;
@@ -455,6 +472,29 @@
     justify-content: space-between;
     align-items: center;
     gap: 14px;
+  }
+
+  .panel-header.has-panel-toggle {
+    align-items: center;
+  }
+
+  .panel-collapse-toggle {
+    margin-left: auto;
+    white-space: nowrap;
+    flex-shrink: 0;
+  }
+
+  .glass-panel.panel-collapsed {
+    min-height: auto;
+    padding-bottom: 18px;
+  }
+
+  .glass-panel.panel-collapsed > :not(.panel-header) {
+    display: none !important;
+  }
+
+  .glass-panel.panel-collapsed > .panel-header {
+    margin-bottom: 0;
   }
   
   .panel-header h3 {
@@ -1319,20 +1359,22 @@
       position: fixed;
       top: 50vh;
       transform: translateY(-50%);
-      width: 56px;
-      height: 56px;
-      border-radius: 999px;
-      border: 1px solid rgba(255,255,255,0.54);
-      background: linear-gradient(180deg, rgba(255,255,255,0.48), rgba(243,244,246,0.26));
-      color: var(--text-primary);
+      width: 58px;
+      height: 58px;
+      border-radius: 24px;
+      border: 1px solid rgba(169, 211, 255, 0.22);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(132, 180, 255, 0.18), transparent 28%),
+        linear-gradient(135deg, rgba(18, 46, 104, 0.94), rgba(23, 34, 56, 0.96));
+      color: #f8fbff;
       display: inline-flex;
       align-items: center;
       justify-content: center;
-      backdrop-filter: blur(24px) saturate(118%);
-      box-shadow: 0 18px 40px rgba(3, 10, 22, 0.3);
+      backdrop-filter: blur(24px) saturate(120%);
+      box-shadow: 0 24px 54px rgba(6, 12, 24, 0.3);
       cursor: pointer;
       z-index: 84;
-      transition: opacity 180ms ease, transform 180ms ease, border-color 180ms ease, background 180ms ease;
+      transition: opacity 180ms ease, transform 180ms ease, border-color 180ms ease, background 180ms ease, box-shadow 180ms ease;
       opacity: 0;
       pointer-events: none;
   }
@@ -1341,16 +1383,21 @@
       pointer-events: auto;
   }
   .x-scroll-nav:hover {
-      border-color: rgba(255,255,255,0.76);
-      background: linear-gradient(180deg, rgba(255,255,255,0.6), rgba(237,242,247,0.32));
+      border-color: rgba(183, 223, 255, 0.34);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(168, 208, 255, 0.24), transparent 34%),
+        linear-gradient(135deg, rgba(23, 61, 136, 0.96), rgba(28, 43, 72, 0.98));
       transform: translateY(-50%) scale(1.04);
+      box-shadow: 0 28px 64px rgba(6, 12, 24, 0.34);
   }
   .x-scroll-nav:disabled {
       opacity: 0.58 !important;
       pointer-events: auto;
       cursor: default;
-      border-color: rgba(255,255,255,0.22);
-      background: linear-gradient(180deg, rgba(255,255,255,0.22), rgba(226,232,240,0.12));
+      border-color: rgba(214, 232, 255, 0.18);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(214, 232, 255, 0.1), transparent 32%),
+        linear-gradient(135deg, rgba(37, 54, 86, 0.86), rgba(28, 40, 66, 0.82));
   }
   .x-scroll-nav--left { left: 18px; }
   .x-scroll-nav--right { right: 18px; }
@@ -2021,9 +2068,7 @@
       justify-content: space-between;
       gap: 16px;
       padding: 18px 20px;
-      position: sticky;
-      top: 10px;
-      z-index: 7;
+      position: relative;
       border-radius: 24px;
       background:
         radial-gradient(circle at 20% 10%, rgba(116, 161, 255, 0.18), transparent 28%),
@@ -2034,6 +2079,29 @@
 
   .kanban-quickbar.is-empty {
       border-color: rgba(148, 163, 184, 0.16);
+  }
+
+  .kanban-quickbar.is-alert {
+      border-color: rgba(248, 113, 113, 0.22);
+      background:
+        radial-gradient(circle at 18% 12%, rgba(248, 113, 113, 0.18), transparent 28%),
+        linear-gradient(135deg, rgba(62, 18, 32, 0.96), rgba(42, 24, 38, 0.94));
+      box-shadow: 0 24px 54px rgba(46, 8, 20, 0.34);
+  }
+
+  .kanban-quickbar.is-alert .kanban-quickbar-copy strong {
+      color: #ffe6e6;
+  }
+
+  .kanban-quickbar.is-alert .kanban-quickbar-copy span {
+      color: rgba(255, 232, 232, 0.84);
+  }
+
+  .kanban-quickbar.is-alert #kanban-sem-previsao-shortcut {
+      background: linear-gradient(135deg, rgba(163, 30, 52, 0.96), rgba(127, 29, 29, 0.92));
+      color: #fff5f5;
+      border: 1px solid rgba(252, 165, 165, 0.22);
+      box-shadow: 0 10px 24px rgba(127, 29, 29, 0.22);
   }
 
   .kanban-quickbar-copy {
@@ -3119,7 +3187,19 @@
   }
 
   .aponta-toolbar {
+      display: flex;
+      align-items: center;
+      flex-wrap: wrap;
+      gap: 10px;
       justify-content: flex-end;
+  }
+
+  .aponta-shell-card--sync strong {
+      color: #dff2ff;
+  }
+
+  .aponta-shell-card--sync span {
+      max-width: 30ch;
   }
 
   .aponta-screen-tabs {
@@ -3445,6 +3525,45 @@
 
   .app-container.operator-focus #apontamento .grid-layout-2.aponta-workspace {
       grid-template-columns: 1fr;
+  }
+
+  .app-container.operator-focus #apontamento .module-header,
+  .app-container.operator-focus #apontamento .aponta-screen-tabs {
+      position: sticky;
+      top: 0;
+      z-index: 12;
+      background: linear-gradient(180deg, rgba(9, 14, 22, 0.96), rgba(9, 14, 22, 0.82));
+      backdrop-filter: blur(18px);
+      padding-top: 4px;
+      padding-bottom: 8px;
+  }
+
+  .app-container.operator-focus #apontamento .aponta-tablet-layout {
+      grid-template-columns: 1fr;
+      gap: 14px;
+  }
+
+  .app-container.operator-focus #apontamento .aponta-operator-panel {
+      grid-template-columns: 1fr;
+  }
+
+  .app-container.operator-focus #apontamento .aponta-action-row {
+      position: sticky;
+      bottom: 12px;
+      z-index: 10;
+      padding: 12px;
+      border-radius: 22px;
+      background: linear-gradient(180deg, rgba(8, 17, 27, 0.96), rgba(18, 26, 38, 0.9));
+      border: 1px solid rgba(143, 184, 255, 0.14);
+      box-shadow: 0 18px 40px rgba(4, 11, 25, 0.26);
+  }
+
+  .app-container.operator-focus #apontamento .aponta-action-row .btn,
+  .app-container.operator-focus #apontamento .aponta-reason-strip .btn,
+  .app-container.operator-focus #apontamento .aponta-screen-tabs .btn {
+      min-height: 52px;
+      font-size: 0.95rem;
+      justify-content: center;
   }
 
   .flow-progress {
@@ -3821,6 +3940,24 @@
           grid-template-columns: 1fr;
       }
 
+      #apontamento .aponta-tablet-panel {
+          padding: 20px;
+      }
+
+      #apontamento .aponta-queue-card,
+      #apontamento .aponta-stage-row,
+      #apontamento .aponta-machine-card,
+      #apontamento .aponta-operator-card {
+          padding: 18px;
+      }
+
+      #apontamento .aponta-action-row .btn,
+      #apontamento .aponta-reason-strip .btn,
+      #apontamento .aponta-screen-tabs .btn {
+          min-height: 48px;
+          font-size: 0.92rem;
+      }
+
       .input-group.full-width {
           grid-column: auto;
       }
@@ -3845,8 +3982,7 @@
           grid-template-columns: 1fr;
       }
 
-      .user-profile-copy,
-      .btn-xs {
+      .user-profile-copy {
           display: none;
       }
 

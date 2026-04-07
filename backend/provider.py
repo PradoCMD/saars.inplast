@@ -50,10 +50,26 @@ DEFAULT_APP_INTEGRATION = {
     "updated_at": "2026-04-02T00:00:00.000Z",
 }
 
-ROMANEIO_REFERENCE_DATES_PATH = Path(__file__).resolve().parent.parent / "data" / "romaneio_reference_dates.json"
+DEFAULT_APP_APONTAMENTO_INTEGRATION = {
+    "id": "integration-apontamento-n8n",
+    "name": "Apontamento N8N",
+    "integration_type": "n8n_webhook_apontamento",
+    "webhook_url": "",
+    "method": "POST",
+    "auth_type": "none",
+    "auth_value": "",
+    "extra_headers_json": "{}",
+    "request_body_json": "{}",
+    "active": False,
+    "last_status": "idle",
+    "last_synced_at": "",
+    "last_error": "",
+    "created_at": "2026-04-07T00:00:00.000Z",
+    "updated_at": "2026-04-07T00:00:00.000Z",
+}
+
 PRODUCTION_RULES_PATH = Path(__file__).resolve().parent.parent / "data" / "production_machine_rules.json"
 
-APP_STATE_ROMANEIO_REFERENCE_KEY = "romaneio_reference_dates"
 APP_STATE_PRODUCTION_RULES_KEY = "production_machine_rules"
 APP_STATE_APONTAMENTO_LOGS_KEY = "apontamento_logs"
 
@@ -124,6 +140,8 @@ def _integration_id_for(raw: dict[str, Any]) -> str:
     integration_type = str(raw.get("integration_type") or DEFAULT_APP_INTEGRATION["integration_type"]).strip().lower()
     if integration_type == "n8n_webhook_romaneios":
         return DEFAULT_APP_INTEGRATION["id"]
+    if integration_type == "n8n_webhook_apontamento":
+        return DEFAULT_APP_APONTAMENTO_INTEGRATION["id"]
     slug = re.sub(r"[^a-z0-9]+", "-", integration_type).strip("-") or "custom"
     return f"integration-{slug}"
 
@@ -153,20 +171,37 @@ def _coerce_integration_record(raw: dict[str, Any]) -> dict[str, Any]:
 
 
 def _default_integrations_from_settings(settings: Settings | None) -> list[dict[str, Any]]:
-    if not settings or not settings.n8n_romaneios_webhook_url:
+    if not settings:
         return []
-    return [
-        _coerce_integration_record(
-            {
-                **DEFAULT_APP_INTEGRATION,
-                "webhook_url": settings.n8n_romaneios_webhook_url,
-                "auth_type": "bearer" if settings.n8n_romaneios_webhook_token else "none",
-                "auth_value": settings.n8n_romaneios_webhook_token or "",
-                "active": True,
-                "last_status": "configured",
-            }
+
+    defaults: list[dict[str, Any]] = []
+    if settings.n8n_romaneios_webhook_url:
+        defaults.append(
+            _coerce_integration_record(
+                {
+                    **DEFAULT_APP_INTEGRATION,
+                    "webhook_url": settings.n8n_romaneios_webhook_url,
+                    "auth_type": "bearer" if settings.n8n_romaneios_webhook_token else "none",
+                    "auth_value": settings.n8n_romaneios_webhook_token or "",
+                    "active": True,
+                    "last_status": "configured",
+                }
+            )
         )
-    ]
+    if settings.n8n_apontamento_webhook_url:
+        defaults.append(
+            _coerce_integration_record(
+                {
+                    **DEFAULT_APP_APONTAMENTO_INTEGRATION,
+                    "webhook_url": settings.n8n_apontamento_webhook_url,
+                    "auth_type": "bearer" if settings.n8n_apontamento_webhook_token else "none",
+                    "auth_value": settings.n8n_apontamento_webhook_token or "",
+                    "active": True,
+                    "last_status": "configured",
+                }
+            )
+        )
+    return defaults
 
 
 def load_app_integrations(integrations_path: Path, settings: Settings | None = None) -> list[dict[str, Any]]:
@@ -244,6 +279,9 @@ def _coerce_apontamento_log_record(raw: dict[str, Any]) -> dict[str, Any]:
     event_type = str(raw.get("event_type") or "apontar").strip().lower() or "apontar"
     if event_type not in {"iniciar", "apontar", "parada", "finalizar"}:
         event_type = "apontar"
+    integration_status = str(raw.get("integration_status") or raw.get("sync_status") or "pending").strip().lower() or "pending"
+    if integration_status not in {"pending", "synced", "failed"}:
+        integration_status = "pending"
     return {
         "id": str(raw.get("id") or f"apontamento-{created_at.replace(':', '').replace('-', '').replace('.', '')}"),
         "created_at": created_at,
@@ -257,6 +295,12 @@ def _coerce_apontamento_log_record(raw: dict[str, Any]) -> dict[str, Any]:
         "stop_end": str(raw.get("stop_end") or "").strip(),
         "reason": str(raw.get("reason") or raw.get("motivo") or "").strip(),
         "time_range": str(raw.get("time_range") or "").strip(),
+        "integration_target": str(raw.get("integration_target") or raw.get("sync_target") or "sankhya_n8n").strip().lower(),
+        "integration_status": integration_status,
+        "synced_at": str(raw.get("synced_at") or "").strip(),
+        "external_ref": str(raw.get("external_ref") or raw.get("external_id") or "").strip(),
+        "sync_error": str(raw.get("sync_error") or raw.get("integration_error") or "").strip(),
+        "sync_attempts": int(raw.get("sync_attempts") or 0),
         "updated_at": str(raw.get("updated_at") or created_at),
     }
 
@@ -302,7 +346,61 @@ def summarize_apontamento_logs(items: list[dict[str, Any]]) -> dict[str, Any]:
         "machines_running": running,
         "machines_stopped": stopped,
         "machines_finished": finished,
+        "pending_sync": sum(1 for item in items if item.get("integration_status") == "pending"),
+        "synced": sum(1 for item in items if item.get("integration_status") == "synced"),
+        "failed_sync": sum(1 for item in items if item.get("integration_status") == "failed"),
     }
+
+
+def build_apontamento_export_payload(items: list[dict[str, Any]], pending_only: bool = False) -> dict[str, Any]:
+    exported_items = [
+        item for item in items
+        if not pending_only or str(item.get("integration_status") or "pending").strip().lower() != "synced"
+    ]
+    return {
+        "items": exported_items,
+        "summary": summarize_apontamento_logs(items),
+        "exported_count": len(exported_items),
+        "generated_at": datetime.now(timezone.utc).isoformat(),
+    }
+
+
+def apply_apontamento_sync_updates(items: list[dict[str, Any]], payload: dict[str, Any]) -> list[dict[str, Any]]:
+    updates = payload.get("items") if isinstance(payload.get("items"), list) else [payload]
+    update_map = {
+        str(item.get("id") or "").strip(): item
+        for item in updates
+        if str(item.get("id") or "").strip()
+    }
+    if not update_map:
+        raise RuntimeError("Informe pelo menos um id de apontamento para atualizar a sincronização.")
+
+    synced_at_default = datetime.now(timezone.utc).isoformat()
+    next_items: list[dict[str, Any]] = []
+    for item in items:
+        entry_id = str(item.get("id") or "").strip()
+        update = update_map.get(entry_id)
+        if not update:
+            next_items.append(item)
+            continue
+        status = str(update.get("integration_status") or update.get("sync_status") or item.get("integration_status") or "pending").strip().lower() or "pending"
+        if status not in {"pending", "synced", "failed"}:
+            status = "pending"
+        next_items.append(
+            _coerce_apontamento_log_record(
+                {
+                    **item,
+                    "integration_target": update.get("integration_target") or item.get("integration_target") or "sankhya_n8n",
+                    "integration_status": status,
+                    "synced_at": update.get("synced_at") or (synced_at_default if status == "synced" else item.get("synced_at") or ""),
+                    "external_ref": update.get("external_ref") or update.get("external_id") or item.get("external_ref") or "",
+                    "sync_error": update.get("sync_error") or update.get("integration_error") or "",
+                    "sync_attempts": int(update.get("sync_attempts") or (item.get("sync_attempts") or 0) + 1),
+                    "updated_at": datetime.now(timezone.utc).isoformat(),
+                }
+            )
+        )
+    return sorted(next_items, key=lambda item: item["created_at"], reverse=True)[:240]
 
 
 def load_production_rules(path: Path = PRODUCTION_RULES_PATH) -> dict[str, Any]:
@@ -314,61 +412,6 @@ def load_production_rules(path: Path = PRODUCTION_RULES_PATH) -> dict[str, Any]:
     return {"items": payload, "generated_at": "", "resource_catalog": []}
 
 
-def load_romaneio_reference_document(path: Path = ROMANEIO_REFERENCE_DATES_PATH) -> dict[str, Any]:
-    if not path.exists():
-        return {"items": []}
-    payload = json.loads(path.read_text(encoding="utf-8"))
-    if isinstance(payload, dict):
-        items = payload.get("items", [])
-        if isinstance(items, list):
-            return {**payload, "items": [dict(item) for item in items if item]}
-        return {"items": []}
-    if isinstance(payload, list):
-        return {"items": [dict(item) for item in payload if item]}
-    return {"items": []}
-
-
-def _normalize_romaneio_lookup_code(value: Any) -> str:
-    text = str(value or "").strip()
-    if not text:
-        return ""
-    match = re.search(r"RM[\s-]*0*([0-9]+)", text, re.IGNORECASE)
-    if match:
-        return match.group(1)
-    if text.isdigit():
-        return text.lstrip("0") or "0"
-    return text
-
-
-def load_romaneio_reference_dates(path: Path = ROMANEIO_REFERENCE_DATES_PATH) -> dict[str, dict[str, Any]]:
-    items = load_romaneio_reference_document(path).get("items", [])
-    mapping: dict[str, dict[str, Any]] = {}
-    for item in items:
-        if not item:
-            continue
-        code = _normalize_romaneio_lookup_code(item.get("romaneio"))
-        if code:
-            mapping[code] = dict(item)
-    return mapping
-
-
-def build_romaneio_reference_lookup(payload: dict[str, Any] | list[dict[str, Any]] | None) -> dict[str, dict[str, Any]]:
-    if isinstance(payload, list):
-        items = payload
-    elif isinstance(payload, dict):
-        items = payload.get("items", [])
-    else:
-        items = []
-    mapping: dict[str, dict[str, Any]] = {}
-    for item in items:
-        if not item:
-            continue
-        code = _normalize_romaneio_lookup_code(item.get("romaneio"))
-        if code:
-            mapping[code] = dict(item)
-    return mapping
-
-
 def _json_hash(payload: Any) -> str:
     serialized = json.dumps(payload, ensure_ascii=False, sort_keys=True)
     return hashlib.sha256(serialized.encode("utf-8")).hexdigest()
@@ -377,30 +420,6 @@ def _json_hash(payload: Any) -> str:
 def _timestamp_or_none(value: Any) -> str | None:
     text = str(value or "").strip()
     return text or None
-
-
-def apply_romaneio_reference_dates(item: dict[str, Any], references: dict[str, dict[str, Any]]) -> dict[str, Any]:
-    if not item:
-        return item
-    code = _normalize_romaneio_lookup_code(item.get("romaneio"))
-    reference = references.get(code)
-    if not reference:
-        return item
-
-    current_status = str(item.get("previsao_saida_status") or "").strip().lower()
-    if current_status == "pcp_manual":
-        return item
-
-    merged = dict(item)
-    merged["romaneio_titulo_referencia"] = reference.get("title") or merged.get("romaneio_titulo_referencia")
-    if reference.get("previsao_saida_at"):
-        merged["previsao_saida_at"] = reference["previsao_saida_at"]
-        merged["previsao_saida_status"] = "planilha_referencia"
-        merged["criterio_previsao"] = "planilha_referencia"
-        merged["previsao_saida_observacao"] = (
-            f"Data herdada da planilha de programação ({reference.get('title') or code})."
-        )
-    return merged
 
 
 class DataProvider(ABC):
@@ -483,6 +502,10 @@ class DataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def apontamento_export(self, pending_only: bool = False) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def production_rules(self) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -500,6 +523,10 @@ class DataProvider(ABC):
 
     @abstractmethod
     def save_apontamento(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
+    def save_apontamento_sync_status(self, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
     @abstractmethod
@@ -583,18 +610,13 @@ class MockProvider(DataProvider):
 
     def romaneios(self) -> dict[str, Any]:
         payload = self._read_json("romaneios.json")
-        references = load_romaneio_reference_dates()
-        return {
-            "items": [apply_romaneio_reference_dates(item, references) for item in payload.get("items", [])]
-        }
+        return {"items": list(payload.get("items", []))}
 
     def romaneio_detail(self, romaneio_code: str) -> dict[str, Any] | None:
         path = self.data_dir / f"romaneio_{romaneio_code}.json"
         if not path.exists():
             return None
         payload = json.loads(path.read_text(encoding="utf-8"))
-        references = load_romaneio_reference_dates()
-        payload["header"] = apply_romaneio_reference_dates(payload.get("header", {}), references)
         return payload
 
     def romaneios_kanban(self) -> dict[str, Any]:
@@ -679,6 +701,10 @@ class MockProvider(DataProvider):
     def apontamento_logs(self) -> dict[str, Any]:
         items = load_apontamento_logs(self._apontamento_logs_path())
         return {"items": items, "summary": summarize_apontamento_logs(items)}
+
+    def apontamento_export(self, pending_only: bool = False) -> dict[str, Any]:
+        items = load_apontamento_logs(self._apontamento_logs_path())
+        return build_apontamento_export_payload(items, pending_only)
 
     def production_rules(self) -> dict[str, Any]:
         return load_production_rules()
@@ -770,6 +796,17 @@ class MockProvider(DataProvider):
         return {
             "status": "saved",
             "entry": next_item,
+            "items": persisted,
+            "summary": summarize_apontamento_logs(persisted),
+        }
+
+    def save_apontamento_sync_status(self, payload: dict[str, Any]) -> dict[str, Any]:
+        persisted = save_apontamento_logs(
+            self._apontamento_logs_path(),
+            apply_apontamento_sync_updates(load_apontamento_logs(self._apontamento_logs_path()), payload),
+        )
+        return {
+            "status": "updated",
             "items": persisted,
             "summary": summarize_apontamento_logs(persisted),
         }
@@ -1191,16 +1228,6 @@ class PostgresProvider(DataProvider):
             load_production_rules(PRODUCTION_RULES_PATH),
             PRODUCTION_RULES_PATH,
         )
-        self._seed_state_document_from_file(
-            APP_STATE_ROMANEIO_REFERENCE_KEY,
-            load_romaneio_reference_document(ROMANEIO_REFERENCE_DATES_PATH),
-            ROMANEIO_REFERENCE_DATES_PATH,
-        )
-
-    def _load_romaneio_reference_dates_from_db(self) -> dict[str, dict[str, Any]]:
-        payload = (self._get_app_document(APP_STATE_ROMANEIO_REFERENCE_KEY) or {}).get("payload_json") or {"items": []}
-        return build_romaneio_reference_lookup(payload)
-
     def _build_painel_query(
         self,
         search: str | None = None,
@@ -1293,9 +1320,8 @@ class PostgresProvider(DataProvider):
         return {"items": items}
 
     def romaneios(self) -> dict[str, Any]:
-        references = self._load_romaneio_reference_dates_from_db()
         items = self._fetchall(queries.ROMANEIOS_LIST_SQL)
-        return {"items": [apply_romaneio_reference_dates(item, references) for item in items]}
+        return {"items": items}
 
     def romaneio_detail(self, romaneio_code: str) -> dict[str, Any] | None:
         header_sql = queries.ROMANEIO_HEADER_SQL.format(romaneios_list_sql=queries.ROMANEIOS_LIST_SQL)
@@ -1312,7 +1338,6 @@ class PostgresProvider(DataProvider):
         else:
             observacao = "Romaneio ainda possui itens sem previsao confiavel de disponibilidade."
         header["previsao_saida_observacao"] = observacao
-        header = apply_romaneio_reference_dates(header, self._load_romaneio_reference_dates_from_db())
         return {
             "header": header,
             "items": self._fetchall(queries.ROMANEIO_ITEMS_SQL, (romaneio_code,)),
@@ -1321,14 +1346,10 @@ class PostgresProvider(DataProvider):
 
     def romaneios_kanban(self) -> dict[str, Any]:
         painel_items = self._fetchall(queries.PANEL_ENRICHED_SQL)
-        references = self._load_romaneio_reference_dates_from_db()
         romaneios = self._fetchall(
             queries.ROMANEIOS_KANBAN_SQL.format(romaneios_list_sql=queries.ROMANEIOS_LIST_SQL)
         )
-        return {
-            "products": painel_items,
-            "romaneios": [apply_romaneio_reference_dates(item, references) for item in romaneios]
-        }
+        return {"products": painel_items, "romaneios": romaneios}
 
     def assembly(self) -> dict[str, Any]:
         sql = queries.MRP_QUEUE_BASE_SQL.format(view_name="mart.vw_mrp_assembly")
@@ -1415,6 +1436,10 @@ class PostgresProvider(DataProvider):
         normalized = [_coerce_apontamento_log_record(item) for item in items if item] if isinstance(items, list) else []
         normalized = sorted(normalized, key=lambda item: item["created_at"], reverse=True)[:240]
         return {"items": normalized, "summary": summarize_apontamento_logs(normalized)}
+
+    def apontamento_export(self, pending_only: bool = False) -> dict[str, Any]:
+        items = self.apontamento_logs().get("items", [])
+        return build_apontamento_export_payload(items, pending_only)
 
     def production_rules(self) -> dict[str, Any]:
         payload = (self._get_app_document(APP_STATE_PRODUCTION_RULES_KEY) or {}).get("payload_json")
@@ -1523,6 +1548,25 @@ class PostgresProvider(DataProvider):
         return {
             "status": "saved",
             "entry": next_item,
+            "items": persisted,
+            "summary": summarize_apontamento_logs(persisted),
+        }
+
+    def save_apontamento_sync_status(self, payload: dict[str, Any]) -> dict[str, Any]:
+        persisted = apply_apontamento_sync_updates(self.apontamento_logs().get("items", []), payload)
+        self._upsert_app_document(
+            APP_STATE_APONTAMENTO_LOGS_KEY,
+            {"items": persisted},
+            source_label="ops.apontamento",
+            source_hash=hashlib.sha256(json.dumps(persisted, ensure_ascii=False, sort_keys=True).encode("utf-8")).hexdigest(),
+            doc_type="json",
+            meta={
+                "updated_via": "app_apontamento_sync",
+                "count": len(persisted),
+            },
+        )
+        return {
+            "status": "updated",
             "items": persisted,
             "summary": summarize_apontamento_logs(persisted),
         }
