@@ -77,7 +77,9 @@ def _item_key(item: dict) -> str:
     sku = str(item.get("sku") or "").strip()
     unidade = str(item.get("unidade") or "").strip().upper()
     descricao = str(item.get("descricao") or item.get("produto") or "").strip()
-    return "|".join([sku, unidade, descricao])
+    if sku:
+        return "|".join([sku, unidade])
+    return "|".join([descricao, unidade])
 
 
 def _resolve_document_kind(values: set[str]) -> str:

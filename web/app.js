@@ -710,6 +710,7 @@ function ensureHorizontalScroller(node, shellClass = "") {
   const scrollStep = () => Math.max(viewport.clientWidth * 0.82, 240);
   let hoverTimer = null;
   const scheduleRefresh = () => window.requestAnimationFrame(() => refreshHorizontalScroller(shell));
+  const scrollHost = shell.closest(".view-port") || shell.closest(".main-content") || document.scrollingElement;
 
   const stopAutoScroll = () => {
     if (hoverTimer) {
@@ -748,6 +749,9 @@ function ensureHorizontalScroller(node, shellClass = "") {
   if (!shell.dataset.scrollBound) {
     window.addEventListener("scroll", scheduleRefresh, { passive: true });
     window.addEventListener("resize", scheduleRefresh, { passive: true });
+    if (scrollHost && scrollHost.addEventListener) {
+      scrollHost.addEventListener("scroll", scheduleRefresh, { passive: true });
+    }
     shell.dataset.scrollBound = "true";
   }
   window.requestAnimationFrame(() => refreshHorizontalScroller(shell));
@@ -4464,7 +4468,7 @@ function renderSources(items) {
 
   groups.forEach((group) => {
     const section = el(`
-      <section class="source-group-card">
+      <section class="source-group-card source-group-card--${group.key}">
         <div class="panel-header compact">
           <div>
             <h3>${group.label}</h3>
@@ -4494,7 +4498,7 @@ function renderSources(items) {
                 ? { badge: "CONTINGÊNCIA", tone: "missing", reason: item.notes || "Fonte mantida apenas para contingência." }
                 : { badge: "INATIVA", tone: "missing", reason: item.notes || "Fonte fora da rotina ativa." };
         const card = el(`
-          <div class="source-card">
+          <div class="source-card source-card--${presentation.tone}">
             <div class="source-card-copy">
               <small>${item.source_area} · ${item.source_code}</small>
               <strong>${item.source_name}</strong>
@@ -5339,21 +5343,37 @@ function renderKanbanSummary(model) {
   wrapper.innerHTML = "";
 
   const highlights = [
-    ["Carteira ativa", `${model.summary.count} romaneio(s)`, `${number.format(model.summary.units)} unidades em trânsito`],
-    ["Sem previsão", number.format(model.summary.withoutForecast), "Cargas que ainda precisam de data final"],
-    ["Em risco de saldo", number.format(model.summary.riskCards), `${number.format(model.summary.deficitUnits)} unidades sem cobertura imediata`],
-    [
-      "Próxima saída",
-      model.summary.nextDate ? formatDateWithFallback(model.summary.nextDate, "Sem previsão") : "Sem data",
-      model.summary.nextDate ? `Compromisso em ${formatDateWithFallback(model.summary.nextDate, "Sem data")}` : "Nenhum compromisso confirmado",
-    ],
+    {
+      tone: "fleet",
+      label: "Carteira ativa",
+      value: `${model.summary.count} romaneio(s)`,
+      hint: `${number.format(model.summary.units)} unidades em trânsito`,
+    },
+    {
+      tone: "alert",
+      label: "Sem previsão",
+      value: number.format(model.summary.withoutForecast),
+      hint: "Cargas que ainda precisam de data final",
+    },
+    {
+      tone: "risk",
+      label: "Em risco de saldo",
+      value: number.format(model.summary.riskCards),
+      hint: `${number.format(model.summary.deficitUnits)} unidades sem cobertura imediata`,
+    },
+    {
+      tone: "next",
+      label: "Próxima saída",
+      value: model.summary.nextDate ? formatDateWithFallback(model.summary.nextDate, "Sem previsão") : "Sem data",
+      hint: model.summary.nextDate ? `Compromisso em ${formatDateWithFallback(model.summary.nextDate, "Sem data")}` : "Nenhum compromisso confirmado",
+    },
   ];
 
   const grid = el(`<div class="kanban-summary-grid"></div>`);
-  highlights.forEach(([label, value, hint]) => {
+  highlights.forEach(({ label, value, hint, tone }) => {
     grid.appendChild(
       el(`
-        <div class="kanban-summary-card">
+        <div class="kanban-summary-card kanban-summary-card--${tone}">
           <small>${label}</small>
           <strong>${value}</strong>
           <span>${hint}</span>
@@ -5649,7 +5669,7 @@ function buildKanbanBoardInspector(context) {
 
   return el(`
     <div class="kanban-detail-stack">
-      <section class="kanban-detail-hero">
+      <section class="kanban-detail-hero kanban-detail-hero--${selectedCard.statusTone}">
         <div class="kanban-detail-hero-head">
           <div>
             <small>Romaneio selecionado</small>
@@ -5777,7 +5797,7 @@ function buildKanbanWorkbenchInspector(context) {
 
   return el(`
     <div class="kanban-inspector-stack">
-      <section class="kanban-workbench-card">
+      <section class="kanban-workbench-card kanban-workbench-card--${selectedCard.statusTone}">
         <div class="kanban-workbench-head">
           <div>
             <small>Workbench logístico</small>

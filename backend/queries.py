@@ -160,7 +160,25 @@ line_items as (
             )
             order by produto, sku
         ) as items
-    from mart.vw_romaneio_eta_line_current
+    from (
+        select
+            romaneio_code,
+            coalesce(nullif(sku, ''), produto) as line_key,
+            max(sku) as sku,
+            max(produto) as produto,
+            sum(quantidade) as quantidade,
+            array_to_string(array_agg(distinct impacto order by impacto), ', ') as impacto,
+            array_to_string(array_agg(distinct modo_atendimento order by modo_atendimento), ', ') as modo_atendimento,
+            max(previsao_disponibilidade_at) as previsao_disponibilidade_at,
+            case
+                when bool_or(previsao_disponibilidade_status = 'sem_previsao') then 'sem_previsao'
+                when bool_or(previsao_disponibilidade_status = 'heuristica_processo') then 'heuristica_processo'
+                when bool_or(previsao_disponibilidade_status = 'previsao_informada') then 'previsao_informada'
+                else 'estoque'
+            end as previsao_disponibilidade_status
+        from mart.vw_romaneio_eta_line_current
+        group by romaneio_code, coalesce(nullif(sku, ''), produto)
+    ) grouped
     group by romaneio_code
 )
 select
@@ -183,18 +201,24 @@ where romaneio = %s
 
 ROMANEIO_ITEMS_SQL = """
 select
-    sku,
-    produto,
-    quantidade,
-    impacto,
-    modo_atendimento,
-    quantidade_atendida_estoque,
-    quantidade_pendente,
-    previsao_disponibilidade_at,
-    previsao_disponibilidade_status
+    max(sku) as sku,
+    max(produto) as produto,
+    sum(quantidade) as quantidade,
+    array_to_string(array_agg(distinct impacto order by impacto), ', ') as impacto,
+    array_to_string(array_agg(distinct modo_atendimento order by modo_atendimento), ', ') as modo_atendimento,
+    sum(quantidade_atendida_estoque) as quantidade_atendida_estoque,
+    sum(quantidade_pendente) as quantidade_pendente,
+    max(previsao_disponibilidade_at) as previsao_disponibilidade_at,
+    case
+        when bool_or(previsao_disponibilidade_status = 'sem_previsao') then 'sem_previsao'
+        when bool_or(previsao_disponibilidade_status = 'heuristica_processo') then 'heuristica_processo'
+        when bool_or(previsao_disponibilidade_status = 'previsao_informada') then 'previsao_informada'
+        else 'estoque'
+    end as previsao_disponibilidade_status
 from mart.vw_romaneio_eta_line_current
 where romaneio_code = %s
-order by produto
+group by coalesce(nullif(sku, ''), produto)
+order by max(produto)
 """
 
 ROMANEIO_EVENTS_SQL = """

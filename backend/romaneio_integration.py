@@ -127,6 +127,17 @@ def normalize_webhook_pedido(raw: dict[str, Any]) -> dict[str, Any]:
     }
 
 
+def webhook_pedido_key(pedido: dict[str, Any]) -> str:
+    numero_unico = clean_text(pedido.get("numero_unico"))
+    if numero_unico:
+        return numero_unico
+    ped_mercos = clean_text(pedido.get("ped_mercos"))
+    codigo_parceiro = clean_text(pedido.get("codigo_parceiro"))
+    parceiro = clean_text(pedido.get("parceiro"))
+    cidade = clean_text(pedido.get("cidade"))
+    return "|".join((ped_mercos, codigo_parceiro, parceiro, cidade))
+
+
 def normalize_webhook_item(raw: dict[str, Any]) -> dict[str, Any] | None:
     explicit_sku = clean_text(raw.get("sku") or raw.get("codProduto") or raw.get("codigoProduto"))
     sku, descricao = split_product_label(raw.get("produto") or raw.get("descricao") or raw.get("descricaoProduto"))
@@ -156,6 +167,84 @@ def normalize_webhook_item(raw: dict[str, Any]) -> dict[str, Any] | None:
         "quantidade_vol": quantidade_vol,
         "quantity_total": quantity_total,
     }
+
+
+def webhook_item_key(item: dict[str, Any]) -> str:
+    sku = clean_text(item.get("sku"))
+    unidade = clean_text(item.get("unidade") or "UN").upper() or "UN"
+    descricao = clean_text(item.get("descricao") or item.get("produto"))
+    if sku:
+        return "|".join((sku, unidade))
+    return "|".join((descricao, unidade))
+
+
+def consolidate_webhook_pedidos(pedidos: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    ordered_keys: list[str] = []
+    for pedido in pedidos:
+        key = webhook_pedido_key(pedido)
+        if not key.strip("|"):
+            continue
+        normalized = {
+            "numero_unico": clean_text(pedido.get("numero_unico")),
+            "ped_mercos": clean_text(pedido.get("ped_mercos")),
+            "codigo_parceiro": clean_text(pedido.get("codigo_parceiro")),
+            "parceiro": clean_text(pedido.get("parceiro")),
+            "cidade": clean_text(pedido.get("cidade")),
+            "valor_total": round(parse_number(pedido.get("valor_total")), 2),
+        }
+        if key not in merged:
+            merged[key] = normalized
+            ordered_keys.append(key)
+            continue
+        current = merged[key]
+        for field in ("numero_unico", "ped_mercos", "codigo_parceiro", "parceiro", "cidade"):
+            if not current.get(field) and normalized.get(field):
+                current[field] = normalized[field]
+        current["valor_total"] = max(parse_number(current.get("valor_total")), normalized["valor_total"])
+    return [merged[key] for key in ordered_keys]
+
+
+def consolidate_webhook_items(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    merged: dict[str, dict[str, Any]] = {}
+    ordered_keys: list[str] = []
+    for item in items:
+        key = webhook_item_key(item)
+        if not key.strip("|"):
+            continue
+        normalized = {
+            "sku": clean_text(item.get("sku")),
+            "descricao": clean_text(item.get("descricao") or item.get("produto") or item.get("sku")),
+            "produto": clean_text(item.get("produto") or item.get("descricao") or item.get("sku")),
+            "unidade": clean_text(item.get("unidade") or "UN").upper() or "UN",
+            "tipo_produto": clean_text(item.get("tipo_produto") or "PRODUTO ACABADO") or "PRODUTO ACABADO",
+            "quantidade": parse_number(item.get("quantidade") or item.get("quantity_total")),
+            "quantidade_neg": parse_number(item.get("quantidade_neg")),
+            "quantidade_vol": parse_number(item.get("quantidade_vol")),
+            "quantity_total": parse_number(item.get("quantity_total") or item.get("quantidade")),
+        }
+        if key not in merged:
+            merged[key] = normalized
+            ordered_keys.append(key)
+            continue
+        current = merged[key]
+        for field in ("descricao", "produto", "unidade", "tipo_produto"):
+            if not current.get(field) and normalized.get(field):
+                current[field] = normalized[field]
+        for field in ("quantidade", "quantidade_neg", "quantidade_vol", "quantity_total"):
+            current[field] = round(parse_number(current.get(field)) + normalized[field], 6)
+
+    consolidated: list[dict[str, Any]] = []
+    for key in ordered_keys:
+        item = merged[key]
+        fallback_total = parse_number(item.get("quantity_total")) or parse_number(item.get("quantidade")) or parse_number(item.get("quantidade_neg"))
+        item["quantity_total"] = round(fallback_total, 6)
+        if parse_number(item.get("quantidade")) == 0:
+            item["quantidade"] = item["quantity_total"]
+        if parse_number(item.get("quantidade_neg")) == 0:
+            item["quantidade_neg"] = item["quantity_total"]
+        consolidated.append(item)
+    return consolidated
 
 
 def _build_document_kind_hint(record: dict[str, Any], container: dict[str, Any]) -> str:
@@ -205,8 +294,12 @@ def normalize_webhook_romaneios(payload: Any) -> list[dict[str, Any]]:
 
         pedidos_raw = container.get("tabela_pedidos") or container.get("pedidos") or []
         itens_raw = container.get("tabela_itens_do_caminhao") or container.get("itens") or []
-        pedidos = [pedido for pedido in (normalize_webhook_pedido(item) for item in pedidos_raw if isinstance(item, dict)) if pedido]
-        itens = [item for item in (normalize_webhook_item(entry) for entry in itens_raw if isinstance(entry, dict)) if item]
+        pedidos = consolidate_webhook_pedidos(
+            [pedido for pedido in (normalize_webhook_pedido(item) for item in pedidos_raw if isinstance(item, dict)) if pedido]
+        )
+        itens = consolidate_webhook_items(
+            [item for item in (normalize_webhook_item(entry) for entry in itens_raw if isinstance(entry, dict)) if item]
+        )
 
         total_geral = round(
             parse_number(container.get("valor_total_da_carga") or container.get("valor_total") or container.get("total_geral"))

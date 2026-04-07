@@ -1571,12 +1571,25 @@ with ranked as (
         d.quantity,
         d.company_code,
         d.source_id,
+        s.source_code,
+        coalesce(s.is_active, false) as source_active,
         d.created_at,
         row_number() over (
-            partition by d.source_id, d.romaneio_code, d.product_id
-            order by d.snapshot_at desc, d.created_at desc
+            partition by d.romaneio_code, d.product_id
+            order by
+                case
+                    when s.source_code = 'romaneio_sankhya_webhook' then 0
+                    when coalesce(s.is_active, false) then 1
+                    else 2
+                end,
+                d.snapshot_at desc,
+                d.created_at desc
         ) as rn
     from core.romaneio_demand_snapshot d
+    left join ops.source_registry s on s.source_id = d.source_id
+    where s.source_id is null
+       or coalesce(s.is_active, false)
+       or s.source_code = 'romaneio_sankhya_webhook'
 )
 select
     d.product_id,
@@ -1594,12 +1607,25 @@ with ranked as (
         d.quantity,
         d.company_code,
         d.source_id,
+        s.source_code,
+        coalesce(s.is_active, false) as source_active,
         d.created_at,
         row_number() over (
-            partition by d.source_id, d.romaneio_code, d.product_id
-            order by d.snapshot_at desc, d.created_at desc
+            partition by d.romaneio_code, d.product_id
+            order by
+                case
+                    when s.source_code = 'romaneio_sankhya_webhook' then 0
+                    when coalesce(s.is_active, false) then 1
+                    else 2
+                end,
+                d.snapshot_at desc,
+                d.created_at desc
         ) as rn
     from core.romaneio_demand_snapshot d
+    left join ops.source_registry s on s.source_id = d.source_id
+    where s.source_id is null
+       or coalesce(s.is_active, false)
+       or s.source_code = 'romaneio_sankhya_webhook'
 )
 select
     d.product_id,
