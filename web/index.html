@@ -639,87 +639,102 @@
               </div>
             </div>
 
-            <div class="programming-shell">
+            <div id="programming-view-tabs" class="module-subnav"></div>
+
+            <div id="programming-shell" class="programming-shell">
               <div class="glass-panel programming-form-panel">
                 <div class="panel-header">
                   <div>
                     <div class="title-with-help">
-                      <h3>Programar atividade</h3>
+                      <h3>Centro de programação</h3>
                       <span class="help-tip" tabindex="0" data-tooltip="Clique em uma esteira, extrusora, item do MRP ou romaneio para pré-preencher esta programação." aria-label="Ajuda da programação">i</span>
                     </div>
                   </div>
                 </div>
-                <div id="programming-summary" class="inline-stats"></div>
-                <div id="programming-recommendation" class="programming-recommendation"></div>
-                <div class="form-container">
-                  <form id="programming-form">
-                    <div class="input-grid">
-                      <div class="input-group">
-                        <label>SKU</label>
-                        <input type="text" name="sku" class="modern-input" placeholder="Ex: 4600013" required />
-                      </div>
-                      <div class="input-group">
-                        <label>Produto</label>
-                        <input type="text" name="produto" class="modern-input" placeholder="Descrição do item" required />
-                      </div>
-                      <div class="input-group">
-                        <label>Ação</label>
-                        <select name="action" class="modern-input" required>
-                          <option value="montar">Montar</option>
-                          <option value="produzir">Produzir</option>
-                          <option value="comprar">Comprar</option>
-                        </select>
-                      </div>
-                      <div class="input-group">
-                        <label>Tipo</label>
-                        <select name="product_type" class="modern-input">
-                          <option value="acabado">Acabado</option>
-                          <option value="intermediario">Intermediário</option>
-                          <option value="materia_prima">Matéria-prima</option>
-                          <option value="componente">Componente</option>
-                        </select>
-                      </div>
-                      <div class="input-group">
-                        <label>Início planejado</label>
-                        <input type="datetime-local" name="planned_start_at" class="modern-input" required />
-                      </div>
-                      <div class="input-group">
-                        <label>Disponível em</label>
-                        <input type="datetime-local" name="available_at" class="modern-input" required />
-                      </div>
-                      <div class="input-group">
-                        <label>Quantidade</label>
-                        <input type="number" step="1" min="0" name="quantity_planned" class="modern-input" placeholder="0" required />
-                      </div>
-                      <div class="input-group">
-                        <label>Linha / Esteira</label>
-                        <input type="text" name="assembly_line_code" class="modern-input" placeholder="Ex: LINHA-01 / EXTR-02" />
-                      </div>
-                      <div class="input-group">
-                        <label>Posto / Máquina</label>
-                        <input type="text" name="workstation_code" class="modern-input" placeholder="Ex: POSTO-A / MAQ-03" />
-                      </div>
-                      <div class="input-group">
-                        <label>Romaneio / Referência</label>
-                        <input type="text" name="romaneio_reference" class="modern-input" placeholder="Ex: RM 559" />
-                      </div>
-                      <div class="input-group full-width">
-                        <label>Observação</label>
-                        <textarea name="notes" class="modern-input" rows="3" placeholder="Observações de programação, restrições ou prioridade."></textarea>
-                      </div>
+                <div id="programming-overview-block" class="programming-overview-block">
+                  <div id="programming-summary" class="inline-stats"></div>
+                  <div class="panel-header compact mt-4">
+                    <div>
+                      <h3>Atalhos do PCP</h3>
+                      <p class="section-copy">Entre na programação só quando precisar fechar um recurso ou uma data.</p>
                     </div>
-                    <div class="form-footer">
-                      <button type="submit" class="btn btn-primary">Salvar Programação</button>
-                      <button type="button" id="programming-reset" class="btn btn-secondary">Limpar</button>
-                      <span id="programming-status" class="status-msg"></span>
-                    </div>
-                  </form>
+                  </div>
+                  <div id="programming-shortcuts" class="programming-shortcuts"></div>
                 </div>
 
-                <div class="panel-header mt-4">
-                  <h3>Atalhos de programação</h3>
+                <div id="programming-form-block" class="programming-form-block">
+                  <div class="panel-header compact">
+                    <div>
+                      <h3>Nova programação</h3>
+                      <p class="section-copy">Preencha só o necessário. O recurso sugerido e a regra aparecem abaixo.</p>
+                    </div>
+                  </div>
+                  <div id="programming-recommendation" class="programming-recommendation"></div>
+                  <div class="form-container">
+                    <form id="programming-form">
+                      <div class="input-grid">
+                        <div class="input-group">
+                          <label>SKU</label>
+                          <input type="text" name="sku" class="modern-input" placeholder="Ex: 4600013" required />
+                        </div>
+                        <div class="input-group">
+                          <label>Produto</label>
+                          <input type="text" name="produto" class="modern-input" placeholder="Descrição do item" required />
+                        </div>
+                        <div class="input-group">
+                          <label>Ação</label>
+                          <select name="action" class="modern-input" required>
+                            <option value="montar">Montar</option>
+                            <option value="produzir">Produzir</option>
+                            <option value="comprar">Comprar</option>
+                          </select>
+                        </div>
+                        <div class="input-group">
+                          <label>Tipo</label>
+                          <select name="product_type" class="modern-input">
+                            <option value="acabado">Acabado</option>
+                            <option value="intermediario">Intermediário</option>
+                            <option value="materia_prima">Matéria-prima</option>
+                            <option value="componente">Componente</option>
+                          </select>
+                        </div>
+                        <div class="input-group">
+                          <label>Início planejado</label>
+                          <input type="datetime-local" name="planned_start_at" class="modern-input" required />
+                        </div>
+                        <div class="input-group">
+                          <label>Disponível em</label>
+                          <input type="datetime-local" name="available_at" class="modern-input" required />
+                        </div>
+                        <div class="input-group">
+                          <label>Quantidade</label>
+                          <input type="number" step="1" min="0" name="quantity_planned" class="modern-input" placeholder="0" required />
+                        </div>
+                        <div class="input-group">
+                          <label>Linha / Esteira</label>
+                          <input type="text" name="assembly_line_code" class="modern-input" placeholder="Ex: LINHA-01 / EXTR-02" />
+                        </div>
+                        <div class="input-group">
+                          <label>Posto / Máquina</label>
+                          <input type="text" name="workstation_code" class="modern-input" placeholder="Ex: POSTO-A / MAQ-03" />
+                        </div>
+                        <div class="input-group">
+                          <label>Romaneio / Referência</label>
+                          <input type="text" name="romaneio_reference" class="modern-input" placeholder="Ex: RM 559" />
+                        </div>
+                        <div class="input-group full-width">
+                          <label>Observação</label>
+                          <textarea name="notes" class="modern-input" rows="3" placeholder="Observações de programação, restrições ou prioridade."></textarea>
+                        </div>
+                      </div>
+                      <div class="form-footer">
+                        <button type="submit" class="btn btn-primary">Salvar Programação</button>
+                        <button type="button" id="programming-reset" class="btn btn-secondary">Limpar</button>
+                        <span id="programming-status" class="status-msg"></span>
+                      </div>
+                    </form>
+                  </div>
                 </div>
-                <div id="programming-shortcuts" class="programming-shortcuts"></div>
               </div>
 
               <div class="glass-panel programming-board-panel">
@@ -773,14 +788,14 @@
               <div class="aponta-shell-copy">
                 <small class="aponta-kicker">Operação assistida</small>
                 <div class="title-with-help">
-                  <h3>Mesa do operador e execução da OP</h3>
+                  <h3>Fluxo do apontamento por etapa</h3>
                   <span class="help-tip" tabindex="0" data-tooltip="Referência de POD/chão de fábrica: o operador assume a ordem, inicia, aponta, registra parada e fecha a operação sem sair da estação." aria-label="Ajuda do fluxo de apontamento">i</span>
                 </div>
               </div>
               <div id="apontamento-shell-metrics" class="aponta-shell-metrics"></div>
               <div id="apontamento-screen-tabs" class="aponta-screen-tabs"></div>
-              <div class="aponta-tablet-layout">
-                <div class="glass-panel aponta-tablet-panel">
+              <div id="apontamento-tablet-layout" class="aponta-tablet-layout">
+                <div id="apontamento-queue-panel" class="glass-panel aponta-tablet-panel">
                   <div class="panel-header compact">
                     <div>
                       <div class="title-with-help">
@@ -793,7 +808,7 @@
                   <div id="apontamento-queue" class="aponta-queue-list"></div>
                 </div>
 
-                <div class="glass-panel aponta-tablet-panel">
+                <div id="apontamento-stage-card" class="glass-panel aponta-tablet-panel">
                   <div class="panel-header compact">
                     <div>
                       <div class="title-with-help">
@@ -806,7 +821,7 @@
                   <div id="apontamento-stage-panel" class="aponta-stage-panel"></div>
                 </div>
 
-                <div class="glass-panel aponta-tablet-panel">
+                <div id="apontamento-resource-panel" class="glass-panel aponta-tablet-panel">
                   <div class="panel-header compact">
                     <div>
                       <div class="title-with-help">
@@ -821,8 +836,8 @@
               </div>
             </section>
 
-            <div class="grid-layout-2 aponta-workspace">
-              <div class="glass-panel scroll-y">
+            <div id="apontamento-workspace" class="grid-layout-2 aponta-workspace">
+              <div id="apontamento-hour-panel" class="glass-panel scroll-y">
                 <div class="panel-header">
                   <h3>Acompanhamento Hora a Hora</h3>
                   <span class="status-badge ready">Setor de Injeção</span>
@@ -842,11 +857,13 @@
                 </table>
               </div>
 
-              <div class="glass-panel">
+              <div id="apontamento-register-panel" class="glass-panel">
                 <div class="panel-header">
                   <h3>Registro Operacional</h3>
                 </div>
-                <div id="apontamento-flow-list" class="aponta-flow-list"></div>
+                <div id="apontamento-flow-block">
+                  <div id="apontamento-flow-list" class="aponta-flow-list"></div>
+                </div>
                 <form id="apontamento-form" class="aponta-form">
                   <div class="input-grid">
                     <div class="input-group">
@@ -897,14 +914,18 @@
                     <span id="apontamento-status" class="status-msg"></span>
                   </div>
                 </form>
-                <div class="panel-header mt-4">
-                  <h3>Motivos Críticos</h3>
+                <div id="apontamento-loss-block">
+                  <div class="panel-header mt-4">
+                    <h3>Motivos Críticos</h3>
+                  </div>
+                  <div id="apontamento-loss-list" class="aponta-loss-list"></div>
                 </div>
-                <div id="apontamento-loss-list" class="aponta-loss-list"></div>
-                <div class="panel-header mt-4">
-                  <h3>Últimos registros</h3>
+                <div id="apontamento-log-block">
+                  <div class="panel-header mt-4">
+                    <h3>Últimos registros</h3>
+                  </div>
+                  <div id="apontamento-log-list" class="aponta-log-list"></div>
                 </div>
-                <div id="apontamento-log-list" class="aponta-log-list"></div>
               </div>
             </div>
           </div>
@@ -923,6 +944,7 @@
                 <button type="button" id="assembly-toggle-table" class="btn btn-secondary btn-xs">Recolher fila</button>
               </div>
             </div>
+            <div id="assembly-view-tabs" class="module-subnav"></div>
             <div class="hourly-shell" id="assembly-hourly-shell">
               <section class="glass-panel hourly-main">
                 <div class="hourly-topbar">
@@ -993,6 +1015,7 @@
                 <button type="button" id="production-toggle-table" class="btn btn-secondary btn-xs">Recolher fila</button>
               </div>
             </div>
+            <div id="production-view-tabs" class="module-subnav"></div>
             <div class="hourly-shell" id="production-hourly-shell">
               <section class="glass-panel hourly-main">
                 <div class="hourly-topbar">
@@ -1062,6 +1085,7 @@
                 <button type="button" id="extrusion-toggle-table" class="btn btn-secondary btn-xs">Recolher fila</button>
               </div>
             </div>
+            <div id="extrusion-view-tabs" class="module-subnav"></div>
             <div class="hourly-shell" id="extrusion-hourly-shell">
               <section class="glass-panel hourly-main">
                 <div class="hourly-topbar">
@@ -1268,7 +1292,7 @@
                   <div class="input-group">
                     <label>Perfil</label>
                     <select name="role" class="modern-input">
-                      <option value="operator">Operador</option>
+                      <option value="operator">Apontamento / Operador</option>
                       <option value="planner">PCP</option>
                       <option value="manager">Gestor</option>
                       <option value="root">Root Admin</option>

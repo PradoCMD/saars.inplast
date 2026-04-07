@@ -53,11 +53,18 @@ const state = {
   kanbanSelecionado: null,
   kanbanInspectorCollapsed: true,
   kanbanDetailsExpanded: false,
+  kanbanExpandedCards: {},
   programmingActionFilter: "",
+  programmingView: "overview",
   hourlySelections: {
     montagem: { resourceId: "montagem-01", focusSku: "" },
     producao: { resourceId: "producao-01", focusSku: "" },
     extrusao: { resourceId: "extrusao-01", focusSku: "" },
+  },
+  hourlyViews: {
+    montagem: "turno",
+    producao: "turno",
+    extrusao: "turno",
   },
   hourlyPanels: {
     montagem: { sidebarCollapsed: false, tableCollapsed: false },
@@ -65,7 +72,7 @@ const state = {
     extrusao: { sidebarCollapsed: false, tableCollapsed: false },
   },
   collapsedPanels: {},
-  apontamentoScreen: "resumo",
+  apontamentoScreen: "fila",
   apontamentoSelecionado: "Máquina 1",
   apontamentoFilaSelecionada: null,
   apontamentoOperatorMode: false,
@@ -180,6 +187,7 @@ const HOURLY_MODULE_CONFIG = {
     statusId: "assembly-hourly-status",
     shellId: "assembly-hourly-shell",
     bottomPanelId: "assembly-bottom-panel",
+    viewTabsId: "assembly-view-tabs",
     toggleSidebarId: "assembly-toggle-sidebar",
     toggleTableId: "assembly-toggle-table",
     title: "Montagem",
@@ -204,6 +212,7 @@ const HOURLY_MODULE_CONFIG = {
     statusId: "production-hourly-status",
     shellId: "production-hourly-shell",
     bottomPanelId: "production-bottom-panel",
+    viewTabsId: "production-view-tabs",
     toggleSidebarId: "production-toggle-sidebar",
     toggleTableId: "production-toggle-table",
     title: "Injetoras",
@@ -233,6 +242,7 @@ const HOURLY_MODULE_CONFIG = {
     statusId: "extrusion-hourly-status",
     shellId: "extrusion-hourly-shell",
     bottomPanelId: "extrusion-bottom-panel",
+    viewTabsId: "extrusion-view-tabs",
     toggleSidebarId: "extrusion-toggle-sidebar",
     toggleTableId: "extrusion-toggle-table",
     title: "Extrusão",
@@ -1187,6 +1197,24 @@ function getHourlyPanelState(moduleKey) {
   return state.hourlyPanels[moduleKey];
 }
 
+function getHourlyModuleView(moduleKey) {
+  if (!state.hourlyViews[moduleKey]) {
+    state.hourlyViews[moduleKey] = "turno";
+  }
+  return state.hourlyViews[moduleKey];
+}
+
+function setHourlyModuleView(moduleKey, nextView) {
+  state.hourlyViews[moduleKey] = nextView;
+  if (nextView === "recurso") {
+    getHourlyPanelState(moduleKey).sidebarCollapsed = false;
+  }
+  if (nextView === "fila") {
+    getHourlyPanelState(moduleKey).tableCollapsed = false;
+  }
+  renderHourlyModule(moduleKey);
+}
+
 function toggleHourlyPanel(moduleKey, panelKey) {
   const panelState = getHourlyPanelState(moduleKey);
   panelState[panelKey] = !panelState[panelKey];
@@ -1197,21 +1225,67 @@ function syncHourlyModuleChrome(moduleKey) {
   const definition = getHourlyModuleDefinition(moduleKey);
   const shell = document.getElementById(definition.shellId);
   const bottomPanel = document.getElementById(definition.bottomPanelId);
+  const viewTabs = definition.viewTabsId ? document.getElementById(definition.viewTabsId) : null;
   const sidebarToggle = document.getElementById(definition.toggleSidebarId);
   const tableToggle = document.getElementById(definition.toggleTableId);
   const panelState = getHourlyPanelState(moduleKey);
+  const viewKey = getHourlyModuleView(moduleKey);
 
   shell?.classList.toggle("sidebar-collapsed", panelState.sidebarCollapsed);
   bottomPanel?.classList.toggle("is-collapsed", panelState.tableCollapsed);
+  if (shell) {
+    shell.dataset.view = viewKey;
+  }
+  if (bottomPanel) {
+    bottomPanel.dataset.view = viewKey;
+  }
+  if (viewTabs) {
+    viewTabs.dataset.view = viewKey;
+  }
 
   if (sidebarToggle) {
+    sidebarToggle.hidden = viewKey !== "turno";
     sidebarToggle.textContent = panelState.sidebarCollapsed ? "Mostrar painel" : "Recolher painel";
     sidebarToggle.className = `btn ${panelState.sidebarCollapsed ? "btn-primary" : "btn-secondary"} btn-xs`;
   }
 
   if (tableToggle) {
+    tableToggle.hidden = viewKey !== "turno";
     tableToggle.textContent = panelState.tableCollapsed ? "Mostrar fila" : "Recolher fila";
     tableToggle.className = `btn ${panelState.tableCollapsed ? "btn-primary" : "btn-secondary"} btn-xs`;
+  }
+}
+
+function applyHourlyModuleViewState(moduleKey) {
+  const definition = getHourlyModuleDefinition(moduleKey);
+  const shell = document.getElementById(definition.shellId);
+  const bottomPanel = document.getElementById(definition.bottomPanelId);
+  const mainPanel = shell?.querySelector(".hourly-main");
+  const sidebarPanel = shell?.querySelector(".hourly-sidebar");
+  const heroPanel = document.getElementById(definition.heroId);
+  const gridPanel = document.getElementById(definition.gridId);
+  const viewKey = getHourlyModuleView(moduleKey);
+
+  if (shell) {
+    shell.dataset.view = viewKey;
+  }
+  if (bottomPanel) {
+    bottomPanel.dataset.view = viewKey;
+  }
+  if (mainPanel) {
+    mainPanel.hidden = viewKey === "fila";
+  }
+  if (sidebarPanel) {
+    sidebarPanel.hidden = viewKey !== "recurso";
+  }
+  if (heroPanel) {
+    heroPanel.hidden = viewKey === "fila";
+  }
+  if (gridPanel) {
+    gridPanel.hidden = viewKey !== "turno";
+  }
+  if (bottomPanel) {
+    bottomPanel.hidden = viewKey !== "fila";
   }
 }
 
@@ -2061,7 +2135,17 @@ function renderHourlySidebar(context) {
 
 function renderHourlyModule(moduleKey) {
   const context = getHourlyModuleContext(moduleKey);
+  const definition = getHourlyModuleDefinition(moduleKey);
+  const views = [
+    { key: "turno", label: "Turno", helper: "Grade do dia" },
+    { key: "recurso", label: "Recurso", helper: "Máquina líder" },
+    { key: "fila", label: "Fila", helper: "Itens críticos" },
+  ];
+  renderModuleSubnav(definition.viewTabsId, views, getHourlyModuleView(moduleKey), (nextView) => {
+    setHourlyModuleView(moduleKey, nextView);
+  });
   syncHourlyModuleChrome(moduleKey);
+  applyHourlyModuleViewState(moduleKey);
   renderHourlyResourceSwitcher(context);
   renderHourlyHero(context);
   renderHourlyGrid(context);
@@ -2358,6 +2442,29 @@ function toggleTheme() {
   refreshHorizontalScrollers();
 }
 
+function isFloorOperatorUser(user = state.currentUser) {
+  const role = String(user?.role || "").trim().toLowerCase();
+  return ["operator", "apontamento"].includes(role);
+}
+
+function renderModuleSubnav(containerId, items, activeKey, onChange) {
+  const container = document.getElementById(containerId);
+  if (!container) {
+    return;
+  }
+  container.innerHTML = "";
+  items.forEach((item) => {
+    const button = el(`
+      <button type="button" class="module-subnav-button ${item.key === activeKey ? "active" : ""}">
+        <span>${item.label}</span>
+        ${item.helper ? `<small>${item.helper}</small>` : ""}
+      </button>
+    `);
+    button.addEventListener("click", () => onChange(item.key));
+    container.appendChild(button);
+  });
+}
+
 function applyShellState() {
   const shell = document.getElementById("app-shell");
   const sidebarToggle = document.getElementById("sidebar-toggle");
@@ -2400,6 +2507,27 @@ function setApontamentoOperatorMode(nextValue) {
     applyShellState();
     renderApontamento();
   }
+}
+
+function applyUserLanding(user = state.currentUser, force = false) {
+  if (!user) {
+    return;
+  }
+
+  const isOperator = isFloorOperatorUser(user);
+  state.apontamentoOperatorMode = isOperator;
+  saveOperatorModePreference(isOperator);
+
+  if (isOperator) {
+    state.apontamentoScreen = "fila";
+    if (force || !window.location.hash || window.location.hash === "#cockpit") {
+      window.location.hash = "#apontamento";
+      switchTab("#apontamento");
+      return;
+    }
+  }
+
+  applyShellState();
 }
 
 function getCurrentUserInitials() {
@@ -3835,9 +3963,27 @@ function renderProgramming(items) {
   const board = document.getElementById("programming-board");
   const shortcuts = document.getElementById("programming-shortcuts");
   const summary = document.getElementById("programming-summary");
-  if (!tbody || !board || !shortcuts || !summary) {
+  const shell = document.getElementById("programming-shell");
+  const overviewBlock = document.getElementById("programming-overview-block");
+  const formBlock = document.getElementById("programming-form-block");
+  const formPanel = document.querySelector("#programming-shell .programming-form-panel");
+  const boardPanel = document.querySelector("#programming-shell .programming-board-panel");
+  if (!tbody || !board || !shortcuts || !summary || !shell || !overviewBlock || !formBlock || !formPanel || !boardPanel) {
     return;
   }
+
+  const views = [
+    { key: "overview", label: "Atalhos", helper: "Prioridades" },
+    { key: "form", label: "Programar", helper: "Fechar recurso" },
+    { key: "board", label: "Carteira", helper: "Fila gravada" },
+  ];
+  if (!views.some((item) => item.key === state.programmingView)) {
+    state.programmingView = "overview";
+  }
+  renderModuleSubnav("programming-view-tabs", views, state.programmingView, (nextView) => {
+    state.programmingView = nextView;
+    renderProgramming(state.datasets.programming);
+  });
 
   const searchQuery = getGlobalSearchQuery();
   const filtered = (Array.isArray(items) ? items : []).filter((item) => {
@@ -4020,6 +4166,12 @@ function renderProgramming(items) {
     || filtered[0]
     || null;
   renderProgrammingRecommendation(draftMatch, quickCandidates);
+
+  shell.dataset.view = state.programmingView;
+  formPanel.hidden = state.programmingView === "board";
+  overviewBlock.hidden = state.programmingView !== "overview";
+  formBlock.hidden = state.programmingView !== "form";
+  boardPanel.hidden = state.programmingView !== "board";
   applyPanelCollapseEnhancements();
 }
 
@@ -4039,8 +4191,19 @@ function renderApontamento() {
   const form = document.getElementById("apontamento-form");
   const syncPill = document.getElementById("apontamento-sync-pill");
   const syncButton = document.getElementById("apontamento-sync-run");
+  const moduleRoot = document.getElementById("apontamento");
+  const tabletLayout = document.getElementById("apontamento-tablet-layout");
+  const queuePanel = document.getElementById("apontamento-queue-panel");
+  const stageCard = document.getElementById("apontamento-stage-card");
+  const resourcePanel = document.getElementById("apontamento-resource-panel");
+  const workspace = document.getElementById("apontamento-workspace");
+  const hourPanel = document.getElementById("apontamento-hour-panel");
+  const registerPanel = document.getElementById("apontamento-register-panel");
+  const flowBlock = document.getElementById("apontamento-flow-block");
+  const lossBlock = document.getElementById("apontamento-loss-block");
+  const logBlock = document.getElementById("apontamento-log-block");
 
-  if (!queueList || !stagePanel || !stageStatus || !queueCount || !screenTabs || !shellMetrics || !machineGrid || !hourTable || !flowList || !lossList || !operatorPanel || !logList || !form || !syncPill || !syncButton) {
+  if (!queueList || !stagePanel || !stageStatus || !queueCount || !screenTabs || !shellMetrics || !machineGrid || !hourTable || !flowList || !lossList || !operatorPanel || !logList || !form || !syncPill || !syncButton || !moduleRoot || !tabletLayout || !queuePanel || !stageCard || !resourcePanel || !workspace || !hourPanel || !registerPanel || !flowBlock || !lossBlock || !logBlock) {
     return;
   }
 
@@ -4099,13 +4262,13 @@ function renderApontamento() {
   syncButton.textContent = state.apontamentoSyncBusy ? "Sincronizando..." : "Sincronizar apontamentos";
 
   const screens = [
-    { key: "resumo", label: "Resumo" },
-    { key: "fila", label: "Fila do turno" },
-    { key: "paradas", label: "Paradas e perdas" },
-    { key: "historico", label: "Histórico" },
+    { key: "fila", label: "1. Escolher OP", helper: "Fila pronta" },
+    { key: "assumir", label: "2. Assumir", helper: "Máquina e OP" },
+    { key: "registrar", label: "3. Apontar", helper: "Ações do turno" },
+    { key: "historico", label: "4. Histórico", helper: "Leituras do recurso" },
   ];
   if (!screens.some((item) => item.key === state.apontamentoScreen)) {
-    state.apontamentoScreen = "resumo";
+    state.apontamentoScreen = "fila";
   }
 
   const machineField = form.elements.namedItem("maquina");
@@ -4124,20 +4287,11 @@ function renderApontamento() {
     opField.value = selectedQueueItem?.op_code || selectedMachine.activeOpCode;
   }
 
-  screenTabs.innerHTML = "";
-  screens.forEach((screen) => {
-    const button = el(`
-      <button type="button" class="btn ${screen.key === state.apontamentoScreen ? "btn-primary" : "btn-secondary"} btn-xs">
-        ${screen.label}
-      </button>
-    `);
-    button.addEventListener("click", () => {
-      state.apontamentoScreen = screen.key;
-      renderApontamento();
-    });
-    screenTabs.appendChild(button);
+  renderModuleSubnav("apontamento-screen-tabs", screens, state.apontamentoScreen, (nextView) => {
+    state.apontamentoScreen = nextView;
+    renderApontamento();
   });
-  stageStatus.textContent = screens.find((item) => item.key === state.apontamentoScreen)?.label || "Resumo";
+  stageStatus.textContent = screens.find((item) => item.key === state.apontamentoScreen)?.label || "Etapa";
   queueCount.textContent = number.format(queueItems.length);
   shellMetrics.innerHTML = `
     <article class="aponta-shell-card ${activeSession.isActive ? "is-live" : ""}">
@@ -4169,10 +4323,26 @@ function renderApontamento() {
     <article class="aponta-shell-card apunta-shell-card--sync ${state.apontamentoSyncBusy ? "is-live" : ""}">
       <small>Integração Sankhya</small>
       <strong>${state.apontamentoSyncBusy ? "ENVIANDO" : number.format(apontamentoSummary.pending_sync)}</strong>
-      <span>${apontamentoIntegration ? "Webhook pronto para gravar os apontamentos do turno no Sankhya." : "Cadastre a integração de apontamento para habilitar o envio ao Sankhya."}</span>
-      <em>${apontamentoSummary.synced ? `${number.format(apontamentoSummary.synced)} registro(s) já conciliados` : "Nenhum apontamento conciliado neste ciclo."}</em>
+      <span>${apontamentoIntegration ? "Webhook pronto para consolidar os apontamentos do turno." : "Cadastre a integração de apontamento para habilitar o envio."}</span>
+      <em>${apontamentoSummary.failed_sync ? `${number.format(apontamentoSummary.failed_sync)} leitura(s) com falha` : `${number.format(apontamentoSummary.synced)} leitura(s) conciliadas`}</em>
     </article>
   `;
+  moduleRoot.dataset.screen = state.apontamentoScreen;
+  tabletLayout.dataset.view = state.apontamentoScreen;
+  workspace.dataset.view = state.apontamentoScreen;
+  queuePanel.hidden = !["fila", "assumir"].includes(state.apontamentoScreen);
+  resourcePanel.hidden = !["assumir", "registrar"].includes(state.apontamentoScreen);
+  workspace.hidden = !["registrar", "historico"].includes(state.apontamentoScreen);
+  hourPanel.hidden = state.apontamentoScreen !== "historico";
+  registerPanel.hidden = !["registrar", "historico"].includes(state.apontamentoScreen);
+  form.hidden = state.apontamentoScreen !== "registrar";
+  flowBlock.hidden = state.apontamentoScreen !== "registrar";
+  lossBlock.hidden = state.apontamentoScreen !== "registrar";
+  logBlock.hidden = state.apontamentoScreen !== "historico";
+  const registerTitle = registerPanel.querySelector(".panel-header h3");
+  if (registerTitle) {
+    registerTitle.textContent = state.apontamentoScreen === "historico" ? "Histórico do recurso" : "Registro Operacional";
+  }
 
   queueList.innerHTML = "";
   if (!queueItems.length) {
@@ -4198,7 +4368,7 @@ function renderApontamento() {
         if (item.machine_hint && machines.some((machine) => machine.maquina === item.machine_hint)) {
           state.apontamentoSelecionado = item.machine_hint;
         }
-        state.apontamentoScreen = "resumo";
+        state.apontamentoScreen = "assumir";
         renderApontamento();
       });
       card.querySelector("button").addEventListener("click", (event) => {
@@ -4207,7 +4377,7 @@ function renderApontamento() {
         if (item.machine_hint && machines.some((machine) => machine.maquina === item.machine_hint)) {
           state.apontamentoSelecionado = item.machine_hint;
         }
-        state.apontamentoScreen = "resumo";
+        state.apontamentoScreen = "assumir";
         renderApontamento();
       });
       queueList.appendChild(card);
@@ -4317,6 +4487,14 @@ function renderApontamento() {
       `).join("")}
     </div>
   `;
+  const operatorActionRow = operatorPanel.querySelector(".aponta-action-row");
+  const operatorReasonStrip = operatorPanel.querySelector(".aponta-reason-strip");
+  if (operatorActionRow) {
+    operatorActionRow.hidden = state.apontamentoScreen !== "registrar";
+  }
+  if (operatorReasonStrip) {
+    operatorReasonStrip.hidden = state.apontamentoScreen !== "registrar";
+  }
   operatorPanel.querySelectorAll("[data-event]").forEach((button) => {
     button.addEventListener("click", () => {
       const eventType = button.getAttribute("data-event");
@@ -4339,7 +4517,7 @@ function renderApontamento() {
         event_type: "parada",
         op_code: selectedOpCode,
         reason: button.getAttribute("data-loss-reason") || "",
-        screen: "paradas",
+        screen: "registrar",
       });
     });
   });
@@ -4347,13 +4525,13 @@ function renderApontamento() {
   if (state.apontamentoScreen === "fila") {
     stagePanel.innerHTML = `
       <div class="aponta-stage-copy">
-        <small>Fila do turno</small>
-        <strong>${queueItems.length ? "Atividades prontas para execução" : "Sem atividade pronta"}</strong>
-        <span>Assuma uma programação, confira o recurso sugerido e dispare a execução da OP.</span>
+        <small>Passo 1 · fila pronta</small>
+        <strong>${queueItems.length ? "Escolha a próxima OP do turno" : "Sem OP pronta para assumir"}</strong>
+        <span>Selecione uma ordem pronta. A estação e o posto serão preparados no próximo passo.</span>
       </div>
       <div class="aponta-stage-list">
         ${(queueItems.length
-          ? queueItems.map((item) => `
+          ? queueItems.slice(0, 6).map((item) => `
               <div class="aponta-stage-row ${item.queue_key === state.apontamentoFilaSelecionada ? "selected" : ""}">
                 <strong>${item.op_code}</strong>
                 <span>${item.sku} · ${item.produto}</span>
@@ -4362,28 +4540,51 @@ function renderApontamento() {
             `).join("")
           : `<div class="detail-empty">Nenhuma atividade programada para a fila atual.</div>`)}
       </div>
+      <div class="aponta-stage-actions">
+        <button type="button" class="btn btn-primary" data-stage-advance="assumir" ${selectedQueueItem ? "" : "disabled"}>Continuar para assumir OP</button>
+      </div>
     `;
-  } else if (state.apontamentoScreen === "paradas") {
+  } else if (state.apontamentoScreen === "assumir") {
     stagePanel.innerHTML = `
       <div class="aponta-stage-copy">
-        <small>Paradas e perdas</small>
-        <strong>Motivos operacionais do turno</strong>
-        <span>Use esta tela para abrir a parada, apontar motivo e medir o impacto antes da retomada.</span>
+        <small>Passo 2 · assumir OP</small>
+        <strong>${selectedQueueItem?.op_code || "Selecione uma OP na fila"}</strong>
+        <span>${selectedQueueItem ? `${selectedQueueItem.sku} · ${selectedQueueItem.produto}` : "Sem ordem selecionada."}</span>
+      </div>
+      <div class="aponta-stage-metrics">
+        <div class="mini-card">
+          <small>Recurso sugerido</small>
+          <strong>${selectedQueueItem?.machine_hint || selectedMachine.maquina}</strong>
+        </div>
+        <div class="mini-card">
+          <small>Quantidade planejada</small>
+          <strong>${number.format(selectedQueueItem?.quantity_planned || 0)}</strong>
+        </div>
+        <div class="mini-card">
+          <small>Disponível em</small>
+          <strong>${formatDateTimeWithFallback(selectedQueueItem?.available_at, "Sem previsão")}</strong>
+        </div>
+        <div class="mini-card">
+          <small>Posto ativo</small>
+          <strong>${selectedMachine.maquina}</strong>
+        </div>
       </div>
       <div class="aponta-stage-list">
-        ${apontamentoLosses.map((item) => `
-          <div class="aponta-stage-row" data-loss-row="${escapeHtmlAttr(item.motivo)}">
-            <strong>${item.motivo}</strong>
-            <span>${item.impacto}</span>
-            <em>${item.detalhe}</em>
-          </div>
-        `).join("")}
+        <div class="aponta-stage-row selected">
+          <strong>Máquina pronta para carga</strong>
+          <span>${selectedMachine.maquina} · ${selectedMachine.status}</span>
+          <em>${selectedQueueItem?.notes || "Abra o posto e siga para o lançamento do operador."}</em>
+        </div>
+      </div>
+      <div class="aponta-stage-actions">
+        <button type="button" class="btn btn-primary" data-stage-advance="registrar" ${selectedQueueItem ? "" : "disabled"}>Abrir posto da OP</button>
+        <button type="button" class="btn btn-secondary" data-stage-advance="fila">Voltar para fila</button>
       </div>
     `;
   } else if (state.apontamentoScreen === "historico") {
     stagePanel.innerHTML = `
       <div class="aponta-stage-copy">
-        <small>Histórico operacional</small>
+        <small>Passo 4 · histórico</small>
         <strong>${selectedMachine.maquina}</strong>
         <span>Últimos registros de produção, parada e fechamento desta máquina.</span>
       </div>
@@ -4403,7 +4604,7 @@ function renderApontamento() {
     stagePanel.innerHTML = `
       <div class="aponta-stage-hero state-${machineStateKey}">
         <div class="aponta-stage-copy">
-          <small>Mesa da operação</small>
+          <small>Passo 3 · registrar</small>
           <strong>${selectedOpCode || "Sem OP selecionada"}</strong>
           <span>${selectedQueueItem ? `${selectedQueueItem.sku} · ${selectedQueueItem.produto}` : "Assuma uma atividade na fila para iniciar o apontamento."}</span>
           <em>${selectedMachine.maquina} · ${activeSession.lastReason || "Próxima ação: iniciar a operação ou assumir uma OP da fila."}</em>
@@ -4433,16 +4634,12 @@ function renderApontamento() {
           <strong>${number.format(Math.max(selectedMachine.totalScrap || 0, activeSession.scrapPieces || 0))}</strong>
         </div>
         <div class="mini-card">
-          <small>Disponível em</small>
-          <strong>${formatDateTimeWithFallback(selectedQueueItem?.available_at, "Sem disponibilidade")}</strong>
+          <small>Restante</small>
+          <strong>${number.format(Math.max(plannedPieces - producedPieces, 0))}</strong>
         </div>
         <div class="mini-card">
           <small>Paradas no ciclo</small>
           <strong>${number.format(activeSession.stopMinutes || 0)} min</strong>
-        </div>
-        <div class="mini-card">
-          <small>Restante</small>
-          <strong>${number.format(Math.max(plannedPieces - producedPieces, 0))}</strong>
         </div>
       </div>
       <div class="aponta-stage-list">
@@ -4460,6 +4657,13 @@ function renderApontamento() {
     `;
   }
 
+  stagePanel.querySelectorAll("[data-stage-advance]").forEach((button) => {
+    button.addEventListener("click", () => {
+      state.apontamentoScreen = button.getAttribute("data-stage-advance") || "fila";
+      renderApontamento();
+    });
+  });
+
   stagePanel.querySelectorAll("[data-loss-row]").forEach((row) => {
     row.addEventListener("click", () => {
       prefillApontamentoForm({
@@ -4467,7 +4671,7 @@ function renderApontamento() {
         event_type: "parada",
         op_code: selectedOpCode,
         reason: row.getAttribute("data-loss-row") || "",
-        screen: "paradas",
+        screen: "registrar",
       });
     });
   });
@@ -5254,6 +5458,7 @@ function prefillProgrammingForm(payload, options = {}) {
 
   setElementStatus("programming-status", "Programação pré-preenchida a partir da fila operacional.", "success");
   renderProgrammingRecommendation({ ...payload, ...suggestion });
+  state.programmingView = "form";
 
   if (options.switchTab !== false) {
     window.location.hash = "#programacao";
@@ -5432,13 +5637,13 @@ function prefillApontamentoForm(payload) {
 
 function apontaScreenFromEvent(eventType) {
   const normalized = String(eventType || "").toLowerCase();
-  if (normalized === "parada") {
-    return "paradas";
+  if (normalized === "parada" || normalized === "iniciar") {
+    return "registrar";
   }
   if (normalized === "finalizar" || normalized === "apontar") {
     return "historico";
   }
-  return "resumo";
+  return "assumir";
 }
 
 let kanbanState = { products: [], romaneios: [] };
@@ -5510,6 +5715,9 @@ function consolidateRomaneioItems(items = []) {
 
 function buildKanbanModel(data) {
   const products = Array.isArray(data.products) ? data.products : [];
+  const productMap = new Map(
+    products.map((product) => [normalizeRomaneioItemIdentity(product.sku), product]),
+  );
   const searchQuery = getGlobalSearchQuery();
   const romaneios = (Array.isArray(data.romaneios) ? data.romaneios : []).filter((romaneio) => {
     if (state.kanbanStatusFilter !== "todos" && String(romaneio.previsao_saida_status || "") !== state.kanbanStatusFilter) {
@@ -5579,11 +5787,14 @@ function buildKanbanModel(data) {
 
       items.forEach((item) => {
         const sku = item.sku || "N/D";
+        const normalizedSku = normalizeRomaneioItemIdentity(sku);
         const qty = Number(item.quantidade) || 0;
-        const currentStock = Number(runningStock[sku]) || 0;
+        const currentStock = Number(runningStock[normalizedSku]) || 0;
+        const currentProduct = productMap.get(normalizedSku) || null;
+        const estoqueAtual = Number(currentProduct?.estoque_atual ?? item.quantidade_atendida_estoque ?? 0) || 0;
         const uncovered = Math.max(qty - Math.max(currentStock, 0), 0);
         const endStock = currentStock - qty;
-        runningStock[sku] = endStock;
+        runningStock[normalizedSku] = endStock;
         if (uncovered > 0) {
           deficit += uncovered;
           riskItems += 1;
@@ -5593,6 +5804,7 @@ function buildKanbanModel(data) {
             sku,
             produto: item.produto || item.descricao || sku,
             quantity: qty,
+            estoqueAtual,
             endStock,
           });
         }
@@ -5633,7 +5845,14 @@ function buildKanbanModel(data) {
         data_evento: romaneio.data_evento,
         itemsPreview: previewItems,
         hiddenItems: Math.max(items.length - previewItems.length, 0),
-        items,
+        items: items.map((item) => {
+          const normalizedSku = normalizeRomaneioItemIdentity(item.sku);
+          const currentProduct = productMap.get(normalizedSku) || null;
+          return {
+            ...item,
+            estoqueAtual: Number(currentProduct?.estoque_atual ?? item.quantidade_atendida_estoque ?? 0) || 0,
+          };
+        }),
         raw: romaneio,
       };
     });
@@ -5829,6 +6048,52 @@ function buildKanbanCardItemsPreview(items = []) {
   const footer = remaining > 0 ? `<div class="k-product-more">+${remaining} item(ns) no romaneio</div>` : "";
 
   return `<div class="k-product-preview">${rows}${footer}</div>`;
+}
+
+function isKanbanCardExpanded(romaneio) {
+  return Boolean(state.kanbanExpandedCards[String(romaneio)]);
+}
+
+function toggleKanbanCardExpanded(romaneio) {
+  const key = String(romaneio || "");
+  if (!key) {
+    return;
+  }
+  state.kanbanExpandedCards[key] = !state.kanbanExpandedCards[key];
+}
+
+function buildKanbanCardExpandedDetails(items = []) {
+  const detailItems = Array.isArray(items) ? items : [];
+  if (!detailItems.length) {
+    return `
+      <div class="k-card-expanded k-card-expanded--empty">
+        <span>Sem produtos detalhados para este romaneio.</span>
+      </div>
+    `;
+  }
+
+  const rows = detailItems
+    .map((item) => `
+      <div class="k-card-expanded-row">
+        <div class="k-card-expanded-copy">
+          <b>${item.sku || "-"}</b>
+          <span>${item.produto || item.descricao || item.sku || "-"}</span>
+        </div>
+        <div class="k-card-expanded-metrics">
+          <small>
+            <em>Pedido</em>
+            <strong>${number.format(Number(item.quantidade || 0))}</strong>
+          </small>
+          <small>
+            <em>Estoque</em>
+            <strong>${number.format(Number(item.estoqueAtual || 0))}</strong>
+          </small>
+        </div>
+      </div>
+    `)
+    .join("");
+
+  return `<div class="k-card-expanded">${rows}</div>`;
 }
 
 function resolveKanbanInspectorContext(model, data) {
@@ -6396,8 +6661,10 @@ function renderKanban(data) {
 
     column.cards.forEach((cardData) => {
       const productsPreview = buildKanbanCardItemsPreview(cardData.items || []);
+      const expanded = isKanbanCardExpanded(cardData.romaneio);
+      const expandedDetails = expanded ? buildKanbanCardExpandedDetails(cardData.items || []) : "";
       const card = el(`
-        <div class="kanban-card" data-romaneio="${cardData.romaneio}" title="Arraste para mudar a data">
+        <div class="kanban-card${expanded ? " is-expanded" : ""}" data-romaneio="${cardData.romaneio}" title="Arraste para mudar a data">
           <div class="k-card-top">
             <span class="k-sku">${formatRomaneioCode(cardData.romaneio)}</span>
             <span class="k-qty">${number.format(cardData.quantityTotal)} un</span>
@@ -6412,6 +6679,7 @@ function renderKanban(data) {
           </div>
           <div class="k-coverage-copy">${cardData.coveragePct}% coberto agora · déficit ${number.format(cardData.deficit)}</div>
           ${productsPreview}
+          ${expandedDetails}
           <div class="k-card-bottom">
             <div class="k-date">
               <svg width="12" height="12" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><rect x="3" y="4" width="18" height="18" rx="2" ry="2"></rect><line x1="16" y1="2" x2="16" y2="6"></line><line x1="8" y1="2" x2="8" y2="6"></line><line x1="3" y1="10" x2="21" y2="10"></line></svg>
@@ -6420,6 +6688,7 @@ function renderKanban(data) {
             <div class="k-priority ${cardData.statusTone}"></div>
           </div>
           <div class="k-card-actions">
+            <button type="button" class="btn btn-secondary btn-xs" data-action="expand">${expanded ? "Recolher itens" : "Ver itens"}</button>
             <button type="button" class="btn btn-secondary" data-action="inspect">Consultar</button>
             <button type="button" class="btn btn-secondary" data-action="plan">Programar</button>
           </div>
@@ -6436,6 +6705,12 @@ function renderKanban(data) {
         event.stopPropagation();
         state.kanbanSelecionado = cardData.romaneio;
         state.kanbanInspectorCollapsed = false;
+        renderKanban(kanbanState);
+      });
+
+      card.querySelector('[data-action="expand"]').addEventListener("click", (event) => {
+        event.stopPropagation();
+        toggleKanbanCardExpanded(cardData.romaneio);
         renderKanban(kanbanState);
       });
 
@@ -6963,6 +7238,7 @@ async function autenticarUsuario(event) {
   persistSession(user);
   renderAuthState();
   renderUsersModule();
+  applyUserLanding(user, true);
   setElementStatus("login-status", "", "");
   carregarTudo().catch((error) => {
     document.getElementById("mrp-status").textContent = "Erro de conexão: " + error.message;
@@ -6971,7 +7247,10 @@ async function autenticarUsuario(event) {
 
 function logoutUsuario() {
   persistSession(null);
+  state.apontamentoOperatorMode = false;
+  saveOperatorModePreference(false);
   renderAuthState();
+  applyShellState();
   switchTab("#cockpit");
 }
 
@@ -7071,7 +7350,7 @@ async function salvarApontamento(event) {
 
     await persistApontamentoEntry(entry);
     state.apontamentoSelecionado = payload.maquina;
-    state.apontamentoScreen = payload.event_type === "parada" ? "paradas" : "historico";
+    state.apontamentoScreen = payload.event_type === "parada" ? "registrar" : "historico";
     refreshOperationalViews();
     setElementStatus("apontamento-status", "Apontamento registrado no diário operacional.", "success");
     const currentMachine = payload.maquina;
@@ -7315,7 +7594,7 @@ document.getElementById("apontamento-reset")?.addEventListener("click", () => {
   if (state.apontamentoSelecionado && document.getElementById("apontamento-form")?.elements.namedItem("maquina")) {
     document.getElementById("apontamento-form").elements.namedItem("maquina").value = state.apontamentoSelecionado;
   }
-  state.apontamentoScreen = "resumo";
+  state.apontamentoScreen = "registrar";
   renderApontamento();
   setElementStatus("apontamento-status", "Formulário de apontamento limpo.", "success");
 });
@@ -7483,6 +7762,7 @@ async function bootstrapSessionAndData() {
   persistSession(user);
   renderAuthState();
   renderUsersModule();
+  applyUserLanding(user, true);
 
   if (state.currentUser) {
     await carregarTudo();
