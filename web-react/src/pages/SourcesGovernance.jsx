@@ -7,6 +7,7 @@ import {
   FiRefreshCw,
   FiShield,
 } from 'react-icons/fi'
+import CommandDeck from '../components/CommandDeck'
 import StatePanel from '../components/StatePanel'
 
 const STATUS_PRIORITY = {
@@ -296,6 +297,50 @@ function SourcesGovernance({
       icon: FiShield,
     },
   ]
+  const moduleImpactItems = [
+    {
+      label: 'Impacta cockpit',
+      value: sourceSummary.blocked
+        ? 'Decisão em cautela'
+        : sourceSummary.attention || snapshotStale
+          ? 'Cobertura com cautela'
+          : 'Cobertura estável',
+      detail: sourceSummary.blocked
+        ? 'Cobertura, custo e gargalos da empresa podem oscilar até nova carga válida das integrações críticas.'
+        : sourceSummary.attention || snapshotStale
+          ? 'O cockpit continua utilizável, mas a empresa ativa deve ler pressão e cobertura como snapshot em cautela.'
+          : 'Os indicadores por empresa seguem apoiados em uma base estável nesta leitura.',
+      tone: sourceSummary.blocked ? 'high' : sourceSummary.attention || snapshotStale ? 'warning' : 'ok',
+    },
+    {
+      label: 'Impacta kanban',
+      value: sourceSummary.blocked || snapshotStale
+        ? 'Fila com exceções'
+        : sourceSummary.attention
+          ? 'Datas em cautela'
+          : 'Fila confiável',
+      detail: sourceSummary.blocked || snapshotStale
+        ? 'A fila oficial segue legível, mas previsões e carteira precisam ser tratadas como leitura de cautela.'
+        : sourceSummary.attention
+          ? 'Kanban continua honesto, porém a origem da previsão pede acompanhamento até nova atualização.'
+          : 'A fila oficial mantém leitura segura de previsão e exceção nesta rodada.',
+      tone: sourceSummary.blocked || snapshotStale ? 'high' : sourceSummary.attention ? 'warning' : 'ok',
+    },
+    {
+      label: 'Impacta romaneios',
+      value: sourceSummary.blocked || highAlertCount
+        ? 'Detalhe oficial em cautela'
+        : sourceSummary.attention
+          ? 'Previsão observada'
+          : 'Source of truth estável',
+      detail: sourceSummary.blocked || highAlertCount
+        ? 'O detalhe oficial continua sendo a fonte de verdade, mas previsão e disponibilidade devem ser lidas com cautela explícita.'
+        : sourceSummary.attention
+          ? 'O consolidado continua oficial, porém a interpretação da previsão exige mais atenção operacional.'
+          : 'Lista oficial, detalhe consolidado e eventos seguem coerentes com a leitura transversal atual.',
+      tone: sourceSummary.blocked || highAlertCount ? 'warning' : sourceSummary.attention ? 'info' : 'ok',
+    },
+  ]
 
   return (
     <div className="sources-page animate-in">
@@ -519,15 +564,17 @@ function SourcesGovernance({
           <div className="glass-panel sources-contract-panel">
             <div className="panel-header">
               <div>
-                <h3>Integridade e fallback</h3>
-                <span>Leitura honesta do que continua confiável e do que precisa de intervenção.</span>
+                <h3>Impacto nos módulos</h3>
+                <span>Tradução transversal de integridade para decisão no restante do produto.</span>
               </div>
-              <span className={`tag ${criticalTone}`}>{criticalTone === 'high' ? 'Degradado' : criticalTone === 'warning' ? 'Cautela' : 'Estável'}</span>
+              <span className={`tag ${criticalTone}`}>{criticalTone === 'high' ? 'Transversal em risco' : criticalTone === 'warning' ? 'Transversal em cautela' : 'Transversal estável'}</span>
             </div>
+
+            <CommandDeck items={moduleImpactItems} />
 
             <div className="sources-contract-list">
               <article>
-                <strong>Último snapshot válido</strong>
+                <strong>Último snapshot válido continua explícito</strong>
                 <p>
                   {snapshotStale
                     ? 'O shell está apoiado no último snapshot válido disponível. Isso mantém a leitura acessível, mas com cautela explícita.'
@@ -535,18 +582,9 @@ function SourcesGovernance({
                 </p>
               </article>
               <article>
-                <strong>O que ainda está seguro</strong>
+                <strong>Escopo do shell não redefine a saúde</strong>
                 <p>
-                  {sourceSummary.ok
-                    ? `${sourceSummary.ok} fontes seguem estáveis e sustentam a leitura atual do produto.`
-                    : 'Nenhuma fonte está claramente estável nesta leitura; priorize o entendimento das integrações degradadas.'}
-                </p>
-              </article>
-              <article>
-                <strong>Escopo versus saúde transversal</strong>
-                <p>
-                  O badge de escopo do shell continua visível, mas a saúde das fontes não é filtrada por empresa
-                  nesta superfície. Isso evita sugerir um recorte que o backend atual não sustenta.
+                  O badge de escopo continua visível, mas a saúde das fontes não é recortada por empresa nesta superfície. Isso evita sugerir um filtro que o backend atual não sustenta.
                 </p>
               </article>
             </div>

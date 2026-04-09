@@ -1196,6 +1196,11 @@ a {
   color: var(--text-secondary);
 }
 
+.signal-card > span {
+  color: var(--text-secondary);
+  line-height: 1.6;
+}
+
 .text-warning {
   color: var(--status-warning);
 }
@@ -1424,6 +1429,15 @@ a {
   gap: 14px;
 }
 
+.sources-contract-panel .command-deck,
+.cockpit-impact-list {
+  margin-top: 16px;
+}
+
+.sources-contract-panel .sources-contract-list {
+  margin-top: 16px;
+}
+
 .sources-contract-list article {
   padding: 16px;
   border-radius: 18px;
@@ -1582,9 +1596,9 @@ a {
 
 .draft-panel {
   background:
-    radial-gradient(circle at top right, rgba(227, 174, 85, 0.08), transparent 28%),
+    radial-gradient(circle at top right, rgba(227, 174, 85, 0.05), transparent 28%),
     linear-gradient(180deg, rgba(17, 25, 32, 0.96), rgba(11, 18, 25, 0.96));
-  box-shadow: inset 0 0 0 1px rgba(227, 174, 85, 0.15), var(--shadow-soft);
+  box-shadow: inset 0 0 0 1px rgba(227, 174, 85, 0.1), var(--shadow-soft);
 }
 
 .romaneios-dropzone {

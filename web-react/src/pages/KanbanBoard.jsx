@@ -1,5 +1,6 @@
 import { FiAlertTriangle, FiCalendar, FiLayers, FiPackage, FiShield } from 'react-icons/fi'
 import StatePanel from '../components/StatePanel'
+import { getForecastOrigin } from '../lib/operationalLanguage'
 
 const numberFormat = new Intl.NumberFormat('pt-BR')
 
@@ -72,36 +73,6 @@ function formatDate(value) {
     hour: '2-digit',
     minute: '2-digit',
   })
-}
-
-function getForecastOrigin(previsaoStatus, criterioPrevisao) {
-  const normalizedStatus = String(previsaoStatus || '').toLowerCase()
-  const normalizedCriteria = String(criterioPrevisao || '').toLowerCase()
-
-  if (!normalizedStatus || normalizedStatus.includes('sem')) {
-    return {
-      key: 'missing',
-      tone: 'high',
-      label: 'Sem previsão',
-      detail: 'Ainda sem critério confiável de saída',
-    }
-  }
-
-  if (normalizedCriteria.includes('manual')) {
-    return {
-      key: 'manual',
-      tone: 'warning',
-      label: 'Previsão manual',
-      detail: criterioPrevisao || 'Critério PCP informado manualmente',
-    }
-  }
-
-  return {
-    key: 'automatic',
-    tone: 'info',
-    label: 'Previsão automática',
-    detail: criterioPrevisao || 'Critério calculado pelo backend',
-  }
 }
 
 function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates }) {
@@ -350,19 +321,19 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates })
         <div className="glass-panel">
           <div className="panel-header">
             <div>
-              <h3>Protocolo read-only</h3>
-              <span>Como interpretar o quadro sem sugerir mutação operacional inexistente.</span>
+              <h3>Painel de exceções</h3>
+              <span>Fila oficial, origem da previsão e limites honestos do quadro logístico.</span>
             </div>
-            <span className="tag info">UX segura</span>
+            <span className="tag info">Fonte oficial</span>
           </div>
 
           <div className="kanban-protocol-list">
             <article className="signal-card">
               <div>
-                <small>Leitura fiel</small>
-                <strong>Sem drag fictício</strong>
+                <small>Fonte de verdade</small>
+                <strong>Fila oficial read-only</strong>
               </div>
-              <span><FiShield /> O quadro não simula mutações que ainda não estão ligadas ao backend.</span>
+              <span><FiShield /> O quadro continua observando a carteira oficial por empresa, sem drag fictício nem mutação local.</span>
             </article>
 
             <article className="signal-card">
@@ -375,10 +346,10 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates })
 
             <article className="signal-card">
               <div>
-                <small>Risco imediato</small>
+                <small>Exceção imediata</small>
                 <strong>{forecastSummary.missing} sem previsão</strong>
               </div>
-              <span><FiAlertTriangle /> Os romaneios sem previsão permanecem visíveis como risco, sem virar estado silencioso ou ação fake.</span>
+              <span><FiAlertTriangle /> Os romaneios sem previsão seguem como exceção explícita da fila, sem virar silêncio visual nem ação fake.</span>
             </article>
           </div>
         </div>

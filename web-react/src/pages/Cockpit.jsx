@@ -1,11 +1,11 @@
 import {
   FiAlertTriangle,
   FiClock,
-  FiLayers,
   FiPackage,
   FiShield,
   FiTrendingUp,
 } from 'react-icons/fi'
+import CommandDeck from '../components/CommandDeck'
 import StatePanel from '../components/StatePanel'
 
 const numberFormat = new Intl.NumberFormat('pt-BR')
@@ -48,19 +48,6 @@ function filterBySearch(items, searchQuery) {
   })
 }
 
-function filterSourceItems(items, searchQuery) {
-  const normalizedQuery = String(searchQuery || '').trim().toLowerCase()
-  if (!normalizedQuery) return items
-
-  return items.filter((item) => {
-    const haystack = [item.source_name, item.source_code, item.source_area, item.freshness_status]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return haystack.includes(normalizedQuery)
-  })
-}
-
 function filterAlertItems(items, searchQuery) {
   const normalizedQuery = String(searchQuery || '').trim().toLowerCase()
   if (!normalizedQuery) return items
@@ -72,24 +59,6 @@ function filterAlertItems(items, searchQuery) {
       .toLowerCase()
     return haystack.includes(normalizedQuery)
   })
-}
-
-function getSourceTone(status) {
-  const normalized = String(status || '').toLowerCase()
-  if (['missing', 'error'].includes(normalized)) return 'high'
-  if (['warning', 'stale', 'partial'].includes(normalized)) return 'warning'
-  if (normalized === 'ok') return 'ok'
-  return 'info'
-}
-
-function getSourceLabel(status) {
-  const normalized = String(status || '').toLowerCase()
-  if (normalized === 'ok') return 'Saudável'
-  if (['warning', 'stale'].includes(normalized)) return 'Stale'
-  if (normalized === 'partial') return 'Parcial'
-  if (normalized === 'missing') return 'Sem carga válida'
-  if (normalized === 'error') return 'Falha'
-  return 'Sem classificação'
 }
 
 function getAlertTone(severity) {
@@ -105,20 +74,6 @@ function getAlertLabel(severity) {
   if (normalized.includes('warning')) return 'Atenção'
   if (normalized.includes('medium')) return 'Média'
   return 'Informativo'
-}
-
-function formatAreaLabel(value) {
-  return String(value || 'sem_area').replaceAll('_', ' ').trim()
-}
-
-function sortSourceItems(items) {
-  return [...items].sort((left, right) => {
-    const sourceOrder = { missing: 0, error: 0, warning: 1, stale: 1, partial: 2, ok: 3 }
-    const orderDiff = (sourceOrder[String(left.freshness_status || '').toLowerCase()] ?? 99) -
-      (sourceOrder[String(right.freshness_status || '').toLowerCase()] ?? 99)
-    if (orderDiff !== 0) return orderDiff
-    return String(right.last_success_at || '').localeCompare(String(left.last_success_at || ''))
-  })
 }
 
 function buildSourceSummary(items) {
@@ -176,7 +131,6 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
   const rawTotals = overview.totals || {}
   const criticalItems = filterBySearch(overview.top_criticos || [], searchQuery)
   const kanbanItems = filterBySearch(kanbanState.data?.romaneios || [], searchQuery).slice(0, 4)
-  const sourceItems = sortSourceItems(filterSourceItems(sourcesState.data?.items || [], searchQuery)).slice(0, 4)
   const alertItems = filterAlertItems(alertsState.data?.items || [], searchQuery).slice(0, 4)
   const sourceSummary = buildSourceSummary(sourcesState.data?.items || [])
   const highAlertCount = (alertsState.data?.items || []).filter((item) => getAlertTone(item.severity) === 'high').length
@@ -275,6 +229,50 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
       value: numberFormat.format(missingForecastCount),
       hint: 'Ação manual imediata',
       tone: missingForecastCount ? 'high' : 'ok',
+    },
+  ]
+  const operationalImpactItems = [
+    {
+      label: 'Seguro agora',
+      value: sourceSummary.ok
+        ? `${sourceSummary.ok} fontes sustentam o snapshot`
+        : stale
+          ? 'Leitura útil com base reduzida'
+          : 'Base estável parcial',
+      detail: sourceSummary.ok
+        ? `Cobertura, gargalos e fila da empresa ${scopeLabel} seguem apoiados em fontes estáveis.`
+        : stale
+          ? 'Ainda existe leitura operacional, mas a empresa ativa deve agir com prudência até nova atualização oficial.'
+          : 'Há leitura útil, porém sem uma base ampla de fontes saudáveis nesta superfície.',
+      tone: sourceSummary.ok ? 'ok' : stale ? 'warning' : 'info',
+    },
+    {
+      label: 'Em cautela',
+      value: sourceSummary.blocked
+        ? `${sourceSummary.blocked} bloqueios transversais`
+        : sourceSummary.attention || highAlertCount
+          ? 'Stale but usable'
+          : 'Sem cautela aberta',
+      detail: sourceSummary.blocked
+        ? 'Bloqueios de integrações podem alterar cobertura, custo e priorização até nova carga válida.'
+        : sourceSummary.attention || highAlertCount
+          ? 'A decisão continua possível, mas a leitura da empresa deve absorver alerta e frescor degradado.'
+          : 'Não há fonte ou alerta puxando cautela forte para a empresa ativa neste recorte.',
+      tone: integrationTone,
+    },
+    {
+      label: 'Próximo módulo',
+      value: missingForecastCount
+        ? 'Abrir kanban e romaneios'
+        : nextCritical
+          ? nextCritical.acao || 'Monitorar agora'
+          : 'Manter monitoramento',
+      detail: missingForecastCount
+        ? `${missingForecastCount} romaneios sem previsão pedem leitura de fila e detalhe oficial, não só do overview agregado.`
+        : nextCritical
+          ? `${nextCritical.produto} continua puxando a próxima decisão da empresa ativa.`
+          : 'Sem exceção forte no snapshot atual; o foco segue em acompanhamento contínuo.',
+      tone: missingForecastCount ? 'high' : nextCritical ? pressureTone : 'ok',
     },
   ]
 
@@ -444,75 +442,63 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
         <div className="glass-panel">
           <div className="panel-header">
             <div>
-              <h3>Snapshot integrity</h3>
-              <span>Saúde das fontes que sustentam a leitura central do cockpit.</span>
+              <h3>Impacto operacional</h3>
+              <span>Como a integridade transversal afeta a decisão da empresa ativa agora.</span>
             </div>
-            <span className={`tag ${integrationTone}`}>{sourceSummary.blocked ? 'Fallback em risco' : stale || sourceSummary.attention ? 'Stale but usable' : 'Estável'}</span>
+            <span className={`tag ${integrationTone}`}>{sourceSummary.blocked ? 'Empresa em cautela' : stale || sourceSummary.attention ? 'Cautela contextual' : 'Leitura segura'}</span>
           </div>
 
-          <div className="source-health-list">
-            {sourcesState.status === 'loading' && !sourcesState.data ? (
-              <StatePanel
-                kind="loading"
-                title="Atualizando saúde das fontes"
-                message="Buscando o frescor das integrações usadas pelo cockpit."
-                compact
-              />
-            ) : null}
+          {sourcesState.status === 'loading' && !sourcesState.data ? (
+            <StatePanel
+              kind="loading"
+              title="Traduzindo impacto transversal"
+              message="Buscando a integridade das fontes antes de consolidar o impacto na empresa ativa."
+              compact
+            />
+          ) : null}
 
-            {sourcesState.status === 'permission' ? (
-              <StatePanel
-                kind="permission"
-                title="Fontes indisponíveis para este papel"
-                message={sourcesState.error?.message || 'O backend negou a leitura das fontes para esta sessão.'}
-                compact
-              />
-            ) : null}
+          {sourcesState.status === 'permission' ? (
+            <StatePanel
+              kind="permission"
+              title="Fontes indisponíveis para este papel"
+              message={sourcesState.error?.message || 'O backend negou a leitura das fontes para esta sessão.'}
+              compact
+            />
+          ) : null}
 
-            {sourcesState.status === 'error' ? (
-              <StatePanel
-                kind="error"
-                title="Falha ao carregar fontes"
-                message={sourcesState.error?.message || 'Não foi possível ler o estado atual das integrações.'}
-                compact
-              />
-            ) : null}
+          {sourcesState.status === 'error' ? (
+            <StatePanel
+              kind="error"
+              title="Falha ao traduzir impacto de fontes"
+              message={sourcesState.error?.message || 'Não foi possível ler o estado atual das integrações.'}
+              compact
+            />
+          ) : null}
 
-            {sourcesState.status !== 'loading' && sourcesState.status !== 'permission' && sourcesState.status !== 'error' && sourceItems.length ? sourceItems.map((item) => {
-              const tone = getSourceTone(item.freshness_status)
-              const tagTone = tone === 'high' && String(item.freshness_status || '').toLowerCase() === 'missing' ? 'missing' : tone
+          {sourcesState.status !== 'loading' && sourcesState.status !== 'permission' && sourcesState.status !== 'error' ? (
+            <>
+              <CommandDeck items={operationalImpactItems} />
 
-              return (
-                <article key={item.source_code} className={`source-card tone-${tone}`}>
-                  <div className="source-card-head">
-                    <div>
-                      <small>{formatAreaLabel(item.source_area)}</small>
-                      <strong>{item.source_name || item.source_code}</strong>
-                      <p>{item.source_code}</p>
-                    </div>
-                    <span className={`tag ${tagTone}`}>{getSourceLabel(item.freshness_status)}</span>
-                  </div>
-                  <div className="source-card-meta">
-                    <span>
-                      <FiClock />
-                      Último sucesso: {formatDateTime(item.last_success_at)}
-                    </span>
-                  </div>
+              <div className="sources-contract-list cockpit-impact-list">
+                <article>
+                  <strong>O que permanece seguro</strong>
+                  <p>
+                    {sourceSummary.ok
+                      ? `${sourceSummary.ok} fontes sustentam a decisão contextual do cockpit, sem exigir inspeção transversal imediata.`
+                      : 'A empresa ativa continua legível, mas sem uma base ampla de fontes claramente estáveis.'}
+                  </p>
                 </article>
-              )
-            }) : null}
-
-            {sourcesState.status !== 'loading' && sourcesState.status !== 'permission' && sourcesState.status !== 'error' && !sourceItems.length ? (
-              <StatePanel
-                kind="empty"
-                title={hasFilter ? 'Nenhuma fonte encontrada neste filtro' : 'Sem fontes visíveis no cockpit'}
-                message={hasFilter
-                  ? 'O filtro atual não encontrou fontes nem estados de frescor correspondentes.'
-                  : 'O backend não retornou fontes monitoradas para o cockpit atual.'}
-                compact
-              />
-            ) : null}
-          </div>
+                <article>
+                  <strong>Quando abrir governança</strong>
+                  <p>
+                    {sourceSummary.blocked || sourceSummary.attention || highAlertCount || stale
+                      ? 'Use Governança para investigar a origem transversal da cautela antes de tratar a decisão contextual como verdade isolada.'
+                      : 'Governança segue como trilho de auditoria transversal, mas não precisa ser o primeiro destino nesta leitura.'}
+                  </p>
+                </article>
+              </div>
+            </>
+          ) : null}
         </div>
 
         <div className="glass-panel">

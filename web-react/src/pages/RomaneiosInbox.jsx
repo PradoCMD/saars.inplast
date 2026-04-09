@@ -15,6 +15,7 @@ import {
 } from 'react-icons/fi'
 
 import StatePanel from '../components/StatePanel'
+import { getForecastOrigin } from '../lib/operationalLanguage'
 import './RomaneiosInbox.css'
 
 const MANUAL_KEY = 'pcp.react.romaneios.manual'
@@ -96,33 +97,6 @@ function buildDetailPath(romaneioCode, companyCode = '') {
   const base = `/api/pcp/romaneios/${encodeURIComponent(romaneioCode)}`
   if (!companyCode) return base
   return `${base}?company_code=${encodeURIComponent(companyCode)}`
-}
-
-function getForecastOrigin(previsaoStatus, criterioPrevisao) {
-  const normalizedStatus = String(previsaoStatus || '').toLowerCase()
-  const normalizedCriteria = String(criterioPrevisao || '').toLowerCase()
-
-  if (!normalizedStatus || normalizedStatus.includes('sem')) {
-    return {
-      tone: 'high',
-      label: 'Sem previsão',
-      detail: 'Ainda sem critério confiável de saída',
-    }
-  }
-
-  if (normalizedCriteria.includes('manual')) {
-    return {
-      tone: 'warning',
-      label: 'Previsão manual',
-      detail: criterioPrevisao || 'Critério PCP informado manualmente',
-    }
-  }
-
-  return {
-    tone: 'info',
-    label: 'Previsão automática',
-    detail: criterioPrevisao || 'Critério calculado pelo backend oficial',
-  }
 }
 
 async function requestRomaneioDetail(path, accessToken = '', onUnauthorizedSession) {
@@ -304,6 +278,8 @@ function RomaneiosInbox({
   const detailItems = Array.isArray(detailPayload.items) ? detailPayload.items : []
   const detailEvents = Array.isArray(detailPayload.events) ? detailPayload.events : []
   const detailForecast = getForecastOrigin(detailHeader.previsao_saida_status, detailHeader.criterio_previsao)
+  const pendingItemsCount = detailItems.filter((item) => Number(item.quantidade_pendente || 0) > 0).length
+  const stockOnlyItemsCount = detailItems.filter((item) => String(item.modo_atendimento || '').toLowerCase() === 'estoque').length
   const writeAccessBlocked = !canIngest || companySelectionRequired
   const writeBlockedReason = companySelectionRequired
     ? 'Selecione a empresa ativa para liberar o buffer local desta sessão.'
@@ -655,6 +631,73 @@ function RomaneiosInbox({
                   <div className="romaneios-detail-section">
                     <div className="panel-header">
                       <div>
+                        <h3>Painel de exceções</h3>
+                        <span>Mesma linguagem do kanban para previsão, exceção e fonte de verdade.</span>
+                      </div>
+                      <span className={`tag ${detailForecast.tone}`}>{detailForecast.label}</span>
+                    </div>
+
+                    <div className="kanban-protocol-list">
+                      <article className="signal-card">
+                        <div>
+                          <small>Origem da previsão</small>
+                          <strong>{detailForecast.label}</strong>
+                        </div>
+                        <span><FiCalendar /> {detailHeader.previsao_saida_observacao || detailForecast.detail}</span>
+                      </article>
+
+                      <article className="signal-card">
+                        <div>
+                          <small>Exceção imediata</small>
+                          <strong>{pendingItemsCount} itens com pendência</strong>
+                        </div>
+                        <span><FiActivity /> {pendingItemsCount
+                          ? 'O consolidado continua oficial, mas exige cautela enquanto houver saldo pendente ou atendimento fora do estoque.'
+                          : 'Sem pendência relevante no consolidado atual; a exceção não puxa ação imediata.'}</span>
+                      </article>
+
+                      <article className="signal-card">
+                        <div>
+                          <small>Fonte de verdade</small>
+                          <strong>Detalhe oficial autenticado</strong>
+                        </div>
+                        <span><FiShield /> O romaneio acima vem do backend oficial; o buffer local abaixo segue subordinado e não altera este consolidado.</span>
+                      </article>
+                    </div>
+                  </div>
+
+                  <div className="romaneios-detail-section romaneios-source-truth">
+                    <div className="panel-header">
+                      <div>
+                        <h3>Source of truth</h3>
+                        <span>O que este painel representa e o que ele não representa.</span>
+                      </div>
+                      <span className="tag ok">Oficial</span>
+                    </div>
+
+                    <div className="sources-contract-list">
+                      <article>
+                        <strong>Fonte oficial acima de staging local</strong>
+                        <p>Este bloco é carregado do endpoint oficial do romaneio selecionado e não depende do buffer local do navegador.</p>
+                      </article>
+                      <article>
+                        <strong>Previsão e exceção ficam explícitas</strong>
+                        <p>
+                          {stockOnlyItemsCount === detailItems.length && detailItems.length
+                            ? 'Todos os SKUs detalhados aparecem como atendimento por estoque, sem depender de staging local.'
+                            : detailHeader.previsao_saida_observacao || detailForecast.detail}
+                        </p>
+                      </article>
+                      <article>
+                        <strong>Limite atual do payload oficial</strong>
+                        <p>O backend atual entrega header, itens e eventos. A UI não inventa badge documental específico sem campo confiável da API.</p>
+                      </article>
+                    </div>
+                  </div>
+
+                  <div className="romaneios-detail-section">
+                    <div className="panel-header">
+                      <div>
                         <h3>Eventos oficiais</h3>
                         <span>Histórico relevante que ajuda a validar a origem e o estado do romaneio.</span>
                       </div>
@@ -683,31 +726,6 @@ function RomaneiosInbox({
                       />
                     )}
                   </div>
-
-                  <div className="romaneios-detail-section romaneios-source-truth">
-                    <div className="panel-header">
-                      <div>
-                        <h3>Source of truth</h3>
-                        <span>O que este painel representa e o que ele não representa.</span>
-                      </div>
-                      <span className="tag ok">Oficial</span>
-                    </div>
-
-                    <div className="sources-contract-list">
-                      <article>
-                        <strong>Detalhe oficial autenticado</strong>
-                        <p>Este bloco é carregado do endpoint oficial do romaneio selecionado e não depende do buffer local do navegador.</p>
-                      </article>
-                      <article>
-                        <strong>Critério da previsão permanece explícito</strong>
-                        <p>{detailHeader.previsao_saida_observacao || detailForecast.detail}</p>
-                      </article>
-                      <article>
-                        <strong>Buffer local segue separado</strong>
-                        <p>Entradas manuais e PDFs continuam como apoio operacional e nunca substituem o romaneio oficial acima.</p>
-                      </article>
-                    </div>
-                  </div>
                 </div>
               </div>
             </div>
@@ -719,10 +737,10 @@ function RomaneiosInbox({
         <div className="glass-panel draft-panel">
           <div className="panel-header">
             <div>
-              <h3>Buffer local de PDFs</h3>
-              <span>Preparação local temporária antes da ingestão real. Nunca vira fonte oficial sozinho.</span>
+              <h3>Buffer local subordinado</h3>
+              <span>Preparação temporária abaixo do detalhe oficial. Nunca vira fonte de verdade sozinho.</span>
             </div>
-            <span className="tag warning">Rascunho temporário</span>
+            <span className="tag warning">Apoio local</span>
           </div>
 
           <div
@@ -789,8 +807,8 @@ function RomaneiosInbox({
         <div className="glass-panel draft-panel">
           <div className="panel-header">
             <div>
-              <h3>Entrada manual controlada</h3>
-              <span>Escrita local depende de sessão, empresa e permissão real do papel.</span>
+              <h3>Apoio manual controlado</h3>
+              <span>Escrita local continua subordinada à sessão, à empresa e ao dado oficial acima.</span>
             </div>
             <span className="tag ok">Sessão + empresa</span>
           </div>
