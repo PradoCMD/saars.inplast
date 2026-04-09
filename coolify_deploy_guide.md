@@ -17,6 +17,7 @@
 ## Variaveis obrigatorias
 
 - `PCP_DATA_MODE=postgres`
+- `PCP_AUTH_TOKEN_SECRET`
 - `PCP_POSTGRES_SUPERPASSWORD`
 - `PCP_APP_DB_PASSWORD`
 - `PCP_INTEGRATION_DB_PASSWORD`
@@ -74,6 +75,9 @@ Exemplo coerente com a stack dedicada:
 ```bash
 PCP_DATA_MODE=postgres
 PCP_PORT=8765
+PCP_AUTH_TOKEN_SECRET=CHANGE_ME_LONG_RANDOM_AUTH_SECRET
+PCP_AUTH_TOKEN_TTL_SECONDS=28800
+PCP_SYNC_API_TOKEN=
 PCP_POSTGRES_PORT=55432
 PCP_POSTGRES_HOST=pcp-postgres
 PCP_POSTGRES_INTERNAL_PORT=5432
@@ -85,6 +89,31 @@ PCP_INTEGRATION_DB_PASSWORD=CHANGE_ME_PCP_INTEGRATION
 PCP_DATABASE_URL=postgresql://pcp_app:CHANGE_ME_PCP_APP@pcp-postgres:5432/inplast_pcp
 PCP_ACTIONS_DATABASE_URL=postgresql://pcp_integration:CHANGE_ME_PCP_INTEGRATION@pcp-postgres:5432/inplast_pcp
 ```
+
+## Tag recomendada da imagem
+
+Se voce quiser atualizar sempre para a cabeca de `main`, use:
+
+```bash
+PCP_IMAGE=ghcr.io/pradocmd/saars-inplast:main
+```
+
+Se voce quiser travar exatamente um snapshot aprovado no QA, prefira a tag por SHA publicada pelo workflow do GitHub:
+
+```bash
+PCP_IMAGE=ghcr.io/pradocmd/saars-inplast:sha-06b5c4e2237646bb2e20e7e94a013d3ee073f2bd
+```
+
+Use a tag por SHA quando quiser evitar drift entre a versao testada e a versao implantada.
+
+## Healthcheck da stack
+
+Os compose do Coolify usam healthcheck no path `/` e nao mais em `/api/pcp/overview`.
+
+Motivo:
+
+- `overview` hoje exige autenticacao
+- o root continua publico e e suficiente para validar se o processo HTTP esta respondendo
 
 Com essa topologia, o Postgres dedicado do proprio servico passa a concentrar:
 
