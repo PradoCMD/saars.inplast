@@ -1,0 +1,764 @@
+{
+  "backlog_name": "Modulo PCP SaaS - Backlog Tecnico por Sprint",
+  "backlog_version": "1.0.0",
+  "generated_at": "2026-04-08",
+  "generated_from": {
+    "spec_file": "SPEC.json",
+    "spec_version": "1.0.0"
+  },
+  "planning_notes": [
+    "Este backlog deriva da SPEC oficial e quebra as features em tickets implementaveis.",
+    "A ordem recomendada prioriza base de seguranca, contratos, dados confiaveis e depois operacao.",
+    "Os tickets foram escritos para permitir execucao por equipe ou por agentes em paralelo quando indicado."
+  ],
+  "global_definition_of_ready": [
+    "Ticket vinculado a pelo menos uma feature da SPEC.",
+    "Escopo multiempresa e permissao afetada identificados.",
+    "Entradas, saidas e dependencias externas mapeadas.",
+    "Criterio de aceite e impacto em auditoria definidos.",
+    "Risco de regressao no modo mock e no modo postgres identificado."
+  ],
+  "global_definition_of_done": [
+    "Fluxo implementado no backend ou frontend com contrato consistente.",
+    "Validacao de input, status codes e tratamento de erro cobertos.",
+    "Permissoes e escopo de empresa aplicados quando relevantes.",
+    "Logs, request_id e auditoria registrados para operacoes criticas.",
+    "Estados loading, error, empty e stale_data tratados quando houver UI.",
+    "Teste manual orientado ou teste automatizado previsto no ticket executado.",
+    "Documentacao e exemplos minimos atualizados quando o contrato publico mudar."
+  ],
+  "sprints": [
+    {
+      "id": 1,
+      "name": "Base operacional, seguranca e contratos",
+      "goal": "Padronizar a fundacao tecnica do modulo PCP antes de expandir o fluxo operacional.",
+      "parallelization_notes": [
+        "Backend de contratos e observabilidade pode rodar em paralelo com a consolidacao da UI oficial.",
+        "RBAC depende do inventario de rotas e do contrato de autenticacao."
+      ],
+      "tickets": [
+        {
+          "id": "S1-T1",
+          "title": "Inventariar rotas PCP e fechar contrato unificado de resposta",
+          "feature_refs": [
+            "1.1"
+          ],
+          "track": "backend",
+          "type": "api_contract",
+          "priority": "P0",
+          "status": "todo",
+          "parallelizable": false,
+          "depends_on": [],
+          "deliverables": [
+            "Mapa completo de rotas GET e POST do modulo PCP.",
+            "Envelope padrao para success, accepted, partial e error.",
+            "Tabela de status codes por classe de erro."
+          ],
+          "acceptance_checks": [
+            "Toda rota existente e classificada por leitura, escrita, acao ou integracao.",
+            "Existe contrato unico com request_id, data, meta e errors quando aplicavel.",
+            "Nao sobra rota publica sem definicao de status code esperado."
+          ]
+        },
+        {
+          "id": "S1-T2",
+          "title": "Aplicar validacao de request, payload limit e erros estruturados em toda a API",
+          "feature_refs": [
+            "1.1"
+          ],
+          "track": "backend",
+          "type": "hardening",
+          "priority": "P0",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S1-T1"
+          ],
+          "deliverables": [
+            "Camada comum de validacao para JSON, query params e Content-Type.",
+            "Payload limit configuravel por ambiente.",
+            "Erros padronizados para 400, 404, 409, 413, 422, 429, 500 e 503."
+          ],
+          "acceptance_checks": [
+            "JSON invalido retorna 400 estruturado.",
+            "Payload acima do limite retorna 413 sem processar o corpo inteiro.",
+            "Excecoes inesperadas nao vazam stack trace para o cliente."
+          ]
+        },
+        {
+          "id": "S1-T3",
+          "title": "Implementar autenticacao oficial e matriz RBAC por area e acao",
+          "feature_refs": [
+            "1.2"
+          ],
+          "track": "backend",
+          "type": "auth",
+          "priority": "P0",
+          "status": "todo",
+          "parallelizable": false,
+          "depends_on": [
+            "S1-T1"
+          ],
+          "deliverables": [
+            "Mecanismo oficial de sessao ou token para o modulo PCP.",
+            "Protecao de rotas com 401 e 403 estruturados.",
+            "Template inicial de perfis leitura_pcp, operacao_pcp, gestao_pcp e integracao_pcp."
+          ],
+          "acceptance_checks": [
+            "Toda rota protegida exige credencial valida.",
+            "Permissoes por acao impedem operacoes indevidas.",
+            "Bootstrap administrativo nao depende de senha fixa em fluxo definitivo."
+          ]
+        },
+        {
+          "id": "S1-T4",
+          "title": "Aplicar company scope e visao consolidada em backend e consultas principais",
+          "feature_refs": [
+            "1.3"
+          ],
+          "track": "backend",
+          "type": "multi_company",
+          "priority": "P0",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S1-T3"
+          ],
+          "deliverables": [
+            "Escopo de empresa aplicado nas leituras e escritas principais.",
+            "Validacao de company_code por entidade e por usuario.",
+            "Suporte a consolidado do grupo quando o perfil permitir."
+          ],
+          "acceptance_checks": [
+            "Usuario restrito nao enxerga empresa fora do escopo.",
+            "Operacoes manuais registram explicitamente company_code.",
+            "Consolidado e filtro por empresa retornam dados coerentes."
+          ]
+        },
+        {
+          "id": "S1-T5",
+          "title": "Adicionar health check, readiness, request logging e graceful shutdown",
+          "feature_refs": [
+            "1.1"
+          ],
+          "track": "infra",
+          "type": "runtime",
+          "priority": "P1",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S1-T1"
+          ],
+          "deliverables": [
+            "Endpoints GET /health e GET /ready.",
+            "Logs com request_id, rota, latencia, usuario e empresa.",
+            "Politica de encerramento gracioso do servidor."
+          ],
+          "acceptance_checks": [
+            "Liveness e readiness podem ser consultados separadamente.",
+            "Shutdown nao perde requests em andamento sem controle.",
+            "Falha de dependencia critica reflete em readiness."
+          ]
+        },
+        {
+          "id": "S1-T6",
+          "title": "Definir web-react como frontend oficial e mapear gaps funcionais contra web legado",
+          "feature_refs": [
+            "1.4"
+          ],
+          "track": "frontend",
+          "type": "ui_governance",
+          "priority": "P1",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [],
+          "deliverables": [
+            "Matriz de cobertura funcional entre web/ e web-react/.",
+            "Definicao oficial do frontend alvo.",
+            "Lista objetiva de gaps para a migracao funcional."
+          ],
+          "acceptance_checks": [
+            "Existe uma UI oficialmente reconhecida pela documentacao e backlog.",
+            "Gaps remanescentes ficam explicitamente listados.",
+            "O legado nao segue evoluindo sem governanca."
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "name": "Fontes, governanca, cockpit e MRP",
+      "goal": "Garantir que o cenario operacional seja confiavel, rastreavel e seguro para decisao.",
+      "parallelization_notes": [
+        "Governanca de fontes e cockpit podem avancar em paralelo.",
+        "Orquestracao do MRP depende do contrato consolidado das fontes."
+      ],
+      "tickets": [
+        {
+          "id": "S2-T1",
+          "title": "Formalizar pipeline de sync de fontes com snapshot, retry e fallback",
+          "feature_refs": [
+            "2.1"
+          ],
+          "track": "backend",
+          "type": "integration",
+          "priority": "P0",
+          "status": "todo",
+          "parallelizable": false,
+          "depends_on": [
+            "S1-T2",
+            "S1-T4",
+            "S1-T5"
+          ],
+          "deliverables": [
+            "Contrato final do POST /api/pcp/sources/sync.",
+            "Persistencia de snapshot_at, status, record_count, summary e ultimo erro.",
+            "Retry exponencial e fallback para ultimo snapshot valido."
+          ],
+          "acceptance_checks": [
+            "Falha de uma fonte nao apaga o estado operacional vigente.",
+            "Resposta distingue success, partial e error.",
+            "Sync concorrente da mesma fonte nao gera corrida de estado oficial."
+          ]
+        },
+        {
+          "id": "S2-T2",
+          "title": "Finalizar tela de governanca de fontes com frescor, stale_data e erros por empresa",
+          "feature_refs": [
+            "2.1",
+            "2.2"
+          ],
+          "track": "frontend",
+          "type": "ui_delivery",
+          "priority": "P1",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S2-T1",
+            "S1-T6"
+          ],
+          "deliverables": [
+            "Painel de fontes com status healthy, stale, partial e error.",
+            "Ultima sincronizacao valida por empresa e consolidado.",
+            "Estados de loading, empty e error para governanca."
+          ],
+          "acceptance_checks": [
+            "A tela explica claramente quando usa ultimo snapshot valido.",
+            "Empresa ativa ou consolidado fica visivel.",
+            "Erros de integracao ficam rastreaveis pela UI."
+          ]
+        },
+        {
+          "id": "S2-T3",
+          "title": "Fechar contratos do cockpit, painel e alertas com filtros multiempresa",
+          "feature_refs": [
+            "2.2"
+          ],
+          "track": "frontend",
+          "type": "dashboard",
+          "priority": "P1",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S1-T4",
+            "S1-T6"
+          ],
+          "deliverables": [
+            "Cards e listas baseados no snapshot oficial.",
+            "Filtros por empresa, criticidade e tipo.",
+            "Estados stale_data e permission_denied nas telas centrais."
+          ],
+          "acceptance_checks": [
+            "Indicadores nao misturam dados de empresas fora do contexto.",
+            "Alertas de integracao e gargalos ficam visiveis no cockpit.",
+            "Tela continua funcional em empty state."
+          ]
+        },
+        {
+          "id": "S2-T4",
+          "title": "Transformar execucao do MRP em fluxo oficial com lock, run_id e publicacao segura",
+          "feature_refs": [
+            "2.3"
+          ],
+          "track": "backend",
+          "type": "planning_engine",
+          "priority": "P0",
+          "status": "todo",
+          "parallelizable": false,
+          "depends_on": [
+            "S2-T1",
+            "S1-T3",
+            "S1-T4"
+          ],
+          "deliverables": [
+            "Fluxo de disparo do MRP com serializacao ou lock.",
+            "Persistencia de run_id, status, timestamps e erros.",
+            "Publicacao do cenario oficial apenas apos execucao valida."
+          ],
+          "acceptance_checks": [
+            "Execucoes simultaneas nao publicam estado inconsistente.",
+            "Perfis nao autorizados recebem 403.",
+            "Overrides manuais ativos sao preservados no resultado."
+          ]
+        },
+        {
+          "id": "S2-T5",
+          "title": "Publicar observabilidade operacional de fontes e MRP",
+          "feature_refs": [
+            "2.1",
+            "2.3"
+          ],
+          "track": "infra",
+          "type": "observability",
+          "priority": "P2",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S2-T1",
+            "S2-T4",
+            "S1-T5"
+          ],
+          "deliverables": [
+            "Metricas minimas de latencia, erro por integracao e status de ultimo sync.",
+            "Logs correlacionados por request_id e run_id.",
+            "Checklist de validacao operacional para deploy."
+          ],
+          "acceptance_checks": [
+            "Fontes e MRP podem ser auditados por ultima execucao.",
+            "Erro operacional possui correlacao para investigacao.",
+            "A equipe consegue diferenciar falha de fonte, falha de MRP e dado stale."
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "name": "Romaneios e kanban logistico",
+      "goal": "Fechar o principal fluxo operacional do modulo com consolidacao, fila, overrides e detalhe confiavel.",
+      "parallelization_notes": [
+        "Ingestao e merge podem avancar junto com a finalizacao da UI do inbox e kanban.",
+        "Overrides manuais dependem do consolidado e do modelo de auditoria inicial."
+      ],
+      "tickets": [
+        {
+          "id": "S3-T1",
+          "title": "Formalizar modelo de identidade e consolidacao de romaneios por ordem de carga",
+          "feature_refs": [
+            "3.1"
+          ],
+          "track": "backend",
+          "type": "domain_model",
+          "priority": "P0",
+          "status": "todo",
+          "parallelizable": false,
+          "depends_on": [
+            "S1-T1",
+            "S1-T4"
+          ],
+          "deliverables": [
+            "Contrato oficial de identidade de romaneio e ordem de carga.",
+            "Regra de merge entre romaneio e romaneio nota.",
+            "Regra de substituicao de nova versao do mesmo tipo documental."
+          ],
+          "acceptance_checks": [
+            "Romaneio e romaneio nota convergem para o mesmo consolidado.",
+            "Nova versao do mesmo tipo substitui apenas a versao equivalente.",
+            "Nao surgem registros duplicados oficiais para a mesma ordem."
+          ]
+        },
+        {
+          "id": "S3-T2",
+          "title": "Fechar upload, sync e refresh de romaneios com partial success e limits operacionais",
+          "feature_refs": [
+            "3.1"
+          ],
+          "track": "backend",
+          "type": "integration",
+          "priority": "P0",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S3-T1",
+            "S1-T2"
+          ],
+          "deliverables": [
+            "Contrato final para upload de PDFs e sync por payload.",
+            "Tratamento de lote parcial com erros por arquivo.",
+            "Limites de quantidade de arquivos, tamanho total e timeout documentados e aplicados."
+          ],
+          "acceptance_checks": [
+            "Arquivo invalido nao derruba o lote inteiro.",
+            "Resposta expande processed_files, errors e status parcial quando necessario.",
+            "Refresh por integracao respeita fallback para ultimo estado valido."
+          ]
+        },
+        {
+          "id": "S3-T3",
+          "title": "Finalizar inbox de romaneios e detalhe consolidado no frontend oficial",
+          "feature_refs": [
+            "3.2"
+          ],
+          "track": "frontend",
+          "type": "ui_delivery",
+          "priority": "P1",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S3-T1",
+            "S1-T6"
+          ],
+          "deliverables": [
+            "Lista de romaneios com empresa, prioridade, previsao e origem consolidada.",
+            "Tela ou painel de detalhe do romaneio consolidado.",
+            "Filtros por empresa, criticidade e busca textual."
+          ],
+          "acceptance_checks": [
+            "O usuario entende quando o consolidado veio de um ou dois documentos.",
+            "Sem previsao e stale_data ficam destacados.",
+            "Empty state e erro de detalhe nao quebram a navegacao."
+          ]
+        },
+        {
+          "id": "S3-T4",
+          "title": "Finalizar kanban logistico com fila oficial, prioridade e status operacional",
+          "feature_refs": [
+            "3.2"
+          ],
+          "track": "frontend",
+          "type": "workflow_ui",
+          "priority": "P1",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S3-T1",
+            "S1-T6"
+          ],
+          "deliverables": [
+            "Kanban refletindo a fila oficial por empresa e consolidado.",
+            "Indicacao visual de previsao automatica, manual e sem previsao.",
+            "Filtro por empresa e criticidade."
+          ],
+          "acceptance_checks": [
+            "A fila sem override segue a regra base da SPEC.",
+            "Mudanca de contexto de empresa atualiza a visao sem mistura indevida.",
+            "Estados loading, empty e error ficam claros."
+          ]
+        },
+        {
+          "id": "S3-T5",
+          "title": "Implementar override manual de prioridade e previsao com recalc a jusante",
+          "feature_refs": [
+            "3.3"
+          ],
+          "track": "backend",
+          "type": "operational_override",
+          "priority": "P0",
+          "status": "todo",
+          "parallelizable": false,
+          "depends_on": [
+            "S3-T1",
+            "S2-T4",
+            "S1-T3"
+          ],
+          "deliverables": [
+            "Fluxo de ajuste manual de data, status e prioridade.",
+            "Recalculo do impacto no restante da fila e ETAs.",
+            "Registro de usuario, antes/depois e motivo do ajuste."
+          ],
+          "acceptance_checks": [
+            "Override manual prevalece sobre o automatico enquanto ativo.",
+            "Sobrescrita concorrente gera historico com usuario responsavel.",
+            "Falha no recalc nao apaga o override salvo e sinaliza inconsistencia."
+          ]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "name": "Estruturas, programacao e planejamento operacional",
+      "goal": "Consolidar a camada de estrutura e programacao que alimenta o MRP e os quadros operacionais.",
+      "parallelization_notes": [
+        "Estruturas e programacao podem avancar em paralelo com os paineis de leitura.",
+        "Os paineis finais dependem da camada corrente de supply e BOM."
+      ],
+      "tickets": [
+        {
+          "id": "S4-T1",
+          "title": "Fechar pipeline de importacao e validacao da estrutura base homologada",
+          "feature_refs": [
+            "4.1"
+          ],
+          "track": "data",
+          "type": "ingestion",
+          "priority": "P1",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S1-T2",
+            "S1-T4"
+          ],
+          "deliverables": [
+            "Contrato de importacao para produto acabado e intermediario.",
+            "Validacoes de item pai, componente e quantidade por.",
+            "Relatorio de rejeicoes e inconsistencias."
+          ],
+          "acceptance_checks": [
+            "Estrutura base e preservada sem sobrescrita indevida.",
+            "Linhas invalidas sao rejeitadas com motivo claro.",
+            "Resultado importado esta pronto para uso pela view corrente."
+          ]
+        },
+        {
+          "id": "S4-T2",
+          "title": "Implementar overrides de estrutura com trilha de auditoria",
+          "feature_refs": [
+            "4.1"
+          ],
+          "track": "backend",
+          "type": "operational_override",
+          "priority": "P1",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S4-T1",
+            "S1-T3"
+          ],
+          "deliverables": [
+            "Fluxo de edicao de quantity_per, scrap_pct, bloqueios e campos operacionais.",
+            "Camada consolidada entre base e override.",
+            "Historico de usuario, motivo e vigencia."
+          ],
+          "acceptance_checks": [
+            "A linha base permanece intacta.",
+            "Override impacta a view corrente usada pelo MRP.",
+            "Mudanca manual fica auditada com before e after."
+          ]
+        },
+        {
+          "id": "S4-T3",
+          "title": "Consolidar camada corrente de programacao e forecast com fonte externa mais ajuste manual",
+          "feature_refs": [
+            "4.2"
+          ],
+          "track": "backend",
+          "type": "planning_data",
+          "priority": "P0",
+          "status": "todo",
+          "parallelizable": false,
+          "depends_on": [
+            "S2-T1",
+            "S1-T4"
+          ],
+          "deliverables": [
+            "Camada corrente de disponibilidade por SKU, empresa e available_at.",
+            "Regras de convivencia entre fonte homologada, heuristica e ajuste manual.",
+            "Validacoes de forecast_key, quantity_planned e available_at."
+          ],
+          "acceptance_checks": [
+            "A fonte de cada disponibilidade fica rastreavel.",
+            "Duplicidade de forecast_key e rejeitada ou reconciliada conforme regra.",
+            "Cancelamento de ajuste manual recalcula o cenario."
+          ]
+        },
+        {
+          "id": "S4-T4",
+          "title": "Finalizar paineis de montagem, producao, compras, reciclagem e custos na UI oficial",
+          "feature_refs": [
+            "4.3"
+          ],
+          "track": "frontend",
+          "type": "ui_delivery",
+          "priority": "P2",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S4-T3",
+            "S1-T6"
+          ],
+          "deliverables": [
+            "Telas finais de leitura operacional para assembly, production, purchases, recycling e costs.",
+            "Filtros por empresa e criticidade.",
+            "Estados loading, empty, stale_data e error."
+          ],
+          "acceptance_checks": [
+            "Os paineis mostram dados coerentes com a camada corrente.",
+            "Sem dados nao quebra a experiencia.",
+            "Gargalos e sem previsao ficam evidentes."
+          ]
+        },
+        {
+          "id": "S4-T5",
+          "title": "Publicar regras de maquina e capacidade como contrato operacional consumivel",
+          "feature_refs": [
+            "4.3"
+          ],
+          "track": "backend",
+          "type": "reference_data",
+          "priority": "P2",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S4-T3"
+          ],
+          "deliverables": [
+            "Contrato final do GET /api/pcp/production-rules.",
+            "Validacao de consistencia de regras por maquina e linha.",
+            "Exposicao para consumo de simulacoes e paineis."
+          ],
+          "acceptance_checks": [
+            "Maquina sem regra cadastrada fica identificada e nao quebra o consumo.",
+            "As regras suportam a leitura operacional e a priorizacao futura."
+          ]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "name": "Apontamento, administracao e integracao ERP",
+      "goal": "Fechar a camada operacional de apontamento e administracao com auditoria unificada e resiliencia de integracao.",
+      "parallelization_notes": [
+        "Administracao e auditoria podem avançar em paralelo com a finalizacao do apontamento.",
+        "Dispatch ao ERP depende do modelo oficial de integracoes e permissoes."
+      ],
+      "tickets": [
+        {
+          "id": "S5-T1",
+          "title": "Transformar o fluxo de apontamento em experiencia oficial mobile web",
+          "feature_refs": [
+            "5.1"
+          ],
+          "track": "frontend",
+          "type": "workflow_ui",
+          "priority": "P1",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S1-T3",
+            "S1-T6"
+          ],
+          "deliverables": [
+            "Fluxo mobile web para login, fila de OPs, execucao, paradas, perdas e finalizacao.",
+            "Estados de rascunho, salvo, pendente de sync e erro.",
+            "Experiencia responsiva para uso operacional."
+          ],
+          "acceptance_checks": [
+            "Operador consegue executar o ciclo completo no PCP.",
+            "Falha de conectividade nao apaga o que ja foi salvo.",
+            "Permissao de usuario afeta o que pode ver e fazer."
+          ]
+        },
+        {
+          "id": "S5-T2",
+          "title": "Fechar pipeline de save, export e dispatch de apontamentos para a integracao oficial",
+          "feature_refs": [
+            "5.1"
+          ],
+          "track": "backend",
+          "type": "integration",
+          "priority": "P1",
+          "status": "todo",
+          "parallelizable": false,
+          "depends_on": [
+            "S5-T1",
+            "S1-T3",
+            "S2-T1"
+          ],
+          "deliverables": [
+            "Contrato final dos endpoints de apontamento save, export, sync-status e dispatch.",
+            "Fila de envio resiliente com retry e rastreio de status.",
+            "Idempotencia ou reconciliacao para reenvio."
+          ],
+          "acceptance_checks": [
+            "Falha de integracao nao perde apontamento salvo localmente.",
+            "Dispatch diferencia pendente, enviado, sincronizado e erro.",
+            "Somente perfis com apontamento.dispatch podem enviar ao ERP."
+          ]
+        },
+        {
+          "id": "S5-T3",
+          "title": "Endurecer gestao de usuarios, integracoes e movimentacoes manuais",
+          "feature_refs": [
+            "5.2"
+          ],
+          "track": "backend",
+          "type": "admin",
+          "priority": "P1",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S1-T3",
+            "S1-T4"
+          ],
+          "deliverables": [
+            "Validacoes finais para usuarios, integracoes e estoque manual.",
+            "Bloqueios de operacao sem permissao.",
+            "Regras para ativacao unica ou controlada de integracoes por tipo."
+          ],
+          "acceptance_checks": [
+            "Usuario administrativo nao pode quebrar o bootstrap sem substituicao segura.",
+            "Integracoes invalidas ou conflitantes retornam erro estruturado.",
+            "Movimentacoes manuais exigem SKU, quantidade positiva e empresa."
+          ]
+        },
+        {
+          "id": "S5-T4",
+          "title": "Implementar servico unificado de auditoria para overrides, admin e sobrescritas concorrentes",
+          "feature_refs": [
+            "5.3",
+            "3.3",
+            "4.1",
+            "4.2"
+          ],
+          "track": "backend",
+          "type": "audit",
+          "priority": "P0",
+          "status": "todo",
+          "parallelizable": false,
+          "depends_on": [
+            "S1-T3",
+            "S1-T5"
+          ],
+          "deliverables": [
+            "Modelo unico de evento de auditoria.",
+            "Registro de before, after, usuario, empresa, motivo e request_id.",
+            "Consulta de historico para fluxos com ajuste manual."
+          ],
+          "acceptance_checks": [
+            "Toda alteracao manual relevante deixa trilha consultavel.",
+            "Sobrescrita concorrente fica atribuida ao usuario que venceu a ultima gravacao.",
+            "Nao existe alteracao critica sem rastro oficial."
+          ]
+        },
+        {
+          "id": "S5-T5",
+          "title": "Preparar checklist de go-live operacional do modulo PCP",
+          "feature_refs": [
+            "5.1",
+            "5.2",
+            "5.3"
+          ],
+          "track": "ops",
+          "type": "release",
+          "priority": "P2",
+          "status": "todo",
+          "parallelizable": true,
+          "depends_on": [
+            "S5-T2",
+            "S5-T3",
+            "S5-T4"
+          ],
+          "deliverables": [
+            "Checklist de seguranca, permissoes, fontes, MRP, romaneios, apontamento e auditoria.",
+            "Sequencia de validacao pre-producao e rollback operacional.",
+            "Criticos de observabilidade e suporte inicial."
+          ],
+          "acceptance_checks": [
+            "A equipe consegue validar o ambiente antes de abrir para operacao.",
+            "Existe plano de rollback para falha de deploy ou integracao.",
+            "Itens bloqueantes de go-live ficam explicitamente rastreados."
+          ]
+        }
+      ]
+    }
+  ]
+}

@@ -1,0 +1,208 @@
+{
+  "name": "PCP | 15B | PDF Romaneio Ingest",
+  "nodes": [
+    {
+      "parameters": {},
+      "id": "manual-trigger",
+      "name": "Manual Trigger",
+      "type": "n8n-nodes-base.manualTrigger",
+      "typeVersion": 1,
+      "position": [
+        -600,
+        220
+      ]
+    },
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "minutes",
+              "minutesInterval": 30
+            }
+          ]
+        }
+      },
+      "id": "schedule-trigger",
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1.1,
+      "position": [
+        -600,
+        60
+      ]
+    },
+    {
+      "parameters": {
+        "fileSelector": "/srv/logistica/Automação Romaneio Logistica x PCP/ROMANEIO *.pdf"
+      },
+      "id": "read-pdfs",
+      "name": "Read Binary Files",
+      "type": "n8n-nodes-base.readBinaryFiles",
+      "typeVersion": 1,
+      "position": [
+        -300,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "pdf",
+        "options": {}
+      },
+      "id": "extract-pdf",
+      "name": "Extract From File",
+      "type": "n8n-nodes-base.extractFromFile",
+      "typeVersion": 1,
+      "position": [
+        -40,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "// Parse romaneio PDF text\nconst text = $json.data || $json.text || '';\nconst fileName = $json.fileName || $input.first().json.fileName || '';\n\nfunction ct(v) { return String(v == null ? '' : v).replace(/\\s+/g,' ').trim(); }\nfunction parseNum(v) {\n  if (!v) return 0;\n  var s = ct(v).replace(/\\./g,'').replace(',','.');\n  var n = Number(s);\n  return Number.isFinite(n) ? n : 0;\n}\n\n// Extract ORDEM DE CARGA\nvar ordemMatch = text.match(/ORDEM\\s+DE\\s+CARGA[:\\s]+(\\d+)/i);\nvar ordemCarga = ordemMatch ? ordemMatch[1] : '';\n\n// Extract EMPRESA\nvar empresaMatch = text.match(/EMPRESA[:\\s]+(\\d+)\\s*-\\s*(.+?)(?:\\n|$)/i);\nvar codigoEmpresa = empresaMatch ? ct(empresaMatch[1]) : '';\nvar nomeEmpresa = empresaMatch ? ct(empresaMatch[2]) : '';\n\nif (!ordemCarga) {\n  // Try from filename: ROMANEIO 565.pdf\n  var fnMatch = fileName.match(/ROMANEIO\\s+(\\d+)/i);\n  if (fnMatch) ordemCarga = fnMatch[1];\n}\n\n// Parse PEDIDOS section\nvar pedidos = [];\nvar pedidosSection = text.split(/PEDIDOS/i)[1] || '';\npedidosSection = pedidosSection.split(/ITENS\\s+DO\\s+CAMINHA/i)[0] || pedidosSection;\npedidosSection = pedidosSection.split(/MONTANTE/i)[0] || pedidosSection;\n\nvar pedidoLines = pedidosSection.split('\\n');\nfor (var line of pedidoLines) {\n  var l = ct(line);\n  if (!l) continue;\n  // Pattern: NUNICO PEDMERCOS CODPARCEIRO - NOME PARCEIRO CIDADE VALOR\n  var m = l.match(/^(\\d+)\\s+(\\d+)\\s+(\\d+)\\s*-\\s*(.+?)\\s{2,}(\\S.*?)\\s+([\\d.,]+)$/);\n  if (m) {\n    pedidos.push({\n      numero_unico: m[1],\n      ped_mercos: m[2],\n      codigo_parceiro: m[3],\n      nome_parceiro: ct(m[4]),\n      cidade: ct(m[5]),\n      valor_total: parseNum(m[6])\n    });\n  }\n}\n\n// Extract MONTANTE\nvar montanteMatch = text.match(/MONTANTE[:\\s]+(\\d+)/i);\nvar montante = montanteMatch ? Number(montanteMatch[1]) : pedidos.length;\n\n// Extract total value after MONTANTE\nvar totalGeralMatch = text.match(/MONTANTE[:\\s]+\\d+\\s+([\\d.,]+)/i);\nvar totalGeral = totalGeralMatch ? parseNum(totalGeralMatch[1]) : 0;\n\n// Parse ITENS DO CAMINHAO section\nvar itens = [];\nvar itensSection = text.split(/ITENS\\s+DO\\s+CAMINHA/i)[1] || '';\nitensSection = itensSection.split(/TOTAL\\s*:/i)[0] || itensSection;\n\n// Skip header line (PRODUTO UND. QTD NEG. QTD VOL.)\nvar itensLines = itensSection.split('\\n');\nvar headerFound = false;\nfor (var line of itensLines) {\n  var l = ct(line);\n  if (!l) continue;\n  if (l.match(/PRODUTO/i) && l.match(/UND/i)) { headerFound = true; continue; }\n  if (!headerFound) continue;\n  \n  // Pattern: SKU - DESCRICAO    UND    QTD_NEG    QTD_VOL (optional)\n  var m = l.match(/^(\\d+)\\s*-\\s*(.+?)\\s{2,}(\\S+)\\s+([\\d.,]+)(?:\\s+([\\d.,]+))?$/);\n  if (m) {\n    itens.push({\n      sku: ct(m[1]),\n      descricao: ct(m[2]),\n      produto: ct(m[1]) + ' - ' + ct(m[2]),\n      unidade: ct(m[3]),\n      tipo_produto: 'PRODUTO ACABADO',\n      quantidade: parseNum(m[4]),\n      quantidade_neg: parseNum(m[4]),\n      quantidade_vol: parseNum(m[5] || '0'),\n      quantity_total: parseNum(m[4])\n    });\n  }\n}\n\nvar now = new Date().toISOString();\nfunction hsh(t) { var h=0; for(var i=0;i<t.length;i++){h=((h<<5)-h)+t.charCodeAt(i);h|=0;} return Math.abs(h).toString(16); }\nvar fp = JSON.stringify({oc:ordemCarga,ic:itens.length});\nvar eid = 'romaneio_pdf:' + ordemCarga + ':' + now.replace(/[:\\-]/g,'').replace('.000Z','Z') + ':' + hsh(fp);\n\nreturn {\n  json: {\n    source_code: 'romaneio_pdf',\n    workflow_name: 'PCP | 15B | PDF Romaneio Ingest',\n    payload: {\n      event_id: eid,\n      event_type: 'update',\n      event_at: now,\n      romaneio: {\n        codigo: ordemCarga,\n        empresa: codigoEmpresa,\n        status: '1',\n        pedido: pedidos.map(function(p){ return p.numero_unico; }).join(','),\n        parceiro: pedidos.length ? pedidos[0].nome_parceiro : '',\n        cidade: pedidos.length ? pedidos[0].cidade : '',\n        valor_total: totalGeral || pedidos.reduce(function(s,p){ return s + p.valor_total; }, 0),\n        itens: itens\n      }\n    },\n    meta: {\n      polling: false,\n      native_n8n: true,\n      source: 'pdf_parser',\n      workflow_name: 'PCP | 15B | PDF Romaneio Ingest',\n      file_name: fileName,\n      items_source: itens.length ? 'pdf_itens_caminhao' : 'none',\n      items_count: itens.length,\n      pedidos_count: pedidos.length,\n      montante: montante,\n      total_geral: totalGeral,\n      nome_empresa: nomeEmpresa,\n      codigo_empresa: codigoEmpresa,\n      ordem_carga: ordemCarga,\n      pedidos_detail: pedidos,\n      text_length: text.length,\n      text_preview: text.substring(0, 500)\n    }\n  }\n};"
+      },
+      "id": "parse-romaneio",
+      "name": "Parse Romaneio PDF",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        220,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "var esc = function(value) {\n  var raw = JSON.stringify(value == null ? {} : value);\n  return raw.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"''\");\n};\nvar escT = function(v) { return String(v == null ? '' : v).replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"''\"); };\nvar rom = ($json.payload || {}).romaneio || {};\nvar eid = escT(($json.payload || {}).event_id || '');\nvar rc = escT(rom.codigo || '');\nvar ic = Array.isArray(rom.itens) ? rom.itens.length : 0;\nvar sql = \"select jsonb_build_object(\\n\"\n  + \"  'event_id','\" + eid + \"',\\n\"\n  + \"  'romaneio_code','\" + rc + \"',\\n\"\n  + \"  'item_count',\" + ic + \",\\n\"\n  + \"  'ingest', ops.ingest_romaneio_event_payload(\\n\"\n  + \"    '\" + escT($json.source_code || 'romaneio_pdf') + \"',\\n\"\n  + \"    '\" + esc($json.payload) + \"'::jsonb,\\n\"\n  + \"    '\" + esc($json.meta) + \"'::jsonb\\n\"\n  + \"  )\\n) as result;\";\nreturn { json: { ...$json, sql_query: sql } };"
+      },
+      "id": "build-sql",
+      "name": "Build Romaneio SQL",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        480,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "operation": "executeQuery",
+        "query": "={{ $json.sql_query }}"
+      },
+      "id": "postgres-ingest",
+      "name": "Postgres | Ingest Romaneio Event",
+      "type": "n8n-nodes-base.postgres",
+      "typeVersion": 2.5,
+      "position": [
+        740,
+        140
+      ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "var row = $json || {};\nvar result = row.result != null ? row.result : row;\nif (typeof result === 'string') { try { result = JSON.parse(result); } catch(e) { result = {status:'unknown'}; } }\nvar ingest = result.ingest || {};\nreturn { json: {\n  ok: ['processed','duplicate_ignored','noop'].indexOf(ingest.status || result.status) >= 0,\n  workflow: 'PCP | 15B | PDF Romaneio Ingest',\n  mode: 'pdf_parser', ...result, ingest: ingest\n}};"
+      },
+      "id": "build-result",
+      "name": "Build Workflow Result",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [
+        1000,
+        140
+      ]
+    }
+  ],
+  "connections": {
+    "Manual Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Binary Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Schedule Trigger": {
+      "main": [
+        [
+          {
+            "node": "Read Binary Files",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Read Binary Files": {
+      "main": [
+        [
+          {
+            "node": "Extract From File",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Extract From File": {
+      "main": [
+        [
+          {
+            "node": "Parse Romaneio PDF",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Parse Romaneio PDF": {
+      "main": [
+        [
+          {
+            "node": "Build Romaneio SQL",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Build Romaneio SQL": {
+      "main": [
+        [
+          {
+            "node": "Postgres | Ingest Romaneio Event",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    },
+    "Postgres | Ingest Romaneio Event": {
+      "main": [
+        [
+          {
+            "node": "Build Workflow Result",
+            "type": "main",
+            "index": 0
+          }
+        ]
+      ]
+    }
+  },
+  "pinData": {},
+  "active": false,
+  "settings": {
+    "executionOrder": "v1"
+  },
+  "versionId": "pdf-v1",
+  "meta": {
+    "templateCredsSetupCompleted": false
+  },
+  "tags": []
+}

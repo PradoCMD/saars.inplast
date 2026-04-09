@@ -1292,9 +1292,8 @@
                   <div class="input-group">
                     <label>Perfil</label>
                     <select name="role" class="modern-input">
-                      <option value="operator">Apontamento / Operador</option>
-                      <option value="planner">PCP</option>
-                      <option value="manager">Gestor</option>
+                      <option value="operator">Operador</option>
+                      <option value="manager">PCP / Gestor</option>
                       <option value="root">Root Admin</option>
                     </select>
                   </div>
@@ -1304,6 +1303,16 @@
                       <option value="true">Ativo</option>
                       <option value="false">Inativo</option>
                     </select>
+                  </div>
+                  <div class="input-group full-width">
+                    <label>Empresas autorizadas</label>
+                    <input
+                      type="text"
+                      name="company_scope"
+                      class="modern-input"
+                      placeholder="Ex: INPLAST, RECICLA ou * para root"
+                      value="INPLAST"
+                    />
                   </div>
                   <div class="input-group full-width">
                     <label>Senha</label>

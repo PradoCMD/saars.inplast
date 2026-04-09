@@ -109,6 +109,19 @@ last_manual_schedule as (
         coalesce(reference_at, finished_at, received_at) desc,
         received_at desc
 ),
+last_payload as (
+    select distinct on ((meta_json->>'romaneio_code'))
+        meta_json->>'romaneio_code' as romaneio_code,
+        coalesce(meta_json->'pedidos_detail', '[]'::jsonb) as pedidos_detail
+    from ops.webhook_event
+    where meta_json ? 'romaneio_code'
+      and jsonb_typeof(coalesce(meta_json->'pedidos_detail', '[]'::jsonb)) = 'array'
+      and jsonb_array_length(coalesce(meta_json->'pedidos_detail', '[]'::jsonb)) > 0
+    order by
+        (meta_json->>'romaneio_code'),
+        coalesce(reference_at, finished_at, received_at) desc,
+        received_at desc
+),
 eta as (
     select *
     from mart.vw_romaneio_eta_current
@@ -132,10 +145,28 @@ select
     case
         when ms.romaneio_code is not null then ms.manual_previsao_reason
         else eta.criterio_previsao
-    end as criterio_previsao
+    end as criterio_previsao,
+    coalesce(lp.pedidos_detail, '[]'::jsonb) as pedidos_detail,
+    coalesce((
+        select string_agg(pedido_mercos, ', ' order by pedido_mercos)
+        from (
+            select distinct nullif(trim(pedido->>'ped_mercos'), '') as pedido_mercos
+            from jsonb_array_elements(coalesce(lp.pedidos_detail, '[]'::jsonb)) as pedido
+            where nullif(trim(pedido->>'ped_mercos'), '') is not null
+        ) pedidos_mercos_distintos
+    ), '') as pedidos_mercos,
+    coalesce((
+        select string_agg(numero_unico, ', ' order by numero_unico)
+        from (
+            select distinct nullif(trim(pedido->>'numero_unico'), '') as numero_unico
+            from jsonb_array_elements(coalesce(lp.pedidos_detail, '[]'::jsonb)) as pedido
+            where nullif(trim(pedido->>'numero_unico'), '') is not null
+        ) pedidos_unicos_distintos
+    ), '') as pedidos_unicos
 from eta
 left join last_event e on e.romaneio_code = eta.romaneio
 left join last_manual_schedule ms on ms.romaneio_code = eta.romaneio
+left join last_payload lp on lp.romaneio_code = eta.romaneio
 where coalesce(e.event_type, 'update') <> 'delete'
   and coalesce(eta.quantidade_total, 0) > 0
 order by coalesce(e.data_evento, eta.data_evento) desc, eta.romaneio desc
@@ -532,6 +563,7 @@ select
     username,
     full_name,
     role,
+    coalesce(meta_json->'company_scope', '[]'::jsonb) as company_scope,
     password,
     is_active as active,
     created_at,
@@ -579,6 +611,7 @@ returning
     username,
     full_name,
     role,
+    coalesce(meta_json->'company_scope', '[]'::jsonb) as company_scope,
     password,
     is_active as active,
     created_at,
@@ -591,6 +624,7 @@ select
     username,
     full_name,
     role,
+    coalesce(meta_json->'company_scope', '[]'::jsonb) as company_scope,
     password,
     is_active as active,
     created_at,
@@ -598,7 +632,6 @@ select
 from ops.app_user
 where lower(username) = lower(%s)
   and is_active
-  and password = %s
 limit 1
 """
 

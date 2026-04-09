@@ -1,140 +1,390 @@
-import React, { useState } from 'react';
-import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd';
+import { FiAlertTriangle, FiCalendar, FiLayers, FiPackage, FiShield } from 'react-icons/fi'
+import StatePanel from '../components/StatePanel'
 
-// Dummy initial data to showcase the design
-const initialData = {
-  columns: {
-    'col-1': { id: 'col-1', title: 'Sem Previsão (Pátio)', tone: 'missing', cardIds: ['rom-3'] },
-    'col-2': { id: 'col-2', title: 'Hoje', tone: 'warning', cardIds: ['rom-1'] },
-    'col-3': { id: 'col-3', title: 'Amanhã', tone: 'info', cardIds: ['rom-2'] }
-  },
-  columnOrder: ['col-1', 'col-2', 'col-3'],
-  cards: {
-    'rom-1': { id: 'rom-1', code: '556', empresa: 'Cliente Alpha', status: 'Crítico', tone: 'high', qty: '4,500' },
-    'rom-2': { id: 'rom-2', code: '562', empresa: 'Cliente Beta', status: 'Programado', tone: 'info', qty: '2,100' },
-    'rom-3': { id: 'rom-3', code: '588', empresa: 'Distribuidora X', status: 'Pendente', tone: 'missing', qty: '8,000' }
+const numberFormat = new Intl.NumberFormat('pt-BR')
+
+function groupRomaneios(items) {
+  const lanes = {
+    missing: { id: 'missing', title: 'Sem previsão', tone: 'high', items: [] },
+    today: { id: 'today', title: 'Hoje', tone: 'warning', items: [] },
+    upcoming: { id: 'upcoming', title: 'Próximos dias', tone: 'info', items: [] },
+    scheduled: { id: 'scheduled', title: 'Programados', tone: 'ok', items: [] },
   }
-};
 
-function KanbanBoard() {
-  const [data, setData] = useState(initialData);
+  const today = new Date()
+  today.setHours(0, 0, 0, 0)
 
-  const onDragEnd = (result) => {
-    const { destination, source, draggableId } = result;
+  items.forEach((item) => {
+    const previsao = item.previsao_saida_at ? new Date(item.previsao_saida_at) : null
 
-    if (!destination) return;
-    if (destination.droppableId === source.droppableId && destination.index === source.index) return;
-
-    const start = data.columns[source.droppableId];
-    const finish = data.columns[destination.droppableId];
-
-    // Moving within same list
-    if (start === finish) {
-       const newCardIds = Array.from(start.cardIds);
-       newCardIds.splice(source.index, 1);
-       newCardIds.splice(destination.index, 0, draggableId);
-       
-       const newCol = { ...start, cardIds: newCardIds };
-       setData({
-           ...data,
-           columns: { ...data.columns, [newCol.id]: newCol }
-       });
-       return;
+    if (!previsao || Number.isNaN(previsao.getTime())) {
+      lanes.missing.items.push(item)
+      return
     }
 
-    // Moving to different list
-    const startCardIds = Array.from(start.cardIds);
-    startCardIds.splice(source.index, 1);
-    const newStart = { ...start, cardIds: startCardIds };
+    const forecastDay = new Date(previsao)
+    forecastDay.setHours(0, 0, 0, 0)
+    const diffDays = Math.round((forecastDay.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
 
-    const finishCardIds = Array.from(finish.cardIds);
-    finishCardIds.splice(destination.index, 0, draggableId);
-    const newFinish = { ...finish, cardIds: finishCardIds };
+    if (diffDays <= 0) {
+      lanes.today.items.push(item)
+      return
+    }
 
-    setData({
-        ...data,
-        columns: {
-            ...data.columns,
-            [newStart.id]: newStart,
-            [newFinish.id]: newFinish
-        }
-    });
+    if (diffDays <= 2) {
+      lanes.upcoming.items.push(item)
+      return
+    }
 
-    // Send API update here in real logic
-  };
+    lanes.scheduled.items.push(item)
+  })
 
-  return (
-    <div className="view-module animate-in w-full h-full flex flex-col" style={{ display: 'flex' }}>
-       <div className="module-header" style={{ flexShrink: 0 }}>
-          <div className="header-titles">
-            <h2>Matriz Kanban de Romaneios</h2>
-            <p style={{ color: 'var(--text-secondary)' }}>
-              Gerencie o fluxo logístico arrastando cards entre os estágios de preparo e expedição.
-            </p>
-          </div>
-       </div>
-
-       <DragDropContext onDragEnd={onDragEnd}>
-          <div className="kanban-board">
-             {data.columnOrder.map((colId) => {
-                const column = data.columns[colId];
-                const cards = column.cardIds.map((cId) => data.cards[cId]);
-
-                return (
-                   <div key={column.id} className="kanban-lane" style={{ borderColor: `var(--status-${column.tone})` }}>
-                      <div className="kanban-lane-header">
-                         <div style={{ display: 'flex', flexDirection: 'column' }}>
-                            <h3 style={{ color: 'var(--text-primary)', fontSize: '1.05rem' }}>{column.title}</h3>
-                         </div>
-                         <span className="kanban-lane-count">{cards.length} ROMS</span>
-                      </div>
-                      
-                      <Droppable droppableId={column.id}>
-                         {(provided, snapshot) => (
-                             <div 
-                                className="kanban-lane-body"
-                                ref={provided.innerRef}
-                                {...provided.droppableProps}
-                                style={{ minHeight: '100px', backgroundColor: snapshot.isDraggingOver ? 'rgba(255,255,255,0.02)' : 'transparent', transition: 'background 0.2s' }}
-                             >
-                                {cards.map((card, index) => (
-                                    <Draggable key={card.id} draggableId={card.id} index={index}>
-                                        {(providedDraggable, snapshotDraggable) => (
-                                            <div 
-                                               ref={providedDraggable.innerRef}
-                                               {...providedDraggable.draggableProps}
-                                               {...providedDraggable.dragHandleProps}
-                                               className="kanban-card"
-                                               style={{
-                                                  ...providedDraggable.draggableProps.style,
-                                                  boxShadow: snapshotDraggable.isDragging ? '0 10px 30px rgba(0,0,0,0.8)' : 'none',
-                                                  borderColor: snapshotDraggable.isDragging ? 'var(--accent-primary)' : 'rgba(255,255,255,0.08)'
-                                               }}
-                                            >
-                                               <div className="k-card-top" style={{ display: 'flex', justifyContent: 'space-between', marginBottom: '8px' }}>
-                                                  <span className="k-sku" style={{ fontWeight: 'bold' }}>RM {card.code}</span>
-                                                  <span className="k-qty" style={{ background: 'var(--status-info-bg)', color: 'var(--status-info)', padding: '2px 6px', borderRadius: '4px', fontSize: '0.8rem' }}>{card.qty} un</span>
-                                               </div>
-                                               <div className="k-title" style={{ fontSize: '0.9rem', color: 'var(--text-secondary)', marginBottom: '12px' }}>{card.empresa}</div>
-                                               
-                                               <div className="k-card-bottom" style={{ display: 'flex', justifyContent: 'space-between', borderTop: '1px solid rgba(255,255,255,0.05)', paddingTop: '8px' }}>
-                                                  <span className={`tag ${card.tone}`}>{card.status}</span>
-                                               </div>
-                                            </div>
-                                        )}
-                                    </Draggable>
-                                ))}
-                                {provided.placeholder}
-                             </div>
-                         )}
-                      </Droppable>
-                   </div>
-                );
-             })}
-          </div>
-       </DragDropContext>
-    </div>
-  );
+  return Object.values(lanes)
 }
 
-export default KanbanBoard;
+function filterBySearch(items, searchQuery) {
+  const normalizedQuery = String(searchQuery || '').trim().toLowerCase()
+  if (!normalizedQuery) return items
+
+  return items.filter((item) => {
+    const haystack = [
+      item.romaneio,
+      item.empresa,
+      item.previsao_saida_status,
+      item.criterio_previsao,
+      item.produto,
+      ...(item.items || []).map((detail) => `${detail.sku} ${detail.produto}`),
+    ]
+      .filter(Boolean)
+      .join(' ')
+      .toLowerCase()
+    return haystack.includes(normalizedQuery)
+  })
+}
+
+function formatDate(value) {
+  if (!value) return 'Sem previsão'
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return value
+  return date.toLocaleString('pt-BR', {
+    day: '2-digit',
+    month: '2-digit',
+    hour: '2-digit',
+    minute: '2-digit',
+  })
+}
+
+function getForecastOrigin(previsaoStatus, criterioPrevisao) {
+  const normalizedStatus = String(previsaoStatus || '').toLowerCase()
+  const normalizedCriteria = String(criterioPrevisao || '').toLowerCase()
+
+  if (!normalizedStatus || normalizedStatus.includes('sem')) {
+    return {
+      key: 'missing',
+      tone: 'high',
+      label: 'Sem previsão',
+      detail: 'Ainda sem critério confiável de saída',
+    }
+  }
+
+  if (normalizedCriteria.includes('manual')) {
+    return {
+      key: 'manual',
+      tone: 'warning',
+      label: 'Previsão manual',
+      detail: criterioPrevisao || 'Critério PCP informado manualmente',
+    }
+  }
+
+  return {
+    key: 'automatic',
+    tone: 'info',
+    label: 'Previsão automática',
+    detail: criterioPrevisao || 'Critério calculado pelo backend',
+  }
+}
+
+function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates }) {
+  if (resourceState.status === 'loading') {
+    return (
+      <StatePanel
+        kind="loading"
+        title="Montando o kanban logístico"
+        message="Buscando romaneios autorizados e os produtos críticos usados para compor a fila."
+      />
+    )
+  }
+
+  if (resourceState.status === 'company') {
+    return (
+      <StatePanel
+        kind="company"
+        title="Este kanban precisa de uma empresa ativa"
+        message="O backend exige `company_code` para o recorte multiempresa. Selecione uma empresa acima para continuar."
+      />
+    )
+  }
+
+  if (resourceState.status === 'permission') {
+    return (
+      <StatePanel
+        kind="permission"
+        title="Sem permissão para consultar o kanban"
+        message={resourceState.error?.message || 'Sua sessão não foi autorizada a ler esta fila logística.'}
+      />
+    )
+  }
+
+  if (resourceState.status === 'error') {
+    return (
+      <StatePanel
+        kind="error"
+        title="Falha ao carregar o kanban logístico"
+        message={resourceState.error?.message || 'Não foi possível consultar produtos e romaneios desta empresa.'}
+      />
+    )
+  }
+
+  const payload = resourceState.data || { romaneios: [], products: [] }
+  const romaneios = filterBySearch(payload.romaneios || [], searchQuery)
+  const products = filterBySearch(payload.products || [], searchQuery)
+  const lanes = groupRomaneios(romaneios)
+  const missingLane = lanes.find((lane) => lane.id === 'missing')
+  const todayLane = lanes.find((lane) => lane.id === 'today')
+  const forecastSummary = romaneios.reduce((summary, item) => {
+    const origin = getForecastOrigin(item.previsao_saida_status, item.criterio_previsao)
+    summary[origin.key] += 1
+    return summary
+  }, { manual: 0, automatic: 0, missing: 0 })
+  const summaryCards = [
+    {
+      label: 'Carteira visível',
+      value: `${romaneios.length} romaneios`,
+      detail: 'Leitura oficial autorizada por empresa e sessão.',
+      tone: 'info',
+    },
+    {
+      label: 'Sem previsão',
+      value: `${missingLane?.items.length || 0}`,
+      detail: 'Itens que continuam pedindo ação manual ou definição de data.',
+      tone: missingLane?.items.length ? 'warning' : 'ok',
+    },
+    {
+      label: 'Saída imediata',
+      value: `${todayLane?.items.length || 0}`,
+      detail: 'Cargas para hoje ou já vencidas no recorte atual.',
+      tone: todayLane?.items.length ? 'high' : 'ok',
+    },
+    {
+      label: 'Produtos sob pressão',
+      value: `${products.length}`,
+      detail: canManageDates ? 'Seu papel gere a operação fora do quadro, sem drag-and-drop fake.' : 'Seu papel segue em leitura segura neste quadro.',
+      tone: canManageDates ? 'info' : 'warning',
+    },
+  ]
+  const originCards = [
+    {
+      label: 'Previsão automática',
+      value: `${forecastSummary.automatic}`,
+      detail: 'Origem ligada a estoque, heurística ou cálculo oficial do backend.',
+      tone: forecastSummary.automatic ? 'info' : 'ok',
+    },
+    {
+      label: 'Previsão manual',
+      value: `${forecastSummary.manual}`,
+      detail: 'Datas informadas pelo PCP, ainda exibidas sem fingir mutação no quadro.',
+      tone: forecastSummary.manual ? 'warning' : 'ok',
+    },
+    {
+      label: 'Sem previsão',
+      value: `${forecastSummary.missing}`,
+      detail: 'Romaneios que continuam sem critério confiável de saída.',
+      tone: forecastSummary.missing ? 'high' : 'ok',
+    },
+  ]
+  const hasFilter = Boolean(String(searchQuery || '').trim())
+
+  return (
+    <div className="kanban-page animate-in">
+      <section className="kanban-hero">
+        <div>
+          <span className="kanban-kicker">Kanban logístico seguro</span>
+          <h2>Fila oficial por empresa, com origem da previsão explícita e protocolo read-only preservado.</h2>
+          <p>
+            O quadro continua fiel ao contrato autenticado. Em vez de simular movimentações, ele agora deixa
+            mais claro quando a previsão é automática, quando é manual e quando o romaneio segue sem data
+            confiável de saída.
+          </p>
+        </div>
+
+        <div className="kanban-hero-side">
+          <div>
+            <small>Escopo ativo</small>
+            <strong>{scopeLabel}</strong>
+          </div>
+          <div>
+            <small>Protocolo</small>
+            <strong>{canManageDates ? 'Gestão fora do quadro' : 'Somente leitura'}</strong>
+          </div>
+        </div>
+      </section>
+
+      <section className="kanban-summary-grid">
+        {summaryCards.map((card) => (
+          <article key={card.label} className={`metric-card tone-${card.tone}`}>
+            <small>{card.label}</small>
+            <strong>{card.value}</strong>
+            <span>{card.detail}</span>
+          </article>
+        ))}
+      </section>
+
+      <section className="kanban-origin-strip" aria-label="Origem da previsão">
+        {originCards.map((card) => (
+          <article key={card.label} className={`kanban-origin-card tone-${card.tone}`}>
+            <small>{card.label}</small>
+            <strong>{card.value}</strong>
+            <p>{card.detail}</p>
+          </article>
+        ))}
+      </section>
+
+      <section className="kanban-board">
+        {lanes.map((lane) => (
+          <article key={lane.id} className={`kanban-lane tone-${lane.tone}`}>
+            <header className="kanban-lane-header">
+              <div>
+                <small>Carteira</small>
+                <h3>{lane.title}</h3>
+              </div>
+              <span className="kanban-lane-count">{lane.items.length}</span>
+            </header>
+
+            <div className="kanban-lane-body">
+              {lane.items.length ? lane.items.map((item) => {
+                const forecastOrigin = getForecastOrigin(item.previsao_saida_status, item.criterio_previsao)
+                return (
+                  <article key={item.romaneio} className="kanban-card">
+                    <div className="kanban-card-head">
+                      <div>
+                        <small>{item.empresa || scopeLabel}</small>
+                        <strong>{item.romaneio}</strong>
+                      </div>
+                      <span className={`tag ${String(item.previsao_saida_status || '').includes('sem') ? 'high' : 'ok'}`}>
+                        {item.previsao_saida_status || 'sem status'}
+                      </span>
+                    </div>
+
+                    <div className="kanban-card-meta">
+                      <span><FiPackage /> {numberFormat.format(item.quantidade_total || 0)} un</span>
+                      <span><FiCalendar /> {formatDate(item.previsao_saida_at)}</span>
+                    </div>
+
+                    <div className="kanban-card-origin">
+                      <span className={`tag ${forecastOrigin.tone}`}>{forecastOrigin.label}</span>
+                      <span className="kanban-origin-copy">{forecastOrigin.detail}</span>
+                    </div>
+
+                    <div className="kanban-card-footer">
+                      <span>{item.criterio_previsao || 'Sem critério informado'}</span>
+                      {(item.items || []).length ? <span>{item.items.length} SKUs no romaneio</span> : null}
+                    </div>
+                  </article>
+                )
+              }) : (
+                <StatePanel
+                  kind="empty"
+                  title={hasFilter ? 'Sem romaneios nesta coluna para este filtro' : 'Sem romaneios nesta coluna'}
+                  message={hasFilter
+                    ? 'O filtro atual não encontrou itens autorizados para este estágio do fluxo.'
+                    : 'Nenhum item autorizado entrou neste estágio da fila oficial.'}
+                  compact
+                />
+              )}
+            </div>
+          </article>
+        ))}
+      </section>
+
+      <section className="kanban-insights-grid">
+        <div className="glass-panel">
+          <div className="panel-header">
+            <div>
+              <h3>Produtos sob pressão</h3>
+              <span>Itens críticos que explicam a pressão do quadro logístico atual.</span>
+            </div>
+            <span className="tag warning">{products.length} itens</span>
+          </div>
+
+          <div className="critical-list">
+            {products.length ? products.map((item) => (
+              <article key={item.sku} className="critical-card">
+                <div className="critical-card-head">
+                  <div>
+                    <small>{item.sku}</small>
+                    <strong>{item.produto}</strong>
+                  </div>
+                  <span className={`tag ${String(item.criticidade || '').toLowerCase().includes('alta') ? 'high' : 'warning'}`}>
+                    {item.criticidade || 'Monitorar'}
+                  </span>
+                </div>
+                <div className="critical-stats">
+                  <span>Saldo {numberFormat.format(item.saldo || 0)}</span>
+                  <span>Necessidade {numberFormat.format(item.necessidade_romaneios || 0)}</span>
+                  <span>Ação {item.acao || 'Monitorar'}</span>
+                </div>
+              </article>
+            )) : (
+              <StatePanel
+                kind="empty"
+                title={hasFilter ? 'Nenhum produto crítico neste filtro' : 'Nenhum produto crítico visível'}
+                message={hasFilter
+                  ? 'O filtro atual não encontrou produtos sob pressão.'
+                  : 'A leitura autorizada não retornou itens de pressão para este recorte.'}
+                compact
+              />
+            )}
+          </div>
+        </div>
+
+        <div className="glass-panel">
+          <div className="panel-header">
+            <div>
+              <h3>Protocolo read-only</h3>
+              <span>Como interpretar o quadro sem sugerir mutação operacional inexistente.</span>
+            </div>
+            <span className="tag info">UX segura</span>
+          </div>
+
+          <div className="kanban-protocol-list">
+            <article className="signal-card">
+              <div>
+                <small>Leitura fiel</small>
+                <strong>Sem drag fictício</strong>
+              </div>
+              <span><FiShield /> O quadro não simula mutações que ainda não estão ligadas ao backend.</span>
+            </article>
+
+            <article className="signal-card">
+              <div>
+                <small>Origem da previsão</small>
+                <strong>{forecastSummary.manual} manual / {forecastSummary.automatic} automática</strong>
+              </div>
+              <span><FiLayers /> Cada card agora mostra se a previsão veio de cálculo oficial, ajuste manual ou se continua sem previsão.</span>
+            </article>
+
+            <article className="signal-card">
+              <div>
+                <small>Risco imediato</small>
+                <strong>{forecastSummary.missing} sem previsão</strong>
+              </div>
+              <span><FiAlertTriangle /> Os romaneios sem previsão permanecem visíveis como risco, sem virar estado silencioso ou ação fake.</span>
+            </article>
+          </div>
+        </div>
+      </section>
+    </div>
+  )
+}
+
+export default KanbanBoard

@@ -34,19 +34,6 @@
     },
     {
       "parameters": {
-        "mode": "append"
-      },
-      "id": "merge-triggers",
-      "name": "Merge Triggers",
-      "type": "n8n-nodes-base.merge",
-      "typeVersion": 3.2,
-      "position": [
-        -840,
-        140
-      ]
-    },
-    {
-      "parameters": {
         "jsCode": "const snapshotAt = new Date().toISOString();\nconst repoRoot = $env.PCP_REPO_ROOT || '/opt/saars.inplast';\nconst publishedUrl = $env.PCP_INTERMEDIARIO_PUBLISHED_URL || 'https://docs.google.com/spreadsheets/d/e/2PACX-1vSs-C_7_vu6L1lq9ScJEcQNT3F23en4MdgHBUI2FFkqBm9c_Zq8WHdtZuXkMhQvcegp05KewJQzPlCP/pubhtml?widget=true&headers=false';\nreturn [{\n  json: {\n    source_code: 'estoque_intermediario_atual',\n    parser_path: `${repoRoot}/parsers/parse_estoque_intermediario_google.py`,\n    runner_path: `${repoRoot}/parsers/run_inventory_parser.py`,\n    workbook_path: publishedUrl,\n    snapshot_at: snapshotAt,\n    workflow_name: 'PCP | 13 | Estoque Intermediario | Ingestao'\n  }\n}];"
       },
       "id": "build-source-queue",
@@ -73,7 +60,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const payload = JSON.parse($json.stdout || '{}');\nreturn [{ json: payload }];"
+        "jsCode": "const raw = ($json.stdout || '').trim();\nif (!raw) {\n  throw new Error('Parser nao retornou saida. Source: estoque_intermediario_atual. Stderr: ' + ($json.stderr || '(vazio)'));\n}\nlet payload;\ntry {\n  payload = JSON.parse(raw);\n} catch (parseError) {\n  const lines = raw.split('\\n').filter(line => line.trim());\n  let parsed = false;\n  for (let i = lines.length - 1; i >= 0; i--) {\n    try {\n      payload = JSON.parse(lines[i]);\n      parsed = true;\n      break;\n    } catch (e) { /* try previous line */ }\n  }\n  if (!parsed) {\n    throw new Error('Falha ao interpretar JSON do parser. Saida (primeiros 500 chars): ' + raw.slice(0, 500) + ' | Stderr: ' + ($json.stderr || '(vazio)'));\n  }\n}\nreturn [{ json: payload }];"
       },
       "id": "parse-envelope",
       "name": "Parse Envelope",
@@ -86,7 +73,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const esc = (value) => JSON.stringify(value ?? {}).replace(/'/g, \"''\");\nconst escText = (value) => String(value ?? '').replace(/'/g, \"''\");\nconst sql = `select ops.ingest_inventory_payload(\\n  '${escText($json.source_code)}',\\n  '${escText($json.snapshot_at)}'::timestamptz,\\n  '${esc($json.records)}'::jsonb,\\n  '${esc($json.meta)}'::jsonb\\n) as run_id;`;\nreturn [{ json: { ...$json, sql_query: sql } }];"
+        "jsCode": "const esc = (value) => {\n  const raw = JSON.stringify(value ?? {});\n  return raw.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"''\");\n};\nconst escText = (value) => String(value ?? '').replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"''\");\nconst sql = `select ops.ingest_inventory_payload(\\n  '${escText($json.source_code)}',\\n  '${escText($json.snapshot_at)}'::timestamptz,\\n  '${esc($json.records)}'::jsonb,\\n  '${esc($json.meta)}'::jsonb\\n) as run_id;`;\nreturn [{ json: { ...$json, sql_query: sql } }];"
       },
       "id": "build-sql",
       "name": "Build SQL",
@@ -130,7 +117,7 @@
       "main": [
         [
           {
-            "node": "Merge Triggers",
+            "node": "Build Source Queue",
             "type": "main",
             "index": 0
           }
@@ -138,17 +125,6 @@
       ]
     },
     "Schedule Trigger": {
-      "main": [
-        [
-          {
-            "node": "Merge Triggers",
-            "type": "main",
-            "index": 1
-          }
-        ]
-      ]
-    },
-    "Merge Triggers": {
       "main": [
         [
           {

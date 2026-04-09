@@ -1,13 +1,16 @@
 from __future__ import annotations
 
 import hashlib
+import hmac
 import json
 import re
+import secrets
 from abc import ABC, abstractmethod
 from datetime import date, datetime, timezone
 from decimal import Decimal
 from pathlib import Path
 from typing import Any
+from urllib.parse import urlparse
 
 from . import queries
 from .config import Settings
@@ -26,6 +29,7 @@ DEFAULT_APP_USER = {
     "username": "root",
     "full_name": "Administrador Root",
     "role": "root",
+    "company_scope": ["*"],
     "password": "root@123",
     "active": True,
     "created_at": "2026-04-01T00:00:00.000Z",
@@ -72,6 +76,17 @@ PRODUCTION_RULES_PATH = Path(__file__).resolve().parent.parent / "data" / "produ
 
 APP_STATE_PRODUCTION_RULES_KEY = "production_machine_rules"
 APP_STATE_APONTAMENTO_LOGS_KEY = "apontamento_logs"
+PASSWORD_HASH_SCHEME = "pbkdf2_sha256"
+PASSWORD_HASH_ITERATIONS = 260_000
+COMPANY_SCOPE_ALL = "*"
+MOCK_DEFAULT_COMPANY_CODE = "INPLAST"
+ALLOWED_APP_ROLES = {"root", "manager", "operator"}
+LEGACY_ROLE_ALIASES = {
+    "admin": "root",
+    "apontamento": "operator",
+    "planner": "manager",
+    "pcp": "manager",
+}
 
 
 def _normalize_bool(value: Any) -> bool:
@@ -80,18 +95,176 @@ def _normalize_bool(value: Any) -> bool:
     return str(value).strip().lower() not in {"", "0", "false", "no", "off"}
 
 
+def _normalize_company_scope(raw: Any, *, role: str = "", username: str = "") -> list[str]:
+    normalized_role = str(role or "").strip().lower()
+    normalized_username = str(username or "").strip().lower()
+    if normalized_role == "root" or normalized_username == "root":
+        return [COMPANY_SCOPE_ALL]
+
+    values: list[str] = []
+    if isinstance(raw, str):
+        values = [part.strip() for part in raw.split(",")]
+    elif isinstance(raw, (list, tuple, set)):
+        values = [str(item or "").strip() for item in raw]
+    elif raw not in (None, ""):
+        values = [str(raw).strip()]
+
+    scope: list[str] = []
+    for value in values:
+        company_code = str(value or "").strip().upper()
+        if not company_code:
+            continue
+        if company_code in {"*", "ALL", "TODAS", "CONSOLIDADO"}:
+            return [COMPANY_SCOPE_ALL]
+        if company_code not in scope:
+            scope.append(company_code)
+    return scope
+
+
+def _normalize_user_role(value: Any, *, username: str = "") -> str:
+    normalized_username = str(username or "").strip().lower()
+    if normalized_username == "root":
+        return "root"
+    role = str(value or "operator").strip().lower() or "operator"
+    role = LEGACY_ROLE_ALIASES.get(role, role)
+    if role not in ALLOWED_APP_ROLES:
+        return "operator"
+    return role
+
+
+def _normalize_company_code_value(value: Any) -> str:
+    return str(value or "").strip().upper()
+
+
+def _is_password_hash(value: Any) -> bool:
+    return str(value or "").startswith(f"{PASSWORD_HASH_SCHEME}$")
+
+
+def _hash_password(value: Any) -> str:
+    password = str(value or "").strip()
+    if not password:
+        return ""
+    salt = secrets.token_hex(16)
+    digest = hashlib.pbkdf2_hmac(
+        "sha256",
+        password.encode("utf-8"),
+        salt.encode("utf-8"),
+        PASSWORD_HASH_ITERATIONS,
+    ).hex()
+    return f"{PASSWORD_HASH_SCHEME}${PASSWORD_HASH_ITERATIONS}${salt}${digest}"
+
+
+def _normalize_password(value: Any) -> str:
+    password = str(value or "").strip()
+    if not password:
+        return ""
+    if _is_password_hash(password):
+        return password
+    return _hash_password(password)
+
+
+def _verify_password(password: Any, stored_password: Any) -> bool:
+    raw_password = str(password or "")
+    stored = str(stored_password or "").strip()
+    if not raw_password or not stored:
+        return False
+    if _is_password_hash(stored):
+        try:
+            _, iterations_raw, salt, expected_digest = stored.split("$", 3)
+            digest = hashlib.pbkdf2_hmac(
+                "sha256",
+                raw_password.encode("utf-8"),
+                salt.encode("utf-8"),
+                int(iterations_raw),
+            ).hex()
+        except (TypeError, ValueError):
+            return False
+        return hmac.compare_digest(digest, expected_digest)
+    return hmac.compare_digest(stored, raw_password)
+
+def public_user_record(raw: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in raw.items() if key not in {"password", "meta_json"}}
+
+
+def public_integration_record(raw: dict[str, Any]) -> dict[str, Any]:
+    return {key: value for key, value in raw.items() if key != "auth_value"}
+
+
+def _validate_integration_payload(payload: dict[str, Any]) -> None:
+    name = str(payload.get("name") or "").strip()
+    webhook_url = str(payload.get("webhook_url") or "").strip()
+    method = str(payload.get("method") or "POST").strip().upper() or "POST"
+    active = _normalize_bool(payload.get("active", False))
+
+    if not name:
+        raise ValueError("Nome da integração obrigatório.")
+
+    if active and not webhook_url:
+        raise ValueError("Webhook obrigatório para integrações ativas.")
+
+    if webhook_url:
+        parsed = urlparse(webhook_url)
+        if parsed.scheme not in {"http", "https"} or not parsed.netloc:
+            raise ValueError("Webhook deve ser uma URL HTTP/HTTPS válida.")
+
+    if method not in {"GET", "POST", "PUT", "PATCH", "DELETE"}:
+        raise ValueError("Método HTTP inválido para integração.")
+
+    for field_name in ("extra_headers_json", "request_body_json"):
+        value = payload.get(field_name)
+        if value in (None, "") or isinstance(value, (dict, list)):
+            continue
+        try:
+            json.loads(str(value))
+        except json.JSONDecodeError as exc:
+            raise ValueError(f"Campo `{field_name}` deve conter JSON válido.") from exc
+
+
+DEFAULT_APP_USER["password"] = _normalize_password(DEFAULT_APP_USER["password"])
+
+
 def _coerce_user_record(raw: dict[str, Any]) -> dict[str, Any]:
     created_at = str(raw.get("created_at") or datetime.now(timezone.utc).isoformat())
+    username = str(raw.get("username") or "").strip().lower()
+    role = _normalize_user_role(raw.get("role"), username=username)
+    company_scope = _normalize_company_scope(
+        raw.get("company_scope")
+        if raw.get("company_scope") is not None
+        else raw.get("company_codes")
+        if raw.get("company_codes") is not None
+        else raw.get("company_code")
+        if raw.get("company_code") is not None
+        else raw.get("empresa"),
+        role=role,
+        username=username,
+    )
     return {
-        "id": str(raw.get("id") or f"user-{str(raw.get('username') or '').lower()}"),
-        "username": str(raw.get("username") or "").strip().lower(),
+        "id": str(raw.get("id") or f"user-{username}"),
+        "username": username,
         "full_name": str(raw.get("full_name") or raw.get("username") or "").strip(),
-        "role": str(raw.get("role") or "operator").strip(),
-        "password": str(raw.get("password") or "").strip(),
+        "role": role,
+        "company_scope": company_scope,
+        "password": _normalize_password(raw.get("password")),
         "active": _normalize_bool(raw.get("active", True)),
         "created_at": created_at,
         "updated_at": str(raw.get("updated_at") or created_at),
     }
+
+
+def _validate_user_record(user: dict[str, Any]) -> None:
+    username = str(user.get("username") or "").strip().lower()
+    role = _normalize_user_role(user.get("role"), username=username)
+    if role not in ALLOWED_APP_ROLES:
+        allowed = ", ".join(sorted(ALLOWED_APP_ROLES))
+        raise ValueError(f"Perfil inválido. Use apenas: {allowed}.")
+
+    scope = _normalize_company_scope(user.get("company_scope"), role=role, username=username)
+    if role == "root":
+        if scope != [COMPANY_SCOPE_ALL]:
+            raise ValueError("Usuário root deve ter escopo global `*`.")
+        return
+    if not scope:
+        raise ValueError("Informe ao menos uma empresa no `company_scope` para usuários não root.")
 
 
 def load_app_users(users_path: Path) -> list[dict[str, Any]]:
@@ -373,7 +546,7 @@ def apply_apontamento_sync_updates(items: list[dict[str, Any]], payload: dict[st
         if str(item.get("id") or "").strip()
     }
     if not update_map:
-        raise RuntimeError("Informe pelo menos um id de apontamento para atualizar a sincronização.")
+        raise ValueError("Informe pelo menos um id de apontamento para atualizar a sincronização.")
 
     synced_at_default = datetime.now(timezone.utc).isoformat()
     next_items: list[dict[str, Any]] = []
@@ -569,6 +742,41 @@ class MockProvider(DataProvider):
     def _read_json(self, name: str) -> dict[str, Any]:
         return json.loads((self.data_dir / name).read_text(encoding="utf-8"))
 
+    def _mock_item_company_code(self, item: Any) -> str:
+        if not isinstance(item, dict):
+            return MOCK_DEFAULT_COMPANY_CODE
+        for key in ("company_code", "empresa", "codigo_empresa", "company"):
+            company_code = _normalize_company_code_value(item.get(key))
+            if company_code:
+                return company_code
+        return MOCK_DEFAULT_COMPANY_CODE
+
+    def _mock_matches_company(self, item: Any, company_code: str | None) -> bool:
+        normalized_company_code = _normalize_company_code_value(company_code)
+        if not normalized_company_code:
+            return True
+        return self._mock_item_company_code(item) == normalized_company_code
+
+    def _filter_mock_items_by_company(self, items: Any, company_code: str | None) -> list[dict[str, Any]]:
+        if not isinstance(items, list):
+            return []
+        return [item for item in items if self._mock_matches_company(item, company_code)]
+
+    def _empty_mock_overview(self, snapshot_at: str = "") -> dict[str, Any]:
+        return {
+            "snapshot_at": snapshot_at,
+            "totals": {
+                "estoque_atual": 0,
+                "necessidade_romaneios": 0,
+                "necessidade_montagem": 0,
+                "necessidade_producao": 0,
+                "necessidade_compra": 0,
+                "romaneios_sem_previsao": 0,
+                "custo_estimado_total": 0,
+            },
+            "top_criticos": [],
+        }
+
     def _users_path(self) -> Path:
         return self.data_dir / "app_users.json"
 
@@ -582,7 +790,13 @@ class MockProvider(DataProvider):
         return self.data_dir / "apontamento_logs.json"
 
     def overview(self, company_code: str | None = None) -> dict[str, Any]:
-        return self._read_json("overview.json")
+        payload = self._read_json("overview.json")
+        normalized_company_code = _normalize_company_code_value(company_code)
+        if not normalized_company_code:
+            return payload
+        if normalized_company_code != MOCK_DEFAULT_COMPANY_CODE:
+            return self._empty_mock_overview(str(payload.get("snapshot_at") or ""))
+        return payload
 
     def painel(
         self,
@@ -592,7 +806,7 @@ class MockProvider(DataProvider):
         company_code: str | None = None,
     ) -> dict[str, Any]:
         payload = self._read_json("painel.json")
-        items = payload["items"]
+        items = self._filter_mock_items_by_company(payload.get("items", []), company_code)
         search_value = (search or "").strip().lower()
         type_value = (product_type or "").strip().lower()
 
@@ -713,11 +927,11 @@ class MockProvider(DataProvider):
         users = load_app_users(self._users_path())
         username = str(payload.get("username") or "").strip().lower()
         if not username:
-            raise RuntimeError("Usuário obrigatório.")
+            raise ValueError("Usuário obrigatório.")
 
         existing = next((item for item in users if item["username"] == username), None)
         if (existing or {}).get("username") == "root" and str(payload.get("active", True)).lower() == "false":
-            raise RuntimeError("O usuário root não pode ser desativado.")
+            raise ValueError("O usuário root não pode ser desativado.")
 
         next_user = _coerce_user_record(
             {
@@ -725,12 +939,18 @@ class MockProvider(DataProvider):
                 "username": username,
                 "full_name": payload.get("full_name") or (existing or {}).get("full_name") or username,
                 "role": payload.get("role") or (existing or {}).get("role") or "operator",
+                "company_scope": (
+                    payload.get("company_scope")
+                    if payload.get("company_scope") is not None
+                    else (existing or {}).get("company_scope")
+                ),
                 "password": payload.get("password") or (existing or {}).get("password") or "",
                 "active": payload.get("active", (existing or {}).get("active", True)),
                 "created_at": (existing or {}).get("created_at") or datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         )
+        _validate_user_record(next_user)
 
         next_users = [item for item in users if item["username"] != username]
         next_users.append(next_user)
@@ -759,6 +979,7 @@ class MockProvider(DataProvider):
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         )
+        _validate_integration_payload(next_integration)
         next_items = [item for item in integrations if item["id"] != next_integration["id"]]
         next_items.append(next_integration)
         persisted = save_app_integrations(self._integrations_path(), next_items)
@@ -767,10 +988,10 @@ class MockProvider(DataProvider):
     def save_stock_movement(self, payload: dict[str, Any]) -> dict[str, Any]:
         sku = str(payload.get("sku") or "").strip().upper()
         if not sku:
-            raise RuntimeError("SKU obrigatório para registrar movimentação.")
+            raise ValueError("SKU obrigatório para registrar movimentação.")
         quantity = float(payload.get("quantity") or payload.get("quantidade") or 0)
         if quantity <= 0:
-            raise RuntimeError("Quantidade obrigatória para registrar movimentação.")
+            raise ValueError("Quantidade obrigatória para registrar movimentação.")
 
         next_item = _coerce_stock_movement_record(
             {
@@ -815,7 +1036,7 @@ class MockProvider(DataProvider):
         users = load_app_users(self._users_path())
         normalized = str(username or "").strip().lower()
         user = next((item for item in users if item["username"] == normalized and item["active"]), None)
-        if not user or user["password"] != str(password or ""):
+        if not user or not _verify_password(password, user.get("password")):
             return None
         return user
 
@@ -844,7 +1065,7 @@ class MockProvider(DataProvider):
     def save_romaneio_schedule(self, payload: dict[str, Any]) -> dict[str, Any]:
         romaneio_code = str(payload.get("romaneio") or "").strip()
         if not romaneio_code:
-            raise RuntimeError("Romaneio obrigatorio para salvar previsao.")
+            raise ValueError("Romaneio obrigatorio para salvar previsao.")
 
         previsao_saida_at = payload.get("previsao_saida_at")
         romaneios_path = self.data_dir / "romaneios.json"
@@ -953,7 +1174,7 @@ class MockProvider(DataProvider):
     def delete_romaneio(self, payload: dict[str, Any]) -> dict[str, Any]:
         romaneio_code = str(payload.get("romaneio") or "").strip()
         if not romaneio_code:
-            raise RuntimeError("Romaneio obrigatório para exclusão.")
+            raise ValueError("Romaneio obrigatório para exclusão.")
 
         romaneios_path = self.data_dir / "romaneios.json"
         detail_path = self.data_dir / f"romaneio_{romaneio_code}.json"
@@ -1082,7 +1303,7 @@ class PostgresProvider(DataProvider):
                 normalized["role"],
                 normalized["password"],
                 normalized["active"],
-                json.dumps({}, ensure_ascii=False),
+                json.dumps({"company_scope": normalized["company_scope"]}, ensure_ascii=False),
                 normalized["created_at"],
                 normalized["updated_at"],
             ),
@@ -1451,11 +1672,11 @@ class PostgresProvider(DataProvider):
         users = self._fetchall(queries.APP_USERS_SELECT_SQL)
         username = str(payload.get("username") or "").strip().lower()
         if not username:
-            raise RuntimeError("Usuário obrigatório.")
+            raise ValueError("Usuário obrigatório.")
 
         existing = next((item for item in users if item["username"] == username), None)
         if (existing or {}).get("username") == "root" and str(payload.get("active", True)).lower() == "false":
-            raise RuntimeError("O usuário root não pode ser desativado.")
+            raise ValueError("O usuário root não pode ser desativado.")
 
         next_user = _coerce_user_record(
             {
@@ -1463,12 +1684,18 @@ class PostgresProvider(DataProvider):
                 "username": username,
                 "full_name": payload.get("full_name") or (existing or {}).get("full_name") or username,
                 "role": payload.get("role") or (existing or {}).get("role") or "operator",
+                "company_scope": (
+                    payload.get("company_scope")
+                    if payload.get("company_scope") is not None
+                    else (existing or {}).get("company_scope")
+                ),
                 "password": payload.get("password") or (existing or {}).get("password") or "",
                 "active": payload.get("active", (existing or {}).get("active", True)),
                 "created_at": (existing or {}).get("created_at") or datetime.now(timezone.utc).isoformat(),
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         )
+        _validate_user_record(next_user)
         persisted_user = self._upsert_user_record(next_user)
         persisted = self._fetchall(queries.APP_USERS_SELECT_SQL)
         if not any(item["username"] == "root" for item in persisted):
@@ -1498,6 +1725,7 @@ class PostgresProvider(DataProvider):
                 "updated_at": datetime.now(timezone.utc).isoformat(),
             }
         )
+        _validate_integration_payload(next_integration)
         persisted_integration = self._upsert_integration_record(next_integration)
         persisted = self._fetchall(queries.APP_INTEGRATIONS_SELECT_SQL)
         return {"status": "saved", "integration": persisted_integration, "items": persisted}
@@ -1505,10 +1733,10 @@ class PostgresProvider(DataProvider):
     def save_stock_movement(self, payload: dict[str, Any]) -> dict[str, Any]:
         sku = str(payload.get("sku") or "").strip().upper()
         if not sku:
-            raise RuntimeError("SKU obrigatório para registrar movimentação.")
+            raise ValueError("SKU obrigatório para registrar movimentação.")
         quantity = float(payload.get("quantity") or payload.get("quantidade") or 0)
         if quantity <= 0:
-            raise RuntimeError("Quantidade obrigatória para registrar movimentação.")
+            raise ValueError("Quantidade obrigatória para registrar movimentação.")
 
         next_item = _coerce_stock_movement_record(
             {
@@ -1575,7 +1803,10 @@ class PostgresProvider(DataProvider):
         normalized = str(username or "").strip().lower()
         if not normalized:
             return None
-        return self._fetchone(queries.APP_USER_AUTH_SQL, (normalized, str(password or "")))
+        user = self._fetchone(queries.APP_USER_AUTH_SQL, (normalized,))
+        if not user or not _verify_password(password, user.get("password")):
+            return None
+        return user
 
     def run_mrp(self) -> dict[str, Any]:
         row = self._fetchone(queries.RUN_MRP_SQL, write=True)
@@ -1624,7 +1855,7 @@ class PostgresProvider(DataProvider):
     def save_romaneio_schedule(self, payload: dict[str, Any]) -> dict[str, Any]:
         romaneio_code = str(payload.get("romaneio") or "").strip()
         if not romaneio_code:
-            raise RuntimeError("Romaneio obrigatorio para salvar previsao.")
+            raise ValueError("Romaneio obrigatorio para salvar previsao.")
 
         event_reference = payload.get("previsao_saida_at") or datetime.now(timezone.utc).isoformat()
         event_key = "manual_schedule:" + romaneio_code + ":" + datetime.now(timezone.utc).strftime("%Y%m%d%H%M%S%f")
@@ -1742,7 +1973,7 @@ class PostgresProvider(DataProvider):
     def delete_romaneio(self, payload: dict[str, Any]) -> dict[str, Any]:
         romaneio_code = str(payload.get("romaneio") or "").strip()
         if not romaneio_code:
-            raise RuntimeError("Romaneio obrigatório para exclusão.")
+            raise ValueError("Romaneio obrigatório para exclusão.")
         row = self._fetchone(
             queries.DELETE_ROMANEIO_EVENT_SQL,
             (

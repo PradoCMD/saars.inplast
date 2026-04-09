@@ -32,7 +32,7 @@
     },
     {
       "parameters": {
-        "jsCode": "const esc = (value) => JSON.stringify(value ?? {}).replace(/'/g, \"''\");\nlet sql;\nif ($json.authorized) {\n  sql = `select ops.ingest_romaneio_event_payload(\\n  'romaneio_sankhya_webhook',\\n  '${esc($json.payload)}'::jsonb,\\n  '${esc($json.meta)}'::jsonb\\n) as result;`;\n} else {\n  sql = `select jsonb_build_object('status','unauthorized','processed',false,'message','Token invalido ou ausente') as result;`;\n}\nreturn [{ json: { ...$json, sql_query: sql } }];"
+        "jsCode": "const esc = (value) => {\n  const raw = JSON.stringify(value ?? {});\n  return raw.replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"''\");\n};\nconst escText = (value) => String(value ?? '').replace(/\\\\/g, '\\\\\\\\').replace(/'/g, \"''\");\nlet sql;\nif ($json.authorized) {\n  sql = `select ops.ingest_romaneio_event_payload(\\n  'romaneio_sankhya_webhook',\\n  '${esc($json.payload)}'::jsonb,\\n  '${esc($json.meta)}'::jsonb\\n) as result;`;\n} else {\n  sql = `select jsonb_build_object('status','unauthorized','processed',false,'message','Token invalido ou ausente') as result;`;\n}\nreturn [{ json: { ...$json, sql_query: sql } }];"
       },
       "id": "build-romaneio-sql",
       "name": "Build Romaneio SQL",

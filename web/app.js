@@ -113,9 +113,104 @@ const DEFAULT_ROOT_USER = {
   username: "root",
   full_name: "Administrador Root",
   role: "root",
-  password: "root@123",
+  company_scope: ["*"],
   active: true,
   created_at: "2026-04-01T00:00:00.000Z",
+};
+
+const ROLE_ALIASES = {
+  admin: "root",
+  apontamento: "operator",
+  planner: "manager",
+  pcp: "manager",
+};
+
+const CLIENT_ROLE_PERMISSIONS = {
+  root: new Set(["*"]),
+  manager: new Set([
+    "alerts.read",
+    "apontamento.dispatch",
+    "apontamento.read",
+    "apontamento.write",
+    "assembly.read",
+    "costs.read",
+    "mrp.run",
+    "overview.read",
+    "painel.read",
+    "production.read",
+    "production_rules.read",
+    "programming.read",
+    "programming.write",
+    "purchases.read",
+    "recycling.read",
+    "romaneios.delete",
+    "romaneios.ingest",
+    "romaneios.read",
+    "romaneios.write",
+    "sources.read",
+    "sources.sync",
+    "stock.read",
+    "stock.write",
+    "structure_override.write",
+    "structures.read",
+  ]),
+  operator: new Set([
+    "alerts.read",
+    "apontamento.read",
+    "apontamento.write",
+    "assembly.read",
+    "costs.read",
+    "overview.read",
+    "painel.read",
+    "production.read",
+    "production_rules.read",
+    "programming.read",
+    "purchases.read",
+    "recycling.read",
+    "romaneios.read",
+    "sources.read",
+    "stock.read",
+    "structures.read",
+  ]),
+};
+
+const CLIENT_ROUTE_PERMISSIONS = {
+  GET: {
+    "/api/pcp/alerts": "alerts.read",
+    "/api/pcp/apontamento/export": "apontamento.read",
+    "/api/pcp/apontamento/logs": "apontamento.read",
+    "/api/pcp/assembly": "assembly.read",
+    "/api/pcp/costs": "costs.read",
+    "/api/pcp/integrations": "integrations.read",
+    "/api/pcp/overview": "overview.read",
+    "/api/pcp/painel": "painel.read",
+    "/api/pcp/production": "production.read",
+    "/api/pcp/production-rules": "production_rules.read",
+    "/api/pcp/programming": "programming.read",
+    "/api/pcp/purchases": "purchases.read",
+    "/api/pcp/recycling": "recycling.read",
+    "/api/pcp/romaneios": "romaneios.read",
+    "/api/pcp/romaneios-kanban": "romaneios.read",
+    "/api/pcp/sources": "sources.read",
+    "/api/pcp/stock-movements": "stock.read",
+    "/api/pcp/structures": "structures.read",
+    "/api/pcp/users": "users.read",
+  },
+  POST: {
+    "/api/pcp/apontamento/dispatch": "apontamento.dispatch",
+    "/api/pcp/apontamento/save": "apontamento.write",
+    "/api/pcp/integrations/save": "integrations.write",
+    "/api/pcp/programming-entries": "programming.write",
+    "/api/pcp/romaneios/delete": "romaneios.delete",
+    "/api/pcp/romaneios/refresh": "romaneios.ingest",
+    "/api/pcp/romaneios-kanban/update-date": "romaneios.write",
+    "/api/pcp/romaneios/upload": "romaneios.ingest",
+    "/api/pcp/runs/mrp": "mrp.run",
+    "/api/pcp/sources/sync": "sources.sync",
+    "/api/pcp/stock-movements/save": "stock.write",
+    "/api/pcp/structure-overrides": "structure_override.write",
+    "/api/pcp/users/save": "users.write",
+  },
 };
 
 const HORA_HORA_INTERVALS = [
@@ -632,58 +727,113 @@ function resolveRomaneioQuantity(item) {
   return Number(item?.quantidade_total ?? item?.quantity_total ?? 0) || 0;
 }
 
+function resolveScrollViewportHost(shell) {
+  return shell?.closest(".view-port")
+    || document.querySelector(".view-port")
+    || document.scrollingElement
+    || document.documentElement;
+}
+
+let horizontalScrollerSeq = 0;
+
+function resolveScrollOverlayHost(shell) {
+  return shell?.closest(".main-content")
+    || document.querySelector(".main-content")
+    || document.body;
+}
+
+function ensureHorizontalScrollerPortal(shell, shellClass = "") {
+  if (!shell) {
+    return { portal: null, leftButton: null, rightButton: null };
+  }
+
+  let portal = shell._scrollPortal || null;
+  if (!portal) {
+    const portalId = shell.dataset.scrollPortalId || `x-scroll-portal-${++horizontalScrollerSeq}`;
+    shell.dataset.scrollPortalId = portalId;
+    portal = document.getElementById(portalId) || null;
+    if (!portal) {
+      portal = document.createElement("div");
+      portal.id = portalId;
+      portal.className = "x-scroll-portal";
+      resolveScrollOverlayHost(shell).appendChild(portal);
+    }
+
+    portal.innerHTML = `
+      <button type="button" class="x-scroll-nav x-scroll-nav--left" data-scroll-dir="left" aria-label="Rolar para a esquerda">‹</button>
+      <button type="button" class="x-scroll-nav x-scroll-nav--right" data-scroll-dir="right" aria-label="Rolar para a direita">›</button>
+    `;
+    shell._scrollPortal = portal;
+    shell._scrollLeftButton = portal.querySelector('[data-scroll-dir="left"]');
+    shell._scrollRightButton = portal.querySelector('[data-scroll-dir="right"]');
+  }
+
+  portal.classList.add("x-scroll-portal");
+  if (shellClass) {
+    portal.classList.add(shellClass);
+  }
+  return {
+    portal,
+    leftButton: shell._scrollLeftButton || portal.querySelector('[data-scroll-dir="left"]'),
+    rightButton: shell._scrollRightButton || portal.querySelector('[data-scroll-dir="right"]'),
+  };
+}
+
 function refreshHorizontalScroller(shell) {
   if (!shell) {
     return;
   }
   const viewport = shell.querySelector(".x-scroll-viewport");
-  const leftButton = shell.querySelector('[data-scroll-dir="left"]');
-  const rightButton = shell.querySelector('[data-scroll-dir="right"]');
-  if (!viewport || !leftButton || !rightButton) {
+  const { portal, leftButton, rightButton } = ensureHorizontalScrollerPortal(shell);
+  if (!viewport || !leftButton || !rightButton || !portal) {
     return;
   }
 
   const hasOverflow = viewport.scrollWidth > viewport.clientWidth + 12;
   const atStart = viewport.scrollLeft <= 6;
   const atEnd = viewport.scrollLeft + viewport.clientWidth >= viewport.scrollWidth - 6;
-  const buttonWidth = 56;
-  const viewportPadding = window.innerWidth <= 1080 ? 12 : 24;
-  const hostRect = shell.closest(".view-port")?.getBoundingClientRect()
-    || shell.closest(".main-content")?.getBoundingClientRect()
+  const viewportPadding = window.innerWidth <= 1080 ? 10 : 20;
+  const host = resolveScrollViewportHost(shell);
+  const hostRect = host?.getBoundingClientRect?.()
     || { left: 0, right: window.innerWidth, top: 0, bottom: window.innerHeight };
   const sidebarRect = document.querySelector(".sidebar")?.getBoundingClientRect();
-  const safeLeftEdge = clamp(
-    Math.max(hostRect.left + 18, (sidebarRect?.right || 0) + 18, viewportPadding),
+  const topbarRect = document.querySelector(".topbar")?.getBoundingClientRect();
+  const visibleTop = Math.max(hostRect.top + 10, (topbarRect?.bottom || hostRect.top) + 10);
+  const visibleBottom = Math.min(hostRect.bottom - 10, window.innerHeight - 16);
+  const safeLeftInset = Math.max(
+    Math.round(Math.max(hostRect.left + 14, (sidebarRect?.right || 0) + 14, viewportPadding)),
     viewportPadding,
-    window.innerWidth - buttonWidth - viewportPadding,
   );
-  const safeRightEdge = clamp(
-    Math.min(hostRect.right - buttonWidth - 18, window.innerWidth - buttonWidth - viewportPadding),
-    safeLeftEdge,
-    window.innerWidth - buttonWidth - viewportPadding,
+  const safeRightInset = Math.max(
+    Math.round(Math.max(window.innerWidth - hostRect.right + 14, viewportPadding)),
+    viewportPadding,
   );
 
   shell.classList.toggle("is-scrollable", hasOverflow);
   shell.classList.toggle("at-start", atStart);
   shell.classList.toggle("at-end", atEnd);
+  portal.classList.toggle("is-scrollable", hasOverflow);
+  portal.classList.toggle("at-start", atStart);
+  portal.classList.toggle("at-end", atEnd);
   leftButton.disabled = !hasOverflow || atStart;
   rightButton.disabled = !hasOverflow || atEnd;
   const rect = shell.getBoundingClientRect();
-  const visibleTop = Math.max(rect.top, hostRect.top + 18);
-  const visibleBottom = Math.min(rect.bottom, hostRect.bottom - 18);
-  const visibleHeight = Math.max(0, visibleBottom - visibleTop);
-  const inView = hasOverflow && visibleHeight >= 48 && rect.right > safeLeftEdge && rect.left < safeRightEdge + buttonWidth;
-  const minTop = clamp(hostRect.top + 84, 94, window.innerHeight - 94);
-  const maxTop = clamp(hostRect.bottom - 84, minTop, window.innerHeight - 94);
-  const topPosition = clamp(visibleTop + (visibleHeight / 2), minTop, maxTop);
+  const hostHeight = Math.max(visibleBottom - visibleTop, 0);
+  const intersectsVertically = rect.bottom > visibleTop + 40 && rect.top < visibleBottom - 40;
+  const intersectsHorizontally = rect.right > hostRect.left + 72 && rect.left < hostRect.right - 72;
+  const inView = hasOverflow && intersectsVertically && intersectsHorizontally && hostHeight >= 120;
+  const minTop = clamp(visibleTop + 56, 86, window.innerHeight - 92);
+  const maxTop = clamp(visibleBottom - 56, minTop, window.innerHeight - 90);
+  const topPosition = clamp(visibleTop + (hostHeight / 2), minTop, maxTop);
 
   shell.classList.toggle("nav-in-view", inView);
+  portal.classList.toggle("is-visible", inView);
   leftButton.style.top = `${topPosition}px`;
   rightButton.style.top = `${topPosition}px`;
-  leftButton.style.left = `${safeLeftEdge}px`;
+  leftButton.style.left = `${safeLeftInset}px`;
   leftButton.style.right = "auto";
-  rightButton.style.left = `${safeRightEdge}px`;
-  rightButton.style.right = "auto";
+  rightButton.style.left = "auto";
+  rightButton.style.right = `${safeRightInset}px`;
 }
 
 function ensureHorizontalScroller(node, shellClass = "") {
@@ -697,6 +847,7 @@ function ensureHorizontalScroller(node, shellClass = "") {
     if (shellClass) {
       existingShell.classList.add(shellClass);
     }
+    ensureHorizontalScrollerPortal(existingShell, shellClass);
     node.classList.add("x-scroll-track");
     refreshHorizontalScroller(existingShell);
     return existingShell;
@@ -713,34 +864,20 @@ function ensureHorizontalScroller(node, shellClass = "") {
     shell.classList.add(shellClass);
   }
 
-  const leftButton = document.createElement("button");
-  leftButton.type = "button";
-  leftButton.className = "x-scroll-nav x-scroll-nav--left";
-  leftButton.dataset.scrollDir = "left";
-  leftButton.setAttribute("aria-label", "Rolar para a esquerda");
-  leftButton.textContent = "‹";
-
-  const rightButton = document.createElement("button");
-  rightButton.type = "button";
-  rightButton.className = "x-scroll-nav x-scroll-nav--right";
-  rightButton.dataset.scrollDir = "right";
-  rightButton.setAttribute("aria-label", "Rolar para a direita");
-  rightButton.textContent = "›";
-
   const viewport = document.createElement("div");
   viewport.className = "x-scroll-viewport";
 
   parent.insertBefore(shell, node);
-  shell.appendChild(leftButton);
   shell.appendChild(viewport);
-  shell.appendChild(rightButton);
   viewport.appendChild(node);
   node.classList.add("x-scroll-track");
+
+  const { leftButton, rightButton } = ensureHorizontalScrollerPortal(shell, shellClass);
 
   const scrollStep = () => Math.max(viewport.clientWidth * 0.82, 240);
   let hoverTimer = null;
   const scheduleRefresh = () => window.requestAnimationFrame(() => refreshHorizontalScroller(shell));
-  const scrollHost = shell.closest(".view-port") || shell.closest(".main-content") || document.scrollingElement;
+  const scrollHost = resolveScrollViewportHost(shell);
 
   const stopAutoScroll = () => {
     if (hoverTimer) {
@@ -1763,6 +1900,7 @@ function renderHourlyHero(context) {
       <strong>${context.resource.label}</strong>
       <div class="hourly-hero-meta">
         <span>Operador-chave: ${context.operatorKey}</span>
+        <span>OP atual: ${context.resourceState.activeOpCode || "Sem OP"}</span>
         <span>${context.operatorsReal} operador(es)</span>
         <span>${number.format(context.queueTotal)} peças na carteira</span>
         <span class="hourly-status-chip ${context.resourceState.status.key}">${context.resourceState.status.label}</span>
@@ -1975,7 +2113,7 @@ function renderHourlySidebar(context) {
     focus.innerHTML = `
       <small>Item líder do recurso</small>
       <strong>${context.focusItem.sku} · ${context.focusItem.produto}</strong>
-      <span>${formatProductType(context.focusItem.product_type)} · criticidade ${String(context.focusItem.criticidade || "").toLowerCase()}</span>
+      <span>OP ${context.resourceState.activeOpCode || "Sem OP"} · ${formatProductType(context.focusItem.product_type)} · criticidade ${String(context.focusItem.criticidade || "").toLowerCase()}</span>
       <div class="hourly-live-strip">
         <span class="hourly-status-chip ${context.resourceState.status.key}">${context.resourceState.status.label}</span>
         <em>${context.resourceState.statusDetail}</em>
@@ -2027,12 +2165,12 @@ function renderHourlySidebar(context) {
 
   queue.innerHTML = context.queueItems.slice(0, 6).map((item) => {
     const operational = deriveQueueOperationalState({
-      op_code: `OP-${item.sku}`,
+      op_code: item.op_code || `OP-${item.sku}`,
       quantity_planned: Number(item.net_required || 0),
     });
     return `
     <article class="hourly-queue-card ${item.sku === context.focusItem?.sku ? "active" : ""} state-${operational.statusKey}" data-hourly-focus="${context.moduleKey}" data-sku="${item.sku}" title="Selecionar ${item.sku}">
-      <small>${operational.status}</small>
+      <small>${operational.status} · OP ${item.op_code}</small>
       <strong>${item.sku} · ${item.produto}</strong>
       <span>${formatProductType(item.product_type)} · ${number.format(item.net_required || 0)} peças pendentes</span>
       <div class="hourly-queue-meta">
@@ -2318,9 +2456,83 @@ function ensureUsersStorage() {
   if (!hasRoot) {
     users.unshift({ ...DEFAULT_ROOT_USER });
   }
-  window.localStorage.setItem(APP_USERS_STORAGE_KEY, JSON.stringify(users));
-  state.users = users;
-  return users;
+  saveUsers(users);
+  return state.users;
+}
+
+function normalizeUserRole(role, username = "") {
+  if (String(username || "").trim().toLowerCase() === "root") {
+    return "root";
+  }
+  const normalized = String(role || "operator").trim().toLowerCase() || "operator";
+  return ROLE_ALIASES[normalized] || (["root", "manager", "operator"].includes(normalized) ? normalized : "operator");
+}
+
+function hasClientPermission(permission) {
+  if (!permission) {
+    return true;
+  }
+  const currentUser = state.currentUser || loadSession() || null;
+  if (!currentUser) {
+    return false;
+  }
+  const role = normalizeUserRole(currentUser.role, currentUser.username);
+  const permissions = CLIENT_ROLE_PERMISSIONS[role] || new Set();
+  return permissions.has("*") || permissions.has(permission);
+}
+
+function resolveClientRoutePermission(path, method = "GET") {
+  const normalizedMethod = String(method || "GET").trim().toUpperCase();
+  if (normalizedMethod === "GET" && path.startsWith("/api/pcp/romaneios/") && path !== "/api/pcp/romaneios-kanban") {
+    return "romaneios.read";
+  }
+  const methodMap = CLIENT_ROUTE_PERMISSIONS[normalizedMethod] || {};
+  return methodMap[path] || "";
+}
+
+function buildPermissionDeniedMessage(permission) {
+  if (!state.currentUser && !loadSession()) {
+    return "Faça login para acessar esta operação.";
+  }
+  return `Seu perfil não possui permissão para executar \`${permission}\`.`;
+}
+
+function normalizeCompanyScope(scope, role = "", username = "") {
+  if (normalizeUserRole(role, username) === "root") {
+    return ["*"];
+  }
+  const rawValues = Array.isArray(scope)
+    ? scope
+    : String(scope || "")
+      .split(",")
+      .map((item) => item.trim());
+  const normalized = [];
+  rawValues.forEach((item) => {
+    const company = String(item || "").trim().toUpperCase();
+    if (!company) {
+      return;
+    }
+    if (company === "*" || company === "ALL" || company === "TODAS" || company === "CONSOLIDADO") {
+      normalized.length = 0;
+      normalized.push("*");
+      return;
+    }
+    if (!normalized.includes(company)) {
+      normalized.push(company);
+    }
+  });
+  return normalized;
+}
+
+function formatCompanyScope(scope) {
+  const normalized = normalizeCompanyScope(scope);
+  if (!normalized.length) {
+    return "Sem empresa vinculada";
+  }
+  if (normalized.length === 1 && normalized[0] === "*") {
+    return "Todas as empresas";
+  }
+  return normalized.join(", ");
 }
 
 function saveUsers(items) {
@@ -2330,7 +2542,8 @@ function saveUsers(items) {
       ...item,
       username: String(item.username || "").trim(),
       full_name: String(item.full_name || "").trim(),
-      role: String(item.role || "operator").trim(),
+      role: normalizeUserRole(item.role, item.username),
+      company_scope: normalizeCompanyScope(item.company_scope, item.role, item.username),
       active: item.active !== false,
     }));
   state.users = sanitized;
@@ -2344,6 +2557,10 @@ function mergeUsersWithDefault(items) {
 }
 
 async function carregarUsuariosBackend(silent = false) {
+  if (!hasClientPermission("users.read")) {
+    state.users = [];
+    return state.users;
+  }
   try {
     const payload = await api("/api/pcp/users");
     saveUsers(mergeUsersWithDefault(payload.items || []));
@@ -2361,35 +2578,60 @@ function loadSession() {
   if (!session?.user_id && !session?.username) {
     return null;
   }
-  const user = state.users.find((item) => (
-    (session.user_id && item.id === session.user_id) ||
-    (session.username && item.username === session.username)
-  ) && item.active);
-  if (!user) {
-    window.localStorage.removeItem(APP_SESSION_STORAGE_KEY);
-    return null;
+  if (session.expires_at) {
+    const expiresAt = new Date(session.expires_at);
+    if (!Number.isNaN(expiresAt.getTime()) && expiresAt.getTime() <= Date.now()) {
+      window.localStorage.removeItem(APP_SESSION_STORAGE_KEY);
+      return null;
+    }
   }
-  return {
-    user_id: user.id,
-    username: user.username,
-  };
+  return session;
 }
 
-function persistSession(user) {
-  state.currentUser = user;
-  if (user) {
+function authHeaders(extraHeaders = {}) {
+  const token = state.currentUser?.access_token || loadSession()?.access_token || "";
+  return token
+    ? { ...extraHeaders, Authorization: `Bearer ${token}` }
+    : { ...extraHeaders };
+}
+
+function persistSession(user, accessToken = "", expiresAt = "") {
+  state.currentUser = user ? {
+    ...user,
+    access_token: accessToken || user.access_token || "",
+    expires_at: expiresAt || user.expires_at || "",
+  } : null;
+  if (state.currentUser) {
     window.localStorage.setItem(
       APP_SESSION_STORAGE_KEY,
       JSON.stringify({
-        user_id: user.id,
-        username: user.username,
-        full_name: user.full_name,
-        role: user.role,
+        user_id: state.currentUser.id,
+        username: state.currentUser.username,
+        full_name: state.currentUser.full_name,
+        role: state.currentUser.role,
+        company_scope: state.currentUser.company_scope || [],
+        access_token: state.currentUser.access_token || "",
+        expires_at: state.currentUser.expires_at || "",
       }),
     );
   } else {
     window.localStorage.removeItem(APP_SESSION_STORAGE_KEY);
   }
+}
+
+function handleUnauthorizedSession(message = "Sessão expirada ou inválida. Faça login novamente.") {
+  persistSession(null);
+  state.apontamentoOperatorMode = false;
+  saveOperatorModePreference(false);
+  renderAuthState();
+  applyShellState();
+  renderUsersModule();
+  if (window.location.hash !== "#cockpit") {
+    window.location.hash = "#cockpit";
+  } else {
+    switchTab("#cockpit");
+  }
+  setElementStatus("login-status", message, "error");
 }
 
 function loadSidebarPreference() {
@@ -2950,21 +3192,58 @@ function renderUsersModule() {
     return;
   }
 
-  const users = ensureUsersStorage();
-  const canManageUsers = !!state.currentUser && ["root", "manager"].includes(state.currentUser.role);
+  const canReadUsers = hasClientPermission("users.read");
+  const canManageUsers = !!state.currentUser && normalizeUserRole(state.currentUser.role, state.currentUser.username) === "root";
   Array.from(form.elements).forEach((field) => {
     field.disabled = !canManageUsers;
   });
+  summary.innerHTML = "";
+  list.innerHTML = "";
+
+  if (!canReadUsers) {
+    state.users = [];
+    delete form.dataset.editingUserId;
+    form.reset();
+    [
+      ["Usuários", "Acesso restrito"],
+      ["Perfil", state.currentUser ? String(state.currentUser.role || "").toUpperCase() : "Sem sessão"],
+    ].forEach(([label, value]) => {
+      summary.appendChild(
+        el(`
+          <div class="mini-card">
+            <small>${label}</small>
+            <strong>${value}</strong>
+          </div>
+        `),
+      );
+    });
+    list.appendChild(
+      emptyState(
+        state.currentUser
+          ? "Seu perfil não possui permissão para consultar usuários do sistema."
+          : "Faça login como root para consultar usuários do sistema.",
+      ),
+    );
+    setElementStatus(
+      "user-status",
+      state.currentUser
+        ? "A listagem de usuários fica disponível apenas para o perfil root."
+        : "Faça login como root para consultar usuários.",
+      "error",
+    );
+    return;
+  }
+
+  const users = ensureUsersStorage();
   setElementStatus(
     "user-status",
-    canManageUsers ? "Administre acessos e redefina senhas por aqui." : "Faça login como root ou gestor para alterar usuários.",
+    canManageUsers ? "Administre acessos, escopos e senhas por aqui." : "Faça login como root para alterar usuários.",
     canManageUsers ? "success" : "error",
   );
-  summary.innerHTML = "";
   [
     ["Usuários", number.format(users.length)],
     ["Ativos", number.format(users.filter((item) => item.active).length)],
-    ["Administradores", number.format(users.filter((item) => ["root", "manager"].includes(item.role)).length)],
+    ["Lideranças", number.format(users.filter((item) => ["root", "manager"].includes(normalizeUserRole(item.role, item.username))).length)],
   ].forEach(([label, value]) => {
     summary.appendChild(
       el(`
@@ -2976,7 +3255,6 @@ function renderUsersModule() {
     );
   });
 
-  list.innerHTML = "";
   users
     .slice()
     .sort((left, right) => {
@@ -2991,6 +3269,7 @@ function renderUsersModule() {
             <small>${user.username}</small>
             <strong>${user.full_name}</strong>
             <span>${user.role} · ${user.active ? "Ativo" : "Inativo"}</span>
+            <small>${formatCompanyScope(user.company_scope)}</small>
           </div>
           <div class="user-card-actions">
             <button type="button" class="btn btn-secondary btn-xs" data-action="edit" ${canManageUsers ? "" : "disabled"}>Editar</button>
@@ -3001,7 +3280,7 @@ function renderUsersModule() {
 
       card.querySelector('[data-action="edit"]').addEventListener("click", () => {
         if (!canManageUsers) {
-          setElementStatus("user-status", "Faça login como root ou gestor para alterar usuários.", "error");
+          setElementStatus("user-status", "Faça login como root para alterar usuários.", "error");
           return;
         }
         const form = document.getElementById("user-form");
@@ -3009,8 +3288,13 @@ function renderUsersModule() {
         form.dataset.editingUserId = user.id;
         form.elements.namedItem("username").value = user.username || "";
         form.elements.namedItem("full_name").value = user.full_name || "";
-        form.elements.namedItem("role").value = user.role || "operator";
+        form.elements.namedItem("role").value = normalizeUserRole(user.role, user.username);
         form.elements.namedItem("active").value = user.active ? "true" : "false";
+        if (form.elements.namedItem("company_scope")) {
+          form.elements.namedItem("company_scope").value = normalizeUserRole(user.role, user.username) === "root"
+            ? "*"
+            : formatCompanyScope(user.company_scope);
+        }
         form.elements.namedItem("password").value = user.password || "";
         setElementStatus("user-status", `Editando usuário ${user.username}.`, "success");
         window.location.hash = "#usuarios";
@@ -3019,7 +3303,7 @@ function renderUsersModule() {
 
       card.querySelector('[data-action="toggle"]').addEventListener("click", async () => {
         if (!canManageUsers) {
-          setElementStatus("user-status", "Faça login como root ou gestor para alterar usuários.", "error");
+          setElementStatus("user-status", "Faça login como root para alterar usuários.", "error");
           return;
         }
         if (user.username === "root" && user.active) {
@@ -3037,7 +3321,7 @@ function renderUsersModule() {
           if (state.currentUser?.id === user.id && !nextUser.active) {
             persistSession(null);
           } else if (state.currentUser?.id === user.id) {
-            persistSession(nextUser);
+            persistSession(response.user || nextUser, state.currentUser?.access_token || "", state.currentUser?.expires_at || "");
           }
           renderAuthState();
           renderUsersModule();
@@ -3113,7 +3397,16 @@ function readFileAsBase64(file) {
 }
 
 async function api(path) {
-  const response = await fetch(path);
+  const requiredPermission = resolveClientRoutePermission(path, "GET");
+  if (requiredPermission && !hasClientPermission(requiredPermission)) {
+    throw new Error(buildPermissionDeniedMessage(requiredPermission));
+  }
+  const response = await fetch(path, {
+    headers: authHeaders(),
+  });
+  if (response.status === 401 && path !== "/api/pcp/auth/login") {
+    handleUnauthorizedSession();
+  }
   if (!response.ok) {
     let detail = "";
     try {
@@ -3128,6 +3421,10 @@ async function api(path) {
 }
 
 async function safeApi(path, fallback, warnings) {
+  const requiredPermission = resolveClientRoutePermission(path, "GET");
+  if (requiredPermission && !hasClientPermission(requiredPermission)) {
+    return fallback;
+  }
   try {
     return await api(path);
   } catch (error) {
@@ -3139,11 +3436,18 @@ async function safeApi(path, fallback, warnings) {
 }
 
 async function postJson(path, payload) {
+  const requiredPermission = resolveClientRoutePermission(path, "POST");
+  if (requiredPermission && !hasClientPermission(requiredPermission)) {
+    throw new Error(buildPermissionDeniedMessage(requiredPermission));
+  }
   const response = await fetch(path, {
     method: "POST",
-    headers: { "Content-Type": "application/json" },
+    headers: authHeaders({ "Content-Type": "application/json" }),
     body: JSON.stringify(payload),
   });
+  if (response.status === 401 && path !== "/api/pcp/auth/login") {
+    handleUnauthorizedSession();
+  }
   const data = await response.json();
   if (!response.ok) {
     throw new Error(data.detail || data.error || data.message || `Falha ao enviar dados para ${path}`);
@@ -5032,11 +5336,18 @@ function populateIntegrationForm(item) {
 function renderIntegrations(items) {
   const summary = document.getElementById("integrations-summary");
   const list = document.getElementById("integrations-list");
+  const form = document.getElementById("integration-form");
   if (!summary || !list) {
     return;
   }
 
   const integrations = Array.isArray(items) ? items : [];
+  const canManageIntegrations = !!state.currentUser && normalizeUserRole(state.currentUser.role, state.currentUser.username) === "root";
+  if (form) {
+    Array.from(form.elements).forEach((field) => {
+      field.disabled = !canManageIntegrations;
+    });
+  }
   summary.innerHTML = "";
   list.innerHTML = "";
 
@@ -5080,7 +5391,7 @@ function renderIntegrations(items) {
         </div>
         <div class="source-card-actions">
           <span class="tag ${statusTone}">${item.active ? (item.last_status || "ativa") : "inativa"}</span>
-          <button type="button" class="btn btn-secondary btn-xs" data-action="edit">Editar</button>
+          <button type="button" class="btn btn-secondary btn-xs" data-action="edit" ${canManageIntegrations ? "" : "disabled"}>Editar</button>
           <button type="button" class="btn btn-secondary btn-xs" data-action="run">Atualizar</button>
         </div>
       </div>
@@ -5299,8 +5610,8 @@ async function salvarStockMovement(event) {
 async function salvarIntegracao(event) {
   event.preventDefault();
   try {
-    if (!state.currentUser || !["root", "manager"].includes(state.currentUser.role)) {
-      setElementStatus("integration-status", "Apenas administradores podem alterar integrações.", "error");
+    if (!state.currentUser || normalizeUserRole(state.currentUser.role, state.currentUser.username) !== "root") {
+      setElementStatus("integration-status", "Apenas o usuário root pode alterar integrações.", "error");
       return;
     }
 
@@ -5730,6 +6041,8 @@ function buildKanbanModel(data) {
         romaneio.empresa,
         romaneio.criterio_previsao,
         romaneio.previsao_saida_status,
+        romaneio.pedidos_mercos,
+        romaneio.pedidos_unicos,
         ...(Array.isArray(romaneio.items)
           ? romaneio.items.flatMap((item) => [item.sku, item.produto, item.modo_atendimento, item.impacto])
           : []),
@@ -5814,6 +6127,7 @@ function buildKanbanModel(data) {
       const coveragePct = quantityTotal > 0 ? clamp(Math.round(((quantityTotal - deficit) / quantityTotal) * 100), 0, 100) : 100;
       const tone = deficit > 0 ? "high" : statusClass(romaneio.previsao_saida_status);
       const statusTone = deficit > 0 ? "warning" : statusClass(romaneio.previsao_saida_status);
+      const mercosNumbers = extractPedidoMercosNumbers(romaneio);
 
       summary.units += quantityTotal;
       summary.deficitUnits += deficit;
@@ -5843,6 +6157,8 @@ function buildKanbanModel(data) {
         criteria: romaneio.criterio_previsao || "Sem critério informado",
         previsao_saida_at: romaneio.previsao_saida_at,
         data_evento: romaneio.data_evento,
+        pedidosMercos: mercosNumbers.join(", "),
+        mercosNumbers,
         itemsPreview: previewItems,
         hiddenItems: Math.max(items.length - previewItems.length, 0),
         items: items.map((item) => {
@@ -6012,6 +6328,40 @@ function focusKanbanColumn(columnKey) {
   viewport.scrollTo({ left: targetLeft, behavior: "smooth" });
   lane.classList.add("kanban-lane--focus");
   window.setTimeout(() => lane.classList.remove("kanban-lane--focus"), 1500);
+}
+
+function extractPedidoMercosNumbers(raw = {}) {
+  const values = [
+    ...(Array.isArray(raw?.pedidos_detail) ? raw.pedidos_detail.map((pedido) => pedido?.ped_mercos) : []),
+    raw?.pedidos_mercos,
+  ];
+  return Array.from(
+    new Set(
+      values
+        .flatMap((value) => String(value || "").split(","))
+        .map((value) => value.trim())
+        .filter(Boolean),
+    ),
+  );
+}
+
+function buildKanbanMercosPreview(mercosNumbers = []) {
+  const items = (Array.isArray(mercosNumbers) ? mercosNumbers : []).filter(Boolean);
+  if (!items.length) {
+    return "";
+  }
+
+  const visible = items.slice(0, 3);
+  const remaining = Math.max(items.length - visible.length, 0);
+  return `
+    <div class="k-mercos-strip">
+      <small>Mercos</small>
+      <div class="k-mercos-tags">
+        ${visible.map((value) => `<span class="k-mercos-tag">${value}</span>`).join("")}
+        ${remaining > 0 ? `<span class="k-mercos-more">+${remaining}</span>` : ""}
+      </div>
+    </div>
+  `;
 }
 
 function buildKanbanCardItemsPreview(items = []) {
@@ -6294,7 +6644,8 @@ function buildKanbanBoardInspector(context) {
   const { selectedCard, selectedItems, manualDateValue } = context;
   const raw = selectedCard.raw || {};
   const pendingTotal = sumBy(selectedItems, (item) => item.pendente);
-  const pedidos = raw.pedido || raw.pedidos || "Sem pedido consolidado";
+  const pedidosMercos = raw.pedidos_mercos || selectedCard.pedidosMercos || "Sem pedido Mercos";
+  const pedidos = raw.pedidos_unicos || raw.pedido || raw.pedidos || "Sem pedido consolidado";
   const fileLabel = Array.isArray(raw.file_names) && raw.file_names.length ? raw.file_names.join(", ") : "Sem arquivo associado";
   const detailToggleLabel = state.kanbanDetailsExpanded ? "Ocultar detalhes" : "Mostrar detalhes";
 
@@ -6399,6 +6750,10 @@ function buildKanbanBoardInspector(context) {
             </div>
           </div>
           <div class="kanban-detail-meta">
+            <div>
+              <small>Pedidos Mercos</small>
+              <strong>${pedidosMercos}</strong>
+            </div>
             <div>
               <small>Pedidos vinculados</small>
               <strong>${pedidos}</strong>
@@ -6660,6 +7015,7 @@ function renderKanban(data) {
     const colBody = col.querySelector('.kanban-lane-body');
 
     column.cards.forEach((cardData) => {
+      const mercosPreview = buildKanbanMercosPreview(cardData.mercosNumbers || []);
       const productsPreview = buildKanbanCardItemsPreview(cardData.items || []);
       const expanded = isKanbanCardExpanded(cardData.romaneio);
       const expandedDetails = expanded ? buildKanbanCardExpandedDetails(cardData.items || []) : "";
@@ -6670,6 +7026,7 @@ function renderKanban(data) {
             <span class="k-qty">${number.format(cardData.quantityTotal)} un</span>
           </div>
           <div class="k-title">${cardData.empresa}</div>
+          ${mercosPreview}
           <div class="k-card-meta">
             <span class="tag ${cardData.statusTone}">${cardData.statusLabel}</span>
             <span>${cardData.itemCount} SKU(s)</span>
@@ -7160,24 +7517,39 @@ function resetUserForm() {
   if (form.elements.namedItem("active")) {
     form.elements.namedItem("active").value = "true";
   }
+  if (form.elements.namedItem("company_scope")) {
+    form.elements.namedItem("company_scope").value = "INPLAST";
+  }
 }
 
 async function salvarUsuario(event) {
   event.preventDefault();
   try {
-    if (!state.currentUser || !["root", "manager"].includes(state.currentUser.role)) {
-      setElementStatus("user-status", "Apenas administradores podem gerenciar usuários.", "error");
+    if (!state.currentUser || normalizeUserRole(state.currentUser.role, state.currentUser.username) !== "root") {
+      setElementStatus("user-status", "Apenas o usuário root pode gerenciar usuários.", "error");
       return;
     }
 
     const form = event.currentTarget;
     const payload = payloadFromForm(form);
-    if (!payload.username || !payload.full_name || !payload.password) {
-      setElementStatus("user-status", "Preencha usuário, nome e senha.", "error");
+    const editingUserId = form.dataset.editingUserId || "";
+    const typedPassword = typeof payload.password === "string" ? payload.password.trim() : "";
+    if (!payload.username || !payload.full_name) {
+      setElementStatus("user-status", "Preencha usuário e nome.", "error");
+      return;
+    }
+    if (!editingUserId && !typedPassword) {
+      setElementStatus("user-status", "Preencha uma senha para criar o usuário.", "error");
       return;
     }
 
-    const editingUserId = form.dataset.editingUserId || "";
+    const normalizedRole = normalizeUserRole(payload.role, payload.username);
+    const companyScope = normalizeCompanyScope(payload.company_scope, normalizedRole, payload.username);
+    if (normalizedRole !== "root" && !companyScope.length) {
+      setElementStatus("user-status", "Informe ao menos uma empresa autorizada para usuários não root.", "error");
+      return;
+    }
+
     const users = ensureUsersStorage();
     const exists = users.find((item) => String(item.username).toLowerCase() === String(payload.username).toLowerCase());
     if (exists && exists.id !== editingUserId) {
@@ -7189,12 +7561,15 @@ async function salvarUsuario(event) {
       id: editingUserId || `user-${Date.now()}`,
       username: String(payload.username).trim().toLowerCase(),
       full_name: String(payload.full_name).trim(),
-      role: payload.role || "operator",
+      role: normalizedRole,
+      company_scope: companyScope,
       active: String(payload.active || "true") === "true",
-      password: String(payload.password).trim(),
       created_at: editingUserId ? (users.find((item) => item.id === editingUserId)?.created_at || new Date().toISOString()) : new Date().toISOString(),
       updated_at: new Date().toISOString(),
     };
+    if (typedPassword) {
+      nextUser.password = typedPassword;
+    }
 
     const nextUsers = editingUserId
       ? users.map((item) => (item.id === editingUserId ? nextUser : item))
@@ -7204,7 +7579,7 @@ async function salvarUsuario(event) {
     saveUsers(mergeUsersWithDefault(response.items || nextUsers));
     await carregarUsuariosBackend(true);
     if (state.currentUser?.id === nextUser.id) {
-      persistSession(nextUser);
+      persistSession(response.user || nextUser, state.currentUser?.access_token || "", state.currentUser?.expires_at || "");
       renderAuthState();
     }
     renderUsersModule();
@@ -7221,8 +7596,6 @@ async function autenticarUsuario(event) {
   const payload = payloadFromForm(form);
   const username = String(payload.username || "").trim().toLowerCase();
 
-  await carregarUsuariosBackend(true);
-
   let response;
   try {
     response = await postJson("/api/pcp/auth/login", {
@@ -7235,7 +7608,7 @@ async function autenticarUsuario(event) {
   }
 
   const user = response.user;
-  persistSession(user);
+  persistSession(user, response.access_token || "", response.expires_at || "");
   renderAuthState();
   renderUsersModule();
   applyUserLanding(user, true);
@@ -7483,7 +7856,7 @@ async function carregarTudo() {
     safeApi("/api/pcp/sources", { items: [] }, warnings),
     safeApi("/api/pcp/integrations", { items: [] }, warnings),
     safeApi("/api/pcp/painel", { items: [] }, warnings),
-    safeApi("/api/pcp/users", { items: state.users || [] }, warnings),
+    safeApi("/api/pcp/users", { items: hasClientPermission("users.read") ? (state.users || []) : [] }, warnings),
     safeApi("/api/pcp/stock-movements", { items: [], summary: {} }, warnings),
     safeApi("/api/pcp/production-rules", { items: [], resource_catalog: [] }, warnings),
     safeApi("/api/pcp/apontamento/logs", { items: state.apontamentoLogs || [], summary: {} }, warnings),
@@ -7751,15 +8124,19 @@ window.addEventListener('hashchange', () => switchTab(window.location.hash));
 switchTab(window.location.hash);
 async function bootstrapSessionAndData() {
   applyShellState();
-  await carregarUsuariosBackend(true);
   const session = loadSession();
   const user = session
-    ? state.users.find((item) => (
-      (session.user_id && item.id === session.user_id)
-      || (session.username && item.username === session.username)
-    )) || null
+    ? {
+      id: session.user_id,
+      username: session.username,
+      full_name: session.full_name,
+      role: session.role,
+      company_scope: session.company_scope || [],
+      access_token: session.access_token || "",
+      expires_at: session.expires_at || "",
+    }
     : null;
-  persistSession(user);
+  persistSession(user, user?.access_token || "", user?.expires_at || "");
   renderAuthState();
   renderUsersModule();
   applyUserLanding(user, true);

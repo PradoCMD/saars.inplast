@@ -1,0 +1,161 @@
+{
+  "items": [
+    {
+      "id": "user-root",
+      "username": "root",
+      "full_name": "Administrador Root",
+      "role": "root",
+      "company_scope": [
+        "*"
+      ],
+      "password": "pbkdf2_sha256$260000$26ab656756ceb136deda8a531370cf23$2397ab76ce7d3b57985635a50857cff4cdfadf40a2247a5fbd094e8e81aeace8",
+      "active": true,
+      "created_at": "2026-04-01T00:00:00.000Z",
+      "updated_at": "2026-04-01T00:00:00.000Z"
+    },
+    {
+      "id": "user-inactive_user",
+      "username": "inactive_user",
+      "full_name": "Inactive User",
+      "role": "operator",
+      "company_scope": [
+        "INPLAST"
+      ],
+      "password": "pbkdf2_sha256$260000$f9607e52c8b7393689b71db9064cdf1e$bd03d439fc1517574d8185285fd0b66c96a3297817080f3b56f9c8143e550aa7",
+      "active": false,
+      "created_at": "2026-04-08T16:17:51.196146+00:00",
+      "updated_at": "2026-04-08T16:17:51.196149+00:00"
+    },
+    {
+      "id": "user-manager_inplast",
+      "username": "manager_inplast",
+      "full_name": "Manager Inplast",
+      "role": "manager",
+      "company_scope": [
+        "INPLAST"
+      ],
+      "password": "pbkdf2_sha256$260000$4ce4f4e01eef8587a65b3fca7a016fab$2dc460e4c6cf69029ecdb2aea87ce8be3968c8259a8a0ce1798e3a20cc0d0f1a",
+      "active": true,
+      "created_at": "2026-04-08T16:17:50.901978+00:00",
+      "updated_at": "2026-04-08T16:17:50.901981+00:00"
+    },
+    {
+      "id": "user-manager_multi",
+      "username": "manager_multi",
+      "full_name": "Manager Multi",
+      "role": "manager",
+      "company_scope": [
+        "INPLAST",
+        "RECICLA"
+      ],
+      "password": "pbkdf2_sha256$260000$b50782ff5516215899efb4bcca4d26a9$5e6d336b1dc8b9c98a0656dc6a904211bea60649c2659d39541c8b643eb52d48",
+      "active": true,
+      "created_at": "2026-04-08T16:17:50.976393+00:00",
+      "updated_at": "2026-04-08T16:17:50.976395+00:00"
+    },
+    {
+      "id": "user-manager_recicla",
+      "username": "manager_recicla",
+      "full_name": "Manager Recicla",
+      "role": "manager",
+      "company_scope": [
+        "RECICLA"
+      ],
+      "password": "pbkdf2_sha256$260000$b8e9d8009419b4cd833ecc95ed4bdb10$665729f963c3d47f38a3a612d51c0bddca14634da41cfc50cb578e8e9fa06d9b",
+      "active": true,
+      "created_at": "2026-04-08T16:17:51.049459+00:00",
+      "updated_at": "2026-04-08T16:17:51.049462+00:00"
+    },
+    {
+      "id": "user-operator_inplast",
+      "username": "operator_inplast",
+      "full_name": "Operator Inplast",
+      "role": "operator",
+      "company_scope": [
+        "INPLAST"
+      ],
+      "password": "pbkdf2_sha256$260000$c718770c3cf4edb084fdbe74472fc91f$9d31126abf7079a7a98337214522e170a2afe51b5995806b8a228f6c604bcaa2",
+      "active": true,
+      "created_at": "2026-04-08T16:17:51.123634+00:00",
+      "updated_at": "2026-04-08T16:17:51.123638+00:00"
+    },
+    {
+      "id": "user-planner_alias",
+      "username": "planner_alias",
+      "full_name": "Planner Alias",
+      "role": "manager",
+      "company_scope": [
+        "INPLAST"
+      ],
+      "password": "pbkdf2_sha256$260000$c1ba3ea7b9aef8fcb260f0459302bad6$ebc2d6cd42eefb6088ae84f10235bcc6a109cd14c48a932abe0a3dc2b39d0bc4",
+      "active": true,
+      "created_at": "2026-04-08T16:17:51.268673+00:00",
+      "updated_at": "2026-04-08T16:17:51.268676+00:00"
+    },
+    {
+      "id": "user-1775665289936",
+      "username": "planner_via_ui",
+      "full_name": "Planner Via UI",
+      "role": "manager",
+      "company_scope": [
+        "INPLAST"
+      ],
+      "password": "pbkdf2_sha256$260000$0a160366ec510b807811016ad2e8ad3e$b55eea9abbe2bf548668dd3ded640a490fccab3801ccd5f8d0448715271dff8e",
+      "active": true,
+      "created_at": "2026-04-08T16:21:29.937792+00:00",
+      "updated_at": "2026-04-08T16:21:29.937801+00:00"
+    },
+    {
+      "id": "user-qa_inactive_retest_20260408",
+      "username": "qa_inactive_retest_20260408",
+      "full_name": "QA Inactive Retest",
+      "role": "operator",
+      "company_scope": [
+        "INPLAST"
+      ],
+      "password": "pbkdf2_sha256$260000$7b03a767b2975c0f4f3cb1a48338edcf$2ab52f186ddebfdf2459141506d2d98ba7f66e497c62d53a4738939625fca4a3",
+      "active": false,
+      "created_at": "2026-04-08T17:03:06.161711+00:00",
+      "updated_at": "2026-04-08T17:03:06.161714+00:00"
+    },
+    {
+      "id": "user-qa-manager-recicla-fix",
+      "username": "qa_manager_recicla_fix",
+      "full_name": "QA Manager Recicla Fix",
+      "role": "manager",
+      "company_scope": [
+        "RECICLA"
+      ],
+      "password": "pbkdf2_sha256$260000$3bdcacb73c084e0314ba2e54686fe345$d8fae4cd1d4af3e16c7014906480d578092c0f36822a42a8bc7ad3bf03714bfd",
+      "active": true,
+      "created_at": "2026-04-08T16:41:56.349640+00:00",
+      "updated_at": "2026-04-08T16:41:56.349643+00:00"
+    },
+    {
+      "id": "user-qa-operator-inplast-fix",
+      "username": "qa_operator_inplast_fix",
+      "full_name": "QA Operator Inplast Fix",
+      "role": "operator",
+      "company_scope": [
+        "INPLAST"
+      ],
+      "password": "pbkdf2_sha256$260000$86c9844c67dfb7ddb29476b551fc2677$f7ff70b2974f8cde9b8ec4010ee1a3b41313b005a10da68d4827a5bbfccee83c",
+      "active": true,
+      "created_at": "2026-04-08T16:41:56.427106+00:00",
+      "updated_at": "2026-04-08T16:41:56.427109+00:00"
+    },
+    {
+      "id": "user-qa_planner_alias_retest",
+      "username": "qa_planner_alias_retest",
+      "full_name": "QA Planner Alias",
+      "role": "manager",
+      "company_scope": [
+        "INPLAST"
+      ],
+      "password": "pbkdf2_sha256$260000$0e9201793a2397d5532d6fb4c3dad788$a46966de9d95a4627ec92fb48d5c72b899ace66feae02733f2a8266b2fa6091b",
+      "active": true,
+      "created_at": "2026-04-08T17:03:06.831740+00:00",
+      "updated_at": "2026-04-08T17:03:06.831743+00:00"
+    }
+  ]
+}

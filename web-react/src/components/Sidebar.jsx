@@ -1,60 +1,104 @@
-import { FiBarChart2, FiLayers, FiPackage, FiTool, FiCalendar, FiSettings, FiShoppingCart, FiShield, FiSmartphone } from 'react-icons/fi';
+import {
+  FiActivity,
+  FiBarChart2,
+  FiCalendar,
+  FiLayers,
+  FiPackage,
+  FiSettings,
+  FiShield,
+  FiShoppingCart,
+  FiSmartphone,
+  FiTool,
+} from 'react-icons/fi'
 
-function Sidebar({ activeView }) {
-  const routes = [
-    { id: 'cockpit', icon: <FiBarChart2 />, label: 'Cockpit' },
-    { id: 'apontamento', icon: <FiSmartphone />, label: 'Apontamento' },
-    { id: 'romaneios-kanban', icon: <FiLayers />, label: 'Kanban Logístico' },
-    { id: 'romaneios', icon: <FiPackage />, label: 'Romaneios' },
-    { id: 'estruturas', icon: <FiTool />, label: 'Estruturas' },
-    { id: 'programacao', icon: <FiCalendar />, label: 'Programação' },
-    { id: 'montagem', icon: <FiSettings />, label: 'Montagem (Esteiras)' },
-    { id: 'producao', icon: <FiSettings />, label: 'Produção (Extrusoras)' },
-    { id: 'compras', icon: <FiShoppingCart />, label: 'Compras' },
-    { id: 'fontes', icon: <FiShield />, label: 'Governança' }
-  ];
+const ICONS = {
+  cockpit: FiBarChart2,
+  apontamento: FiSmartphone,
+  'romaneios-kanban': FiLayers,
+  romaneios: FiPackage,
+  estruturas: FiTool,
+  programacao: FiCalendar,
+  montagem: FiSettings,
+  producao: FiActivity,
+  compras: FiShoppingCart,
+  fontes: FiShield,
+}
+
+function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLabel, companySelectionRequired }) {
+  const roleLabel = String(currentUser?.role || 'operator').toUpperCase()
+  const scopeLabel = selectedCompany || 'Consolidado'
 
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="logo-box">
-          <svg width="24" height="24" viewBox="0 0 24 24" fill="none" xmlns="http://www.w3.org/2000/svg">
-            <path d="M12 2L2 7V17L12 22L22 17V7L12 2Z" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-            <path d="M12 22V12" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-            <path d="M12 12L22 7" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-            <path d="M12 12L2 7" stroke="currentColor" strokeWidth="2" strokeLinejoin="round"/>
-          </svg>
+          <div className="logo-mark">
+            <span />
+            <span />
+            <span />
+          </div>
           <div className="logo-text">
             <strong>Inplast</strong>
             <span>Control Desk React</span>
           </div>
         </div>
+
+        <div className="sidebar-compact-context">
+          <small>{companySelectionRequired ? 'Empresa pendente' : 'Escopo ativo'}</small>
+          <strong>{scopeLabel}</strong>
+          <span>{roleLabel}</span>
+        </div>
+
+        <div className="sidebar-context">
+          <small>Escopo ativo</small>
+          <strong>{scopeLabel}</strong>
+          <span>{currentUser?.username}</span>
+          <div className="sidebar-note">
+            <span className={`tag ${companySelectionRequired ? 'warning' : 'ok'}`}>
+              {companySelectionRequired ? 'Empresa pendente' : 'Escopo pronto'}
+            </span>
+            <span className="tag info">{roleLabel}</span>
+          </div>
+        </div>
       </div>
 
-      <nav className="main-nav">
-        {routes.map(r => (
-          <a
-            key={r.id}
-            href={`#${r.id}`}
-            className={`nav-item ${activeView === r.id ? 'active' : ''}`}
-          >
-            <span className="icon">{r.icon}</span>
-            {r.label}
-          </a>
-        ))}
+      <nav className="main-nav" aria-label="Navegação principal">
+        {routes.map((route) => {
+          const Icon = ICONS[route.id] || FiBarChart2
+
+          return (
+            <a
+              key={route.id}
+              href={`#${route.id}`}
+              className={`nav-item ${activeView === route.id ? 'active' : ''}`}
+              aria-current={activeView === route.id ? 'page' : undefined}
+            >
+              <span className="icon">
+                <Icon />
+              </span>
+              <span className="nav-copy">
+                <strong>
+                  <span>{route.label}</span>
+                  {!route.implemented ? <span className="nav-badge">Transição</span> : null}
+                </strong>
+                <small>{route.helper}</small>
+              </span>
+            </a>
+          )
+        })}
       </nav>
 
       <div className="sidebar-footer">
         <div className="status-card">
-          <div className="status-indicator live"></div>
+          <div className="status-indicator live" />
           <div className="status-info">
-            <strong>Sistema Ativo</strong>
-            <span>Real-time React UI</span>
+            <strong>Sessão autenticada</strong>
+            <span>{freshnessLabel}</span>
           </div>
         </div>
       </div>
     </aside>
-  );
+  )
 }
 
-export default Sidebar;
+export default Sidebar

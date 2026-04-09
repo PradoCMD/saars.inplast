@@ -35,6 +35,8 @@ class Settings:
     almox_published_url: str | None
     almox_workbook: str | None
     sync_api_token: str | None
+    auth_token_secret: str
+    auth_token_ttl_seconds: int
     n8n_romaneios_webhook_url: str | None
     n8n_romaneios_webhook_token: str | None
     n8n_romaneios_webhook_timeout_seconds: int
@@ -60,6 +62,11 @@ class Settings:
             or _env("PCP_WRITE_DATABASE_URL")
             or _build_database_url_from_parts("pcp_integration", "PCP_INTEGRATION_DB_PASSWORD")
         )
+        auth_token_secret = (
+            (os.getenv("PCP_AUTH_TOKEN_SECRET") or "").strip()
+            or (os.getenv("PCP_SYNC_API_TOKEN") or "").strip()
+            or "pcp-dev-auth-secret-change-me"
+        )
         return cls(
             host=os.getenv("PCP_HOST", "127.0.0.1").strip() or "127.0.0.1",
             port=int(port_raw),
@@ -72,6 +79,8 @@ class Settings:
             almox_published_url=(os.getenv("PCP_ALMOX_PUBLISHED_URL") or "").strip() or None,
             almox_workbook=(os.getenv("PCP_ALMOX_WORKBOOK") or "").strip() or None,
             sync_api_token=(os.getenv("PCP_SYNC_API_TOKEN") or "").strip() or None,
+            auth_token_secret=auth_token_secret,
+            auth_token_ttl_seconds=int((os.getenv("PCP_AUTH_TOKEN_TTL_SECONDS") or "28800").strip() or "28800"),
             n8n_romaneios_webhook_url=(os.getenv("PCP_N8N_ROMANEIOS_WEBHOOK_URL") or "").strip() or None,
             n8n_romaneios_webhook_token=(os.getenv("PCP_N8N_ROMANEIOS_WEBHOOK_TOKEN") or "").strip() or None,
             n8n_romaneios_webhook_timeout_seconds=int(

@@ -2,8 +2,11 @@
 from __future__ import annotations
 
 import base64
+import binascii
+import hashlib
+import hmac
 import json
-from datetime import date, datetime
+from datetime import date, datetime, timedelta, timezone
 from decimal import Decimal
 from http import HTTPStatus
 from http.server import BaseHTTPRequestHandler, ThreadingHTTPServer
@@ -13,9 +16,11 @@ from urllib.parse import parse_qs, urlparse
 from urllib.request import Request, urlopen
 
 from backend import Settings, build_provider
+from backend.provider import COMPANY_SCOPE_ALL, public_integration_record, public_user_record
 from backend.romaneio_integration import normalize_webhook_romaneios
 from backend.romaneio_pdf import SOURCE_CODE as ROMANEIO_PDF_SOURCE_CODE
 from backend.romaneio_pdf import build_romaneio_event, normalize_document_kind, normalize_romaneio_identity, parse_romaneio_pdf_bytes
+from backend.source_sync import SourceSyncError
 
 
 ROOT = Path(__file__).resolve().parent
@@ -24,6 +29,227 @@ WEB_DIR = ROOT / "web"
 SETTINGS = Settings.from_env()
 PROVIDER = build_provider(SETTINGS, DATA_DIR)
 ROMANEIO_WEBHOOK_SOURCE_CODE = "romaneio_sankhya_webhook"
+DEFAULT_MAX_JSON_BODY_BYTES = 1 * 1024 * 1024
+UPLOAD_MAX_JSON_BODY_BYTES = 20 * 1024 * 1024
+MAX_ROMANEIO_UPLOAD_FILES = 10
+MAX_ROMANEIO_UPLOAD_FILE_BYTES = 5 * 1024 * 1024
+MAX_ROMANEIO_UPLOAD_TOTAL_BYTES = 20 * 1024 * 1024
+AUTH_TOKEN_TYPE = "Bearer"
+AUDIT_LOG_PATH = DATA_DIR / "security_audit.jsonl"
+
+ROLE_PERMISSIONS = {
+    "root": {"*"},
+    "manager": {
+        "alerts.read",
+        "apontamento.dispatch",
+        "apontamento.read",
+        "apontamento.write",
+        "assembly.read",
+        "costs.read",
+        "mrp.run",
+        "overview.read",
+        "painel.read",
+        "production.read",
+        "production_rules.read",
+        "programming.read",
+        "programming.write",
+        "purchases.read",
+        "recycling.read",
+        "romaneios.delete",
+        "romaneios.ingest",
+        "romaneios.read",
+        "romaneios.write",
+        "sources.read",
+        "sources.sync",
+        "stock.read",
+        "stock.write",
+        "structure_override.write",
+        "structures.read",
+    },
+    "operator": {
+        "alerts.read",
+        "apontamento.read",
+        "apontamento.write",
+        "assembly.read",
+        "costs.read",
+        "overview.read",
+        "painel.read",
+        "production.read",
+        "production_rules.read",
+        "programming.read",
+        "purchases.read",
+        "recycling.read",
+        "romaneios.read",
+        "sources.read",
+        "stock.read",
+        "structures.read",
+    },
+}
+
+ADMIN_PERMISSIONS = {"users.read", "users.write", "integrations.read", "integrations.write"}
+CRITICAL_AUDIT_ACTIONS = {
+    "/api/pcp/runs/mrp": "mrp.run",
+    "/api/pcp/users/save": "users.save",
+    "/api/pcp/integrations/save": "integrations.save",
+    "/api/pcp/stock-movements/save": "stock_movement.save",
+    "/api/pcp/apontamento/save": "apontamento.save",
+    "/api/pcp/apontamento/sync-status": "apontamento.sync_status",
+    "/api/pcp/apontamento/dispatch": "apontamento.dispatch",
+    "/api/pcp/structure-overrides": "structure_override.save",
+    "/api/pcp/programming-entries": "programming_entry.save",
+    "/api/pcp/romaneios-kanban/update-date": "romaneio.schedule_override",
+    "/api/pcp/romaneios/delete": "romaneio.delete",
+    "/api/pcp/romaneios-kanban/sync": "romaneio.sync",
+    "/api/pcp/romaneios/upload": "romaneio.upload",
+    "/api/pcp/romaneios/refresh": "romaneio.refresh",
+    "/api/pcp/sources/sync": "sources.sync",
+}
+
+
+class ApiRequestError(RuntimeError):
+    def __init__(self, status: HTTPStatus, error: str, detail: str, *, code: str) -> None:
+        super().__init__(detail)
+        self.status = status
+        self.error = error
+        self.detail = detail
+        self.code = code
+
+
+def _b64url_encode(data: bytes) -> str:
+    return base64.urlsafe_b64encode(data).decode("utf-8").rstrip("=")
+
+
+def _b64url_decode(data: str) -> bytes:
+    padding = "=" * (-len(data) % 4)
+    return base64.urlsafe_b64decode(f"{data}{padding}")
+
+
+def _auth_secret_bytes() -> bytes:
+    return SETTINGS.auth_token_secret.encode("utf-8")
+
+
+def _normalize_company_code(value) -> str | None:
+    text = str(value or "").strip().upper()
+    return text or None
+
+
+def _normalize_company_scope(scope) -> list[str]:
+    if isinstance(scope, str):
+        raw_values = [part.strip() for part in scope.split(",")]
+    elif isinstance(scope, (list, tuple, set)):
+        raw_values = [str(item or "").strip() for item in scope]
+    else:
+        raw_values = []
+    normalized: list[str] = []
+    for value in raw_values:
+        company_code = _normalize_company_code(value)
+        if not company_code:
+            continue
+        if company_code in {COMPANY_SCOPE_ALL, "ALL", "TODAS", "CONSOLIDADO"}:
+            return [COMPANY_SCOPE_ALL]
+        if company_code not in normalized:
+            normalized.append(company_code)
+    return normalized
+
+
+def _user_company_scope(user: dict | None) -> list[str]:
+    if not isinstance(user, dict):
+        return []
+    return _normalize_company_scope(user.get("company_scope"))
+
+
+def _user_has_wildcard_scope(user: dict | None) -> bool:
+    return COMPANY_SCOPE_ALL in _user_company_scope(user)
+
+
+def _user_has_company_access(user: dict | None, company_code: str | None) -> bool:
+    if not company_code:
+        return False
+    if _user_has_wildcard_scope(user):
+        return True
+    return company_code in set(_user_company_scope(user))
+
+
+def _company_scope_requires_selection(user: dict | None) -> bool:
+    scope = _user_company_scope(user)
+    return bool(scope) and COMPANY_SCOPE_ALL not in scope and len(scope) > 1
+
+
+def _current_utc() -> datetime:
+    return datetime.now(timezone.utc)
+
+
+def _token_expiry_iso(expiration_timestamp: int) -> str:
+    return datetime.fromtimestamp(expiration_timestamp, tz=timezone.utc).isoformat()
+
+
+def issue_access_token(user: dict) -> tuple[str, str]:
+    now = _current_utc()
+    expires_at = now + timedelta(seconds=SETTINGS.auth_token_ttl_seconds)
+    payload = {
+        "sub": str(user.get("id") or ""),
+        "role": str(user.get("role") or ""),
+        "company_scope": _user_company_scope(user),
+        "iat": int(now.timestamp()),
+        "exp": int(expires_at.timestamp()),
+    }
+    header_segment = _b64url_encode(json.dumps({"alg": "HS256", "typ": "JWT"}, separators=(",", ":")).encode("utf-8"))
+    payload_segment = _b64url_encode(json.dumps(payload, separators=(",", ":"), ensure_ascii=False).encode("utf-8"))
+    signing_input = f"{header_segment}.{payload_segment}"
+    signature = _b64url_encode(hmac.new(_auth_secret_bytes(), signing_input.encode("utf-8"), hashlib.sha256).digest())
+    return f"{signing_input}.{signature}", expires_at.isoformat()
+
+
+def decode_access_token(token: str) -> dict:
+    try:
+        header_segment, payload_segment, signature_segment = token.split(".", 2)
+    except ValueError as exc:
+        raise ApiRequestError(
+            HTTPStatus.UNAUTHORIZED,
+            "Authentication required",
+            "Token de acesso inválido.",
+            code="invalid_token",
+        ) from exc
+
+    signing_input = f"{header_segment}.{payload_segment}"
+    expected_signature = _b64url_encode(
+        hmac.new(_auth_secret_bytes(), signing_input.encode("utf-8"), hashlib.sha256).digest()
+    )
+    if not hmac.compare_digest(signature_segment, expected_signature):
+        raise ApiRequestError(
+            HTTPStatus.UNAUTHORIZED,
+            "Authentication required",
+            "Token de acesso inválido.",
+            code="invalid_token",
+        )
+    try:
+        payload = json.loads(_b64url_decode(payload_segment).decode("utf-8"))
+    except (ValueError, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ApiRequestError(
+            HTTPStatus.UNAUTHORIZED,
+            "Authentication required",
+            "Token de acesso inválido.",
+            code="invalid_token",
+        ) from exc
+    exp = int(payload.get("exp") or 0)
+    if exp <= int(_current_utc().timestamp()):
+        raise ApiRequestError(
+            HTTPStatus.UNAUTHORIZED,
+            "Authentication required",
+            "Sessão expirada. Faça login novamente.",
+            code="token_expired",
+        )
+    return payload
+
+
+def _permission_allowed(user: dict, permission: str) -> bool:
+    role = str((user or {}).get("role") or "").strip().lower()
+    permissions = set(ROLE_PERMISSIONS.get(role, set()))
+    if role == "root":
+        permissions.update(ADMIN_PERMISSIONS)
+    if COMPANY_SCOPE_ALL in permissions or "*" in permissions:
+        return True
+    return permission in permissions
 
 
 def content_type_for(path: Path) -> str:
@@ -44,6 +270,46 @@ def json_default(value):
     if isinstance(value, Decimal):
         return float(value)
     raise TypeError(f"Tipo nao serializavel: {type(value)!r}")
+
+
+def _require_object_payload(payload, *, route: str) -> dict:
+    if not isinstance(payload, dict):
+        raise ApiRequestError(
+            HTTPStatus.BAD_REQUEST,
+            "Invalid request payload",
+            f"O corpo enviado para `{route}` deve ser um objeto JSON.",
+            code="invalid_payload",
+        )
+    return payload
+
+
+def _sanitize_user_response(payload):
+    if isinstance(payload, list):
+        return [public_user_record(item) if isinstance(item, dict) else item for item in payload]
+    if isinstance(payload, dict):
+        sanitized = dict(payload)
+        if isinstance(sanitized.get("user"), dict):
+            sanitized["user"] = public_user_record(sanitized["user"])
+        if isinstance(sanitized.get("items"), list):
+            sanitized["items"] = [public_user_record(item) if isinstance(item, dict) else item for item in sanitized["items"]]
+        return sanitized
+    return payload
+
+
+def _sanitize_integration_response(payload):
+    if isinstance(payload, list):
+        return [public_integration_record(item) if isinstance(item, dict) else item for item in payload]
+    if isinstance(payload, dict):
+        sanitized = dict(payload)
+        if isinstance(sanitized.get("integration"), dict):
+            sanitized["integration"] = public_integration_record(sanitized["integration"])
+        if isinstance(sanitized.get("items"), list):
+            sanitized["items"] = [
+                public_integration_record(item) if isinstance(item, dict) else item
+                for item in sanitized["items"]
+            ]
+        return sanitized
+    return payload
 
 
 def _to_float(value) -> float:
@@ -328,6 +594,16 @@ def sync_parsed_romaneios(records: list[dict], source_code: str = ROMANEIO_PDF_S
 
     normalized_records = [item for item in (_normalize_sync_parsed_record(record) for record in records) if item]
     consolidated_records = _consolidate_parsed_romaneios(normalized_records)
+    if not consolidated_records:
+        kanban_count = len((PROVIDER.romaneios_kanban() or {}).get("romaneios") or [])
+        return {
+            "status": "error",
+            "count": 0,
+            "kanban_count": kanban_count,
+            "results": [],
+            "processed_files": [],
+            "errors": [{"error": "Nenhum romaneio válido foi informado para ingestão."}],
+        }
 
     for parsed in consolidated_records:
         try:
@@ -647,12 +923,226 @@ def dispatch_apontamento_to_integration(payload: dict | None = None) -> dict:
 class PcpApiHandler(BaseHTTPRequestHandler):
     server_version = "PCPSaaSReference/1.1"
 
-    def read_json_body(self) -> dict:
-        content_length = int(self.headers.get("Content-Length", "0") or "0")
+    def read_json_body(self, *, max_bytes: int = DEFAULT_MAX_JSON_BODY_BYTES):
+        try:
+            content_length = int(self.headers.get("Content-Length", "0") or "0")
+        except ValueError as exc:
+            raise ApiRequestError(
+                HTTPStatus.BAD_REQUEST,
+                "Invalid request payload",
+                "Cabeçalho `Content-Length` inválido.",
+                code="invalid_content_length",
+            ) from exc
+        if content_length < 0:
+            raise ApiRequestError(
+                HTTPStatus.BAD_REQUEST,
+                "Invalid request payload",
+                "Cabeçalho `Content-Length` inválido.",
+                code="invalid_content_length",
+            )
+        if content_length > max_bytes:
+            raise ApiRequestError(
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                "Request payload too large",
+                f"O corpo excede o limite operacional de {max_bytes} bytes.",
+                code="payload_too_large",
+            )
         raw_body = self.rfile.read(content_length) if content_length > 0 else b"{}"
         if not raw_body.strip():
             return {}
-        return json.loads(raw_body.decode("utf-8"))
+        if len(raw_body) > max_bytes:
+            raise ApiRequestError(
+                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                "Request payload too large",
+                f"O corpo excede o limite operacional de {max_bytes} bytes.",
+                code="payload_too_large",
+            )
+        try:
+            decoded = raw_body.decode("utf-8")
+        except UnicodeDecodeError as exc:
+            raise ApiRequestError(
+                HTTPStatus.BAD_REQUEST,
+                "Invalid request payload",
+                "O corpo da requisição deve estar em UTF-8 válido.",
+                code="invalid_encoding",
+            ) from exc
+        try:
+            return json.loads(decoded)
+        except json.JSONDecodeError as exc:
+            raise ApiRequestError(
+                HTTPStatus.BAD_REQUEST,
+                "Invalid JSON body",
+                "O corpo da requisição não contém JSON válido.",
+                code="invalid_json",
+            ) from exc
+
+    def send_api_error(self, status: HTTPStatus, error: str, detail: str, *, code: str) -> None:
+        self.send_json(
+            status,
+            {
+                "error": error,
+                "detail": detail,
+                "code": code,
+                "mode": SETTINGS.data_mode,
+            },
+        )
+
+    def client_ip(self) -> str:
+        forwarded_for = str(self.headers.get("X-Forwarded-For", "") or "").strip()
+        if forwarded_for:
+            return forwarded_for.split(",")[0].strip()
+        return str(self.client_address[0] if self.client_address else "")
+
+    def record_audit_event(
+        self,
+        event_type: str,
+        *,
+        status: str,
+        user: dict | None = None,
+        detail: str = "",
+        company_code: str | None = None,
+        permission: str | None = None,
+    ) -> None:
+        AUDIT_LOG_PATH.parent.mkdir(parents=True, exist_ok=True)
+        event = {
+            "recorded_at": _current_utc().isoformat(),
+            "mode": SETTINGS.data_mode,
+            "event_type": event_type,
+            "status": status,
+            "route": self.path,
+            "method": self.command,
+            "client_ip": self.client_ip(),
+            "permission": permission or "",
+            "company_code": company_code or "",
+            "detail": detail,
+            "user_id": str((user or {}).get("id") or ""),
+            "username": str((user or {}).get("username") or ""),
+            "role": str((user or {}).get("role") or ""),
+            "company_scope": _user_company_scope(user),
+        }
+        with AUDIT_LOG_PATH.open("a", encoding="utf-8") as handle:
+            handle.write(json.dumps(event, ensure_ascii=False) + "\n")
+
+    def _extract_bearer_token(self) -> str:
+        authorization = str(self.headers.get("Authorization", "") or "").strip()
+        expected_prefix = f"{AUTH_TOKEN_TYPE} "
+        if not authorization.startswith(expected_prefix):
+            raise ApiRequestError(
+                HTTPStatus.UNAUTHORIZED,
+                "Authentication required",
+                "Informe um token Bearer válido para acessar esta rota.",
+                code="missing_token",
+            )
+        token = authorization[len(expected_prefix):].strip()
+        if not token:
+            raise ApiRequestError(
+                HTTPStatus.UNAUTHORIZED,
+                "Authentication required",
+                "Informe um token Bearer válido para acessar esta rota.",
+                code="missing_token",
+            )
+        return token
+
+    def _resolve_current_user(self) -> dict:
+        token_payload = decode_access_token(self._extract_bearer_token())
+        user_id = str(token_payload.get("sub") or "").strip()
+        users = PROVIDER.users().get("items", [])
+        user = next((item for item in users if str(item.get("id") or "").strip() == user_id), None)
+        if not user or not user.get("active"):
+            raise ApiRequestError(
+                HTTPStatus.UNAUTHORIZED,
+                "Authentication required",
+                "Usuário inválido, inativo ou removido.",
+                code="invalid_session",
+            )
+        self._current_audit_user = user
+        return user
+
+    def require_authorized_user(self, *, permission: str, company_code: str | None = None) -> dict:
+        try:
+            user = self._resolve_current_user()
+        except ApiRequestError as exc:
+            self.record_audit_event("auth.access_denied", status="denied", detail=exc.detail, permission=permission)
+            raise
+        if permission in ADMIN_PERMISSIONS and str(user.get("role") or "").strip().lower() != "root":
+            detail = "Apenas o perfil root pode acessar esta rota administrativa."
+            self.record_audit_event("auth.access_denied", status="denied", user=user, detail=detail, permission=permission)
+            raise ApiRequestError(HTTPStatus.FORBIDDEN, "Forbidden", detail, code="forbidden")
+        if not _permission_allowed(user, permission):
+            detail = "O usuário autenticado não possui permissão para executar esta ação."
+            self.record_audit_event("auth.access_denied", status="denied", user=user, detail=detail, permission=permission)
+            raise ApiRequestError(HTTPStatus.FORBIDDEN, "Forbidden", detail, code="forbidden")
+        normalized_company_code = _normalize_company_code(company_code)
+        if normalized_company_code and not _user_has_company_access(user, normalized_company_code):
+            detail = f"O usuário não possui acesso à empresa `{normalized_company_code}`."
+            self.record_audit_event(
+                "auth.company_denied",
+                status="denied",
+                user=user,
+                detail=detail,
+                company_code=normalized_company_code,
+                permission=permission,
+            )
+            raise ApiRequestError(HTTPStatus.FORBIDDEN, "Forbidden", detail, code="company_forbidden")
+        return user
+
+    def resolve_scoped_query_company_code(self, user: dict, requested_company_code: str | None, *, route: str) -> str | None:
+        normalized_company_code = _normalize_company_code(requested_company_code)
+        if normalized_company_code:
+            if not _user_has_company_access(user, normalized_company_code):
+                raise ApiRequestError(
+                    HTTPStatus.FORBIDDEN,
+                    "Forbidden",
+                    f"O usuário não possui acesso à empresa `{normalized_company_code}`.",
+                    code="company_forbidden",
+                )
+            return normalized_company_code
+        if _user_has_wildcard_scope(user):
+            return None
+        scope = _user_company_scope(user)
+        if len(scope) == 1:
+            return scope[0]
+        if len(scope) > 1:
+            raise ApiRequestError(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "Invalid request payload",
+                f"Informe `company_code` para acessar `{route}` com escopo multiempresa.",
+                code="missing_company_code",
+            )
+        raise ApiRequestError(
+            HTTPStatus.FORBIDDEN,
+            "Forbidden",
+            "Usuário sem empresa vinculada para acessar esta rota.",
+            code="missing_company_scope",
+        )
+
+    def filter_items_by_company_scope(self, items: list[dict], user: dict, *, company_code: str | None = None) -> list[dict]:
+        normalized_company_code = _normalize_company_code(company_code)
+        filtered: list[dict] = []
+        for item in items:
+            item_company_code = _normalize_company_code(
+                item.get("company_code") or item.get("empresa") or item.get("codigo_empresa") or item.get("company")
+            )
+            if normalized_company_code:
+                if item_company_code == normalized_company_code:
+                    filtered.append(item)
+                continue
+            if _user_has_wildcard_scope(user) or (item_company_code and _user_has_company_access(user, item_company_code)):
+                filtered.append(item)
+        return filtered
+
+    def record_critical_action(self, route: str, *, status: str, user: dict | None = None, detail: str = "", company_code: str | None = None) -> None:
+        event_type = CRITICAL_AUDIT_ACTIONS.get(route)
+        if not event_type:
+            return
+        actor = user if isinstance(user, dict) else getattr(self, "_current_audit_user", None)
+        self.record_audit_event(
+            event_type,
+            status=status,
+            user=actor,
+            detail=detail,
+            company_code=company_code,
+        )
 
     def do_GET(self) -> None:
         parsed = urlparse(self.path)
@@ -663,101 +1153,257 @@ class PcpApiHandler(BaseHTTPRequestHandler):
 
     def do_POST(self) -> None:
         parsed = urlparse(self.path)
+        audit_user: dict | None = None
+        audit_company_code: str | None = None
+        self._current_audit_user = None
         try:
             if parsed.path == "/api/pcp/runs/mrp":
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))
+                audit_user = self.require_authorized_user(permission="mrp.run", company_code=audit_company_code)
                 self.send_json(HTTPStatus.OK, PROVIDER.run_mrp())
+                self.record_critical_action(parsed.path, status="success", user=audit_user, company_code=audit_company_code)
                 return
 
             if parsed.path == "/api/pcp/sources/sync":
-                if not self.authorize_sync():
-                    return
-                payload = self.read_json_body()
+                audit_user = self.require_authorized_user(permission="sources.sync")
+                if SETTINGS.sync_api_token and not self.authorize_sync(send_on_failure=False):
+                    raise ApiRequestError(
+                        HTTPStatus.UNAUTHORIZED,
+                        "Authentication required",
+                        "Sync token required for this operation",
+                        code="sync_token_required",
+                    )
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
                 self.send_json(HTTPStatus.OK, PROVIDER.sync_sources(payload))
+                self.record_critical_action(parsed.path, status="success", user=audit_user)
                 return
 
             if parsed.path == "/api/pcp/structure-overrides":
-                payload = self.read_json_body()
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))
+                audit_user = self.require_authorized_user(permission="structure_override.write", company_code=audit_company_code)
                 self.send_json(HTTPStatus.OK, PROVIDER.save_structure_override(payload))
+                self.record_critical_action(parsed.path, status="success", user=audit_user, company_code=audit_company_code)
                 return
 
             if parsed.path == "/api/pcp/programming-entries":
-                payload = self.read_json_body()
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))
+                audit_user = self.require_authorized_user(permission="programming.write", company_code=audit_company_code)
                 self.send_json(HTTPStatus.OK, PROVIDER.save_programming_entry(payload))
+                self.record_critical_action(parsed.path, status="success", user=audit_user, company_code=audit_company_code)
                 return
 
             if parsed.path == "/api/pcp/users/save":
-                payload = self.read_json_body()
-                self.send_json(HTTPStatus.OK, PROVIDER.save_user(payload))
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_user = self.require_authorized_user(permission="users.write")
+                self.send_json(HTTPStatus.OK, _sanitize_user_response(PROVIDER.save_user(payload)))
+                self.record_critical_action(parsed.path, status="success", user=audit_user)
                 return
 
             if parsed.path == "/api/pcp/integrations/save":
-                payload = self.read_json_body()
-                self.send_json(HTTPStatus.OK, PROVIDER.save_integration(payload))
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_user = self.require_authorized_user(permission="integrations.write")
+                self.send_json(HTTPStatus.OK, _sanitize_integration_response(PROVIDER.save_integration(payload)))
+                self.record_critical_action(parsed.path, status="success", user=audit_user)
                 return
 
             if parsed.path == "/api/pcp/stock-movements/save":
-                payload = self.read_json_body()
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))
+                audit_user = self.require_authorized_user(permission="stock.write", company_code=audit_company_code)
                 self.send_json(HTTPStatus.OK, PROVIDER.save_stock_movement(payload))
+                self.record_critical_action(parsed.path, status="success", user=audit_user, company_code=audit_company_code)
                 return
 
             if parsed.path == "/api/pcp/apontamento/save":
-                payload = self.read_json_body()
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))
+                audit_user = self.require_authorized_user(permission="apontamento.write", company_code=audit_company_code)
                 self.send_json(HTTPStatus.OK, PROVIDER.save_apontamento(payload))
+                self.record_critical_action(parsed.path, status="success", user=audit_user, company_code=audit_company_code)
                 return
 
             if parsed.path == "/api/pcp/apontamento/sync-status":
-                payload = self.read_json_body()
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))
+                audit_user = self.require_authorized_user(permission="apontamento.dispatch", company_code=audit_company_code)
                 self.send_json(HTTPStatus.OK, PROVIDER.save_apontamento_sync_status(payload))
+                self.record_critical_action(parsed.path, status="success", user=audit_user, company_code=audit_company_code)
                 return
             if parsed.path == "/api/pcp/apontamento/dispatch":
-                payload = self.read_json_body()
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))
+                audit_user = self.require_authorized_user(permission="apontamento.dispatch", company_code=audit_company_code)
                 self.send_json(HTTPStatus.OK, dispatch_apontamento_to_integration(payload))
+                self.record_critical_action(parsed.path, status="success", user=audit_user, company_code=audit_company_code)
                 return
 
             if parsed.path == "/api/pcp/auth/login":
-                payload = self.read_json_body()
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
                 username = str(payload.get("username") or "").strip()
                 password = str(payload.get("password") or "").strip()
+                if not username or not password:
+                    raise ApiRequestError(
+                        HTTPStatus.BAD_REQUEST,
+                        "Invalid login payload",
+                        "Informe `username` e `password` para autenticar.",
+                        code="missing_credentials",
+                    )
                 user = PROVIDER.authenticate_user(username, password)
                 if not user:
+                    self.record_audit_event(
+                        "auth.login",
+                        status="failed",
+                        detail=f"Falha de login para `{username}`.",
+                    )
                     self.send_json(HTTPStatus.UNAUTHORIZED, {"error": "Usuário ou senha inválidos"})
                     return
-                self.send_json(HTTPStatus.OK, {"status": "authenticated", "user": user})
+                access_token, expires_at = issue_access_token(user)
+                self.record_audit_event("auth.login", status="success", user=user, detail="Login autenticado com sucesso.")
+                self.send_json(
+                    HTTPStatus.OK,
+                    {
+                        "status": "authenticated",
+                        "user": public_user_record(user),
+                        "access_token": access_token,
+                        "token_type": AUTH_TOKEN_TYPE,
+                        "expires_at": expires_at,
+                    },
+                )
                 return
 
             if parsed.path == "/api/pcp/romaneios-kanban/update-date":
-                payload = self.read_json_body()
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))
+                audit_user = self.require_authorized_user(permission="romaneios.write", company_code=audit_company_code)
                 self.send_json(HTTPStatus.OK, PROVIDER.save_romaneio_schedule(payload))
+                self.record_critical_action(parsed.path, status="success", user=audit_user, company_code=audit_company_code)
                 return
 
             if parsed.path == "/api/pcp/romaneios/delete":
-                payload = self.read_json_body()
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))
+                audit_user = self.require_authorized_user(permission="romaneios.delete", company_code=audit_company_code)
                 self.send_json(HTTPStatus.OK, PROVIDER.delete_romaneio(payload))
+                self.record_critical_action(parsed.path, status="success", user=audit_user, company_code=audit_company_code)
                 return
 
             if parsed.path == "/api/pcp/romaneios-kanban/sync":
+                audit_user = self.require_authorized_user(permission="romaneios.ingest")
                 payload = self.read_json_body()
-                records = payload if isinstance(payload, list) else payload.get("records") or []
+                if isinstance(payload, list):
+                    records = payload
+                elif isinstance(payload, dict):
+                    records = payload.get("records") or []
+                else:
+                    raise ApiRequestError(
+                        HTTPStatus.BAD_REQUEST,
+                        "Invalid request payload",
+                        "O corpo enviado deve ser uma lista de registros ou um objeto com `records`.",
+                        code="invalid_records_payload",
+                    )
+                if not isinstance(records, list):
+                    raise ApiRequestError(
+                        HTTPStatus.BAD_REQUEST,
+                        "Invalid request payload",
+                        "`records` deve ser uma lista de romaneios normalizados.",
+                        code="invalid_records_payload",
+                    )
+                if not records:
+                    raise ApiRequestError(
+                        HTTPStatus.BAD_REQUEST,
+                        "Invalid request payload",
+                        "Informe pelo menos um registro em `records` para sincronizar.",
+                        code="empty_records_payload",
+                    )
+                for record in records:
+                    company_code = _normalize_company_code(
+                        record.get("empresa") or record.get("codigo_empresa") or record.get("codigoEmpresa")
+                    )
+                    if company_code and not _user_has_company_access(audit_user, company_code):
+                        raise ApiRequestError(
+                            HTTPStatus.FORBIDDEN,
+                            "Forbidden",
+                            f"O usuário não possui acesso à empresa `{company_code}`.",
+                            code="company_forbidden",
+                        )
                 self.send_json(HTTPStatus.OK, sync_parsed_romaneios(records, source_code=ROMANEIO_WEBHOOK_SOURCE_CODE))
+                self.record_critical_action(parsed.path, status="success", user=audit_user)
                 return
 
             if parsed.path == "/api/pcp/romaneios/upload":
-                payload = self.read_json_body()
+                audit_user = self.require_authorized_user(permission="romaneios.ingest")
+                payload = _require_object_payload(
+                    self.read_json_body(max_bytes=UPLOAD_MAX_JSON_BODY_BYTES),
+                    route=parsed.path,
+                )
                 files = payload.get("files") or []
+                if not isinstance(files, list):
+                    raise ApiRequestError(
+                        HTTPStatus.BAD_REQUEST,
+                        "Invalid request payload",
+                        "`files` deve ser uma lista de arquivos em base64.",
+                        code="invalid_files_payload",
+                    )
+                if len(files) > MAX_ROMANEIO_UPLOAD_FILES:
+                    raise ApiRequestError(
+                        HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                        "Upload batch too large",
+                        f"O lote excede o limite de {MAX_ROMANEIO_UPLOAD_FILES} arquivos por envio.",
+                        code="too_many_files",
+                    )
                 parsed_records: list[dict] = []
                 file_errors: list[dict] = []
+                decoded_total_bytes = 0
 
                 for entry in files:
+                    if not isinstance(entry, dict):
+                        file_errors.append({"file_name": "sem_nome", "error": "Entrada de arquivo inválida."})
+                        continue
                     name = str(entry.get("name") or "").strip()
                     content_base64 = str(entry.get("content_base64") or "").strip()
                     if not name or not content_base64:
                         file_errors.append({"file_name": name or "sem_nome", "error": "Arquivo sem nome ou conteúdo."})
                         continue
                     try:
-                        file_bytes = base64.b64decode(content_base64)
+                        file_bytes = base64.b64decode(content_base64, validate=True)
+                        if len(file_bytes) > MAX_ROMANEIO_UPLOAD_FILE_BYTES:
+                            file_errors.append(
+                                {
+                                    "file_name": name,
+                                    "error": f"Arquivo acima do limite operacional de {MAX_ROMANEIO_UPLOAD_FILE_BYTES} bytes.",
+                                }
+                            )
+                            continue
+                        decoded_total_bytes += len(file_bytes)
+                        if decoded_total_bytes > MAX_ROMANEIO_UPLOAD_TOTAL_BYTES:
+                            raise ApiRequestError(
+                                HTTPStatus.REQUEST_ENTITY_TOO_LARGE,
+                                "Upload batch too large",
+                                f"O lote excede o limite operacional de {MAX_ROMANEIO_UPLOAD_TOTAL_BYTES} bytes decodificados.",
+                                code="upload_total_too_large",
+                            )
                         parsed_records.append(parse_romaneio_pdf_bytes(file_bytes, name))
+                    except ApiRequestError:
+                        raise
+                    except (binascii.Error, ValueError):
+                        file_errors.append({"file_name": name, "error": "Conteúdo base64 inválido."})
                     except Exception as exc:  # noqa: BLE001
                         file_errors.append({"file_name": name, "error": str(exc)})
+
+                for parsed_record in parsed_records:
+                    company_code = _normalize_company_code(
+                        parsed_record.get("empresa") or parsed_record.get("codigo_empresa") or parsed_record.get("codigoEmpresa")
+                    )
+                    if company_code and not _user_has_company_access(audit_user, company_code):
+                        raise ApiRequestError(
+                            HTTPStatus.FORBIDDEN,
+                            "Forbidden",
+                            f"O usuário não possui acesso à empresa `{company_code}`.",
+                            code="company_forbidden",
+                        )
 
                 response = sync_parsed_romaneios(parsed_records, source_code=ROMANEIO_PDF_SOURCE_CODE)
                 response["uploaded_files"] = len(files)
@@ -765,53 +1411,84 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                     response["errors"] = response.get("errors", []) + file_errors
                     if response["status"] == "success":
                         response["status"] = "partial"
+                if not parsed_records and file_errors:
+                    response["status"] = "error"
                 self.send_json(HTTPStatus.OK, response)
+                self.record_critical_action(parsed.path, status="success", user=audit_user)
                 return
 
             if parsed.path == "/api/pcp/romaneios/refresh":
-                payload = self.read_json_body()
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))
+                audit_user = self.require_authorized_user(permission="romaneios.ingest", company_code=audit_company_code)
                 self.send_json(HTTPStatus.OK, refresh_romaneios_from_integration(payload))
+                self.record_critical_action(parsed.path, status="success", user=audit_user, company_code=audit_company_code)
                 return
+        except ApiRequestError as exc:
+            self.record_critical_action(parsed.path, status="error", user=audit_user, detail=exc.detail, company_code=audit_company_code)
+            self.send_api_error(exc.status, exc.error, exc.detail, code=exc.code)
+            return
+        except SourceSyncError as exc:
+            self.record_critical_action(parsed.path, status="error", user=audit_user, detail=str(exc), company_code=audit_company_code)
+            self.send_api_error(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "Invalid request payload",
+                str(exc),
+                code="invalid_sync_request",
+            )
+            return
+        except (ValueError, KeyError) as exc:
+            detail = str(exc)
+            if isinstance(exc, KeyError):
+                detail = f"Campo obrigatório ausente: {exc.args[0]}"
+            self.record_critical_action(parsed.path, status="error", user=audit_user, detail=detail, company_code=audit_company_code)
+            self.send_api_error(
+                HTTPStatus.UNPROCESSABLE_ENTITY,
+                "Invalid request payload",
+                detail,
+                code="validation_error",
+            )
+            return
         except Exception as exc:  # noqa: BLE001
-            self.send_json(
+            self.record_critical_action(parsed.path, status="error", user=audit_user, detail=str(exc), company_code=audit_company_code)
+            self.send_api_error(
                 HTTPStatus.INTERNAL_SERVER_ERROR,
-                {
-                    "error": "Backend PCP unavailable",
-                    "detail": str(exc),
-                    "mode": SETTINGS.data_mode,
-                },
+                "Backend PCP unavailable",
+                str(exc),
+                code="internal_error",
             )
             return
         self.send_json(HTTPStatus.NOT_FOUND, {"error": "Route not found"})
 
-    def authorize_sync(self) -> bool:
+    def authorize_sync(self, *, send_on_failure: bool = True) -> bool:
         expected_token = SETTINGS.sync_api_token
         if not expected_token:
             return True
         header_token = self.headers.get("X-PCP-Sync-Token", "").strip()
-        auth_header = self.headers.get("Authorization", "").strip()
-        bearer_token = ""
-        if auth_header.lower().startswith("bearer "):
-            bearer_token = auth_header[7:].strip()
-        if header_token == expected_token or bearer_token == expected_token:
+        if header_token and hmac.compare_digest(header_token, expected_token):
             return True
-        self.send_json(
-            HTTPStatus.UNAUTHORIZED,
-            {"error": "Sync token required for this operation"},
-        )
+        if send_on_failure:
+            self.send_json(
+                HTTPStatus.UNAUTHORIZED,
+                {"error": "Sync token required for this operation"},
+            )
         return False
 
     def handle_api_get(self, parsed) -> None:
         query = parse_qs(parsed.query)
         path = parsed.path
-        company_code = (query.get("company_code", [""])[0] or "").strip() or None
+        requested_company_code = (query.get("company_code", [""])[0] or "").strip() or None
 
         try:
             if path == "/api/pcp/overview":
+                user = self.require_authorized_user(permission="overview.read", company_code=_normalize_company_code(requested_company_code))
+                company_code = self.resolve_scoped_query_company_code(user, requested_company_code, route=path)
                 self.send_json(HTTPStatus.OK, PROVIDER.overview(company_code=company_code))
                 return
 
             if path == "/api/pcp/painel":
+                user = self.require_authorized_user(permission="painel.read", company_code=_normalize_company_code(requested_company_code))
+                company_code = self.resolve_scoped_query_company_code(user, requested_company_code, route=path)
                 self.send_json(
                     HTTPStatus.OK,
                     PROVIDER.painel(
@@ -824,7 +1501,12 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/pcp/romaneios":
-                self.send_json(HTTPStatus.OK, PROVIDER.romaneios())
+                user = self.require_authorized_user(permission="romaneios.read", company_code=_normalize_company_code(requested_company_code))
+                items = PROVIDER.romaneios().get("items", [])
+                self.send_json(
+                    HTTPStatus.OK,
+                    {"items": self.filter_items_by_company_scope(items, user, company_code=requested_company_code)},
+                )
                 return
 
             if path.startswith("/api/pcp/romaneios/"):
@@ -832,26 +1514,56 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 if romaneio_code == "kanban":
                     pass
                 else:
+                    user = self.require_authorized_user(permission="romaneios.read", company_code=_normalize_company_code(requested_company_code))
                     payload = PROVIDER.romaneio_detail(romaneio_code)
                     if payload is None:
                         self.send_json(HTTPStatus.NOT_FOUND, {"error": "Romaneio not found"})
                         return
+                    header = payload.get("header") if isinstance(payload.get("header"), dict) else payload
+                    detail_company_code = _normalize_company_code(
+                        header.get("company_code") or header.get("empresa") or header.get("codigo_empresa")
+                    )
+                    if requested_company_code and detail_company_code and detail_company_code != _normalize_company_code(requested_company_code):
+                        self.send_json(HTTPStatus.NOT_FOUND, {"error": "Romaneio not found"})
+                        return
+                    if detail_company_code and not _user_has_company_access(user, detail_company_code) and not _user_has_wildcard_scope(user):
+                        raise ApiRequestError(
+                            HTTPStatus.FORBIDDEN,
+                            "Forbidden",
+                            f"O usuário não possui acesso à empresa `{detail_company_code}`.",
+                            code="company_forbidden",
+                        )
                     self.send_json(HTTPStatus.OK, payload)
                     return
 
             if path == "/api/pcp/romaneios-kanban":
-                self.send_json(HTTPStatus.OK, PROVIDER.romaneios_kanban())
+                user = self.require_authorized_user(permission="romaneios.read", company_code=_normalize_company_code(requested_company_code))
+                if _user_has_wildcard_scope(user) and not requested_company_code:
+                    self.send_json(HTTPStatus.OK, PROVIDER.romaneios_kanban())
+                    return
+                company_code = self.resolve_scoped_query_company_code(user, requested_company_code, route=path)
+                romaneios_items = PROVIDER.romaneios().get("items", [])
+                self.send_json(
+                    HTTPStatus.OK,
+                    {
+                        "products": PROVIDER.painel(company_code=company_code).get("items", []),
+                        "romaneios": self.filter_items_by_company_scope(romaneios_items, user, company_code=company_code),
+                    },
+                )
                 return
 
             if path == "/api/pcp/assembly":
+                self.require_authorized_user(permission="assembly.read")
                 self.send_json(HTTPStatus.OK, PROVIDER.assembly())
                 return
 
             if path == "/api/pcp/production":
+                self.require_authorized_user(permission="production.read")
                 self.send_json(HTTPStatus.OK, PROVIDER.production())
                 return
 
             if path == "/api/pcp/structures":
+                self.require_authorized_user(permission="structures.read")
                 self.send_json(
                     HTTPStatus.OK,
                     PROVIDER.structures(
@@ -862,6 +1574,7 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/pcp/programming":
+                self.require_authorized_user(permission="programming.read")
                 self.send_json(
                     HTTPStatus.OK,
                     PROVIDER.programming(action=(query.get("action", [""])[0] or "").strip() or None),
@@ -869,31 +1582,38 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/pcp/users":
-                self.send_json(HTTPStatus.OK, PROVIDER.users())
+                self.require_authorized_user(permission="users.read")
+                self.send_json(HTTPStatus.OK, _sanitize_user_response(PROVIDER.users()))
                 return
 
             if path == "/api/pcp/integrations":
-                self.send_json(HTTPStatus.OK, PROVIDER.integrations())
+                self.require_authorized_user(permission="integrations.read")
+                self.send_json(HTTPStatus.OK, _sanitize_integration_response(PROVIDER.integrations()))
                 return
 
             if path == "/api/pcp/stock-movements":
+                self.require_authorized_user(permission="stock.read")
                 self.send_json(HTTPStatus.OK, PROVIDER.stock_movements())
                 return
 
             if path == "/api/pcp/apontamento/logs":
+                self.require_authorized_user(permission="apontamento.read")
                 self.send_json(HTTPStatus.OK, PROVIDER.apontamento_logs())
                 return
 
             if path == "/api/pcp/apontamento/export":
+                self.require_authorized_user(permission="apontamento.read")
                 pending_only = (query.get("pending_only", [""])[0] or "").strip().lower() in {"1", "true", "yes", "sim"}
                 self.send_json(HTTPStatus.OK, PROVIDER.apontamento_export(pending_only))
                 return
 
             if path == "/api/pcp/production-rules":
+                self.require_authorized_user(permission="production_rules.read")
                 self.send_json(HTTPStatus.OK, PROVIDER.production_rules())
                 return
 
             if path == "/api/pcp/purchases":
+                self.require_authorized_user(permission="purchases.read")
                 self.send_json(
                     HTTPStatus.OK,
                     PROVIDER.purchases(product_type=(query.get("product_type", [""])[0] or "").strip() or None),
@@ -901,30 +1621,34 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 return
 
             if path == "/api/pcp/recycling":
+                self.require_authorized_user(permission="recycling.read")
                 self.send_json(HTTPStatus.OK, PROVIDER.recycling())
                 return
 
             if path == "/api/pcp/costs":
+                self.require_authorized_user(permission="costs.read")
                 self.send_json(HTTPStatus.OK, PROVIDER.costs())
                 return
 
             if path == "/api/pcp/sources":
+                self.require_authorized_user(permission="sources.read")
                 self.send_json(HTTPStatus.OK, PROVIDER.sources())
                 return
 
             if path == "/api/pcp/alerts":
+                self.require_authorized_user(permission="alerts.read")
                 self.send_json(HTTPStatus.OK, PROVIDER.alerts())
                 return
 
             self.send_json(HTTPStatus.NOT_FOUND, {"error": "Route not found"})
+        except ApiRequestError as exc:
+            self.send_api_error(exc.status, exc.error, exc.detail, code=exc.code)
         except Exception as exc:  # noqa: BLE001
-            self.send_json(
+            self.send_api_error(
                 HTTPStatus.INTERNAL_SERVER_ERROR,
-                {
-                    "error": "Backend PCP unavailable",
-                    "detail": str(exc),
-                    "mode": SETTINGS.data_mode,
-                },
+                "Backend PCP unavailable",
+                str(exc),
+                code="internal_error",
             )
 
     def handle_static(self, raw_path: str) -> None:

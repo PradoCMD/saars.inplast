@@ -1,0 +1,1030 @@
+{
+  "spec_name": "Modulo PCP SaaS - saars.inplast",
+  "spec_version": "1.0.0",
+  "created_at": "2026-04-08",
+  "spec_mode": "estado_atual_mais_evolucao",
+  "repo_root": ".",
+  "summary": {
+    "product_goal": "Consolidar o modulo PCP como a camada operacional do grupo, conectando dados ERP e fontes externas a uma visao unica de planejamento, romaneios, MRP, apontamento e governanca multiempresa.",
+    "current_state": "O repositorio ja possui backend HTTP em Python, camada de provider mock/postgres, workflows n8n, parsers, frontend legacy em web/ e frontend em evolucao em web-react/, alem de dados e docs que cobrem boa parte do modulo.",
+    "spec_goal": "Documentar o que ja existe, fechar contratos tecnicos minimos e organizar a evolucao por sprint sem perder o escopo integral do modulo."
+  },
+  "source_evidence": [
+    "README.md",
+    "server.py",
+    "backend/provider.py",
+    "backend/config.py",
+    "docs/pcp_contrato_fontes_previsao.md",
+    "docs/pcp_prioridade_romaneios.md",
+    "docs/pcp_estruturas_programacao.md",
+    "docs/pcp_sync_fontes_reais.md",
+    "web-react/src/App.jsx",
+    "web-react/src/components/Sidebar.jsx",
+    "web-react/src/pages/Cockpit.jsx",
+    "web-react/src/pages/ProductionTracking.jsx"
+  ],
+  "business_decisions": {
+    "scope": {
+      "mode": "modulo_inteiro_com_foco_operacional",
+      "decision": "A SPEC cobre o modulo inteiro, com prioridade maxima para romaneios, previsoes, MRP e apontamento."
+    },
+    "spec_objective": {
+      "mode": "hibrido",
+      "decision": "A SPEC registra o estado atual do repositorio e ja aponta a evolucao recomendada por sprint."
+    },
+    "auth_and_permissions": {
+      "mode": "login_obrigatorio_com_rbac",
+      "decision": "O modulo deve exigir autenticacao e controle por permissao de area e acao."
+    },
+    "source_of_truth": {
+      "mode": "hibrido",
+      "decision": "O Sankhya continua como dono dos dados ERP de origem, e o PCP vira a fonte oficial do estado operacional calculado e ajustado dentro do modulo."
+    },
+    "multi_company": {
+      "mode": "mesmo_ambiente_com_visao_consolidada",
+      "decision": "O mesmo ambiente atende Inplast, Recicla e UPE Metal, com filtros e visao consolidada por empresa."
+    },
+    "romaneio_identity_and_merge": {
+      "mode": "merge_por_ordem_de_carga",
+      "decision": "Romaneio e romaneio nota com a mesma ordem de carga se complementam em um registro consolidado; nova versao do mesmo tipo substitui a anterior."
+    },
+    "manual_override_policy": {
+      "mode": "manual_prevalece_e_recalcula",
+      "decision": "A previsao nasce automatica, mas qualquer ajuste manual passa a prevalecer e deve recalcular o restante da operacao."
+    },
+    "integration_failure_policy": {
+      "mode": "ultimo_snapshot_valido",
+      "decision": "Falhas de integracao nao apagam o estado atual; o sistema deve preservar o ultimo snapshot valido e sinalizar a falha."
+    },
+    "mrp_execution_policy": {
+      "mode": "somente_perfis_autorizados",
+      "decision": "So perfis autorizados podem disparar o MRP, e cada execucao atualiza o cenario operacional oficial vigente."
+    },
+    "production_tracking_policy": {
+      "mode": "pcp_operacional_erp_destino_oficial",
+      "decision": "O PCP e a interface operacional de apontamento, mas o Sankhya segue como destino transacional oficial."
+    },
+    "operational_limits_policy": {
+      "mode": "conservador_configuravel",
+      "decision": "Os limites do MVP devem ser conservadores, com bloqueio claro quando excedidos e possibilidade de ajuste por ambiente."
+    },
+    "concurrency_policy": {
+      "mode": "last_write_wins_with_audit",
+      "decision": "Alteracoes simultaneas podem sobrescrever o estado, mas toda mudanca manual precisa registrar historico com o usuario responsavel."
+    }
+  },
+  "assumptions_applied": [
+    {
+      "topic": "arquivo_da_spec",
+      "decision": "Criar o arquivo SPEC.json na raiz do repositorio para facilitar leitura por humanos e agentes."
+    },
+    {
+      "topic": "frontend_oficial",
+      "decision": "web-react/ passa a ser a interface alvo do produto; web/ permanece como referencia ou legado ate a consolidacao funcional."
+    },
+    {
+      "topic": "taxonomy_minima_de_permissoes",
+      "decision": "A matriz de acesso sera montada por unidades de permissao; os templates minimos recomendados sao leitura, operacao, gestao e integracao."
+    },
+    {
+      "topic": "limites_operacionais_iniciais",
+      "decision": "Aplicar defaults tecnicos conservadores e configuraveis por ambiente.",
+      "defaults": {
+        "api_payload_limit_bytes": 1048576,
+        "romaneio_upload_max_files_per_request": 10,
+        "romaneio_upload_max_total_bytes": 20971520,
+        "request_timeout_seconds": 60,
+        "romaneio_refresh_timeout_seconds": 180,
+        "apontamento_dispatch_timeout_seconds": 90,
+        "retry_attempts_on_network_failure": 2
+      }
+    }
+  ],
+  "already_covered": [
+    "Servidor HTTP de referencia com rotas GET e POST do modulo PCP.",
+    "Camada de provider com modo mock e modo postgres.",
+    "Dados de demonstracao e sementes para overview, romaneios, assembly, production, purchases, costs, recycling, alerts e fontes.",
+    "Integacao com romaneios via upload de PDF, sync por payload e refresh por webhook.",
+    "Camadas de estruturas, programacao, usuarios, integracoes, movimentacoes de estoque e apontamento.",
+    "Documentacao de deploy, topologia apps/data, stack integrada com Postgres proprio e contratos de fontes de previsao.",
+    "Frontend React com navegacao para cockpit, apontamento, kanban logistico, romaneios, estruturas, programacao, montagem, producao, compras e governanca."
+  ],
+  "redundancy_and_improvement_opportunities": [
+    {
+      "title": "Consolidar a UI oficial",
+      "detail": "O repositorio hoje carrega duas interfaces web em paralelo, o que aumenta custo de manutencao e risco de divergencia funcional."
+    },
+    {
+      "title": "Remover credenciais bootstrap do fluxo definitivo",
+      "detail": "O provider mock hoje injeta usuario root com senha fixa; a versao alvo deve tratar bootstrap de usuario admin fora do fluxo normal de operacao."
+    },
+    {
+      "title": "Padronizar envelope de resposta e erros",
+      "detail": "As rotas atuais devolvem payloads heterogeneos; a SPEC passa a exigir contrato uniforme para sucesso, parcial, accepted e erro."
+    },
+    {
+      "title": "Centralizar trilha de auditoria",
+      "detail": "Overrides manuais, integracoes, apontamentos e mudancas administrativas precisam compartilhar o mesmo modelo de historico."
+    },
+    {
+      "title": "Formalizar idempotencia e consolidacao de romaneios",
+      "detail": "O comportamento de merge entre romaneio e romaneio nota precisa ser contrato explicito de produto e nao apenas efeito de implementacao."
+    },
+    {
+      "title": "Isolar prototipo de dados locais do fluxo produtivo",
+      "detail": "JSONs de mock, seeds e armazenamento local ainda convivem com o modo postgres; a versao alvo deve deixar claro o que e seed, rascunho temporario e fonte oficial."
+    }
+  ],
+  "technical_standards": {
+    "api_defaults": {
+      "response_envelope_target": {
+        "status": "success | accepted | partial | error",
+        "data": "payload principal",
+        "meta": "metadados opcionais como request_id, pagination, mode, snapshot_at, company_scope",
+        "errors": "lista opcional de erros estruturados"
+      },
+      "status_codes_required": [
+        200,
+        202,
+        204,
+        400,
+        401,
+        403,
+        404,
+        409,
+        413,
+        415,
+        422,
+        429,
+        500,
+        503
+      ],
+      "required_error_fields": [
+        "code",
+        "message",
+        "detail",
+        "request_id"
+      ],
+      "required_request_controls": [
+        "Content-Type validation",
+        "payload limit",
+        "input validation",
+        "company scope validation",
+        "permission validation",
+        "structured request_id"
+      ]
+    },
+    "integration_defaults": {
+      "timeout_policy": {
+        "sources_sync_seconds": 180,
+        "romaneios_refresh_seconds": 180,
+        "apontamento_dispatch_seconds": 90
+      },
+      "retry_policy": {
+        "attempts": 2,
+        "strategy": "exponential_backoff",
+        "retryable_failures": [
+          "network_error",
+          "timeout",
+          "temporary_5xx"
+        ]
+      },
+      "fallback_policy": [
+        "Manter ultimo snapshot valido quando a fonte falhar.",
+        "Marcar a integracao como stale ou error sem apagar estado operacional.",
+        "Exibir status de frescor por fonte e por empresa."
+      ],
+      "idempotency_policy": [
+        "Romaneios devem consolidar por ordem de carga.",
+        "Documento do mesmo tipo substitui a versao anterior do mesmo tipo.",
+        "Romaneio e romaneio nota do mesmo numero se complementam no consolidado."
+      ]
+    },
+    "infra_defaults": {
+      "required_endpoints": [
+        "GET /health",
+        "GET /ready"
+      ],
+      "graceful_shutdown": [
+        "Parar de aceitar novos requests.",
+        "Esperar requests em andamento ate timeout controlado.",
+        "Persistir logs de encerramento."
+      ],
+      "observability": [
+        "latency por rota",
+        "erros por integracao",
+        "status de ultimo sync",
+        "run_id do MRP",
+        "audit trail de alteracoes manuais"
+      ]
+    },
+    "frontend_defaults": {
+      "required_states": [
+        "loading",
+        "error",
+        "empty",
+        "stale_data",
+        "permission_denied"
+      ],
+      "ux_rules": [
+        "A UI deve explicitar empresa ativa e nivel de consolidacao.",
+        "A UI deve exibir ultima sincronizacao valida e estado de frescor.",
+        "A UI deve diferenciar claramente previsao automatica de override manual.",
+        "A UI deve manter rascunho local somente como buffer temporario, nunca como fonte oficial."
+      ]
+    },
+    "audit_defaults": {
+      "required_fields": [
+        "entity_type",
+        "entity_id",
+        "company_code",
+        "changed_by_user_id",
+        "changed_by_username",
+        "change_source",
+        "changed_fields",
+        "before",
+        "after",
+        "changed_at",
+        "reason"
+      ],
+      "required_on_manual_changes": [
+        "romaneio schedule override",
+        "priority override",
+        "structure override",
+        "programming entry",
+        "stock movement",
+        "user management",
+        "integration configuration"
+      ]
+    },
+    "rbac": {
+      "permission_units": [
+        "cockpit.read",
+        "romaneios.read",
+        "romaneios.write",
+        "romaneios.ingest",
+        "romaneios.delete",
+        "mrp.run",
+        "sources.read",
+        "sources.sync",
+        "structures.read",
+        "structures.write",
+        "programming.read",
+        "programming.write",
+        "assembly.read",
+        "production.read",
+        "purchases.read",
+        "costs.read",
+        "recycling.read",
+        "apontamento.read",
+        "apontamento.write",
+        "apontamento.dispatch",
+        "users.manage",
+        "integrations.manage",
+        "stock_movements.manage"
+      ],
+      "recommended_role_templates": [
+        "leitura_pcp",
+        "operacao_pcp",
+        "gestao_pcp",
+        "integracao_pcp"
+      ]
+    }
+  },
+  "domain_rules": {
+    "romaneio_priority": [
+      "Sem override, a fila respeita data_evento e romaneio_code.",
+      "Com override manual, rank menor representa maior prioridade.",
+      "A mudanca manual na fila deve recalcular ETAs e dependencias a jusante."
+    ],
+    "forecast_consumption": [
+      "O sistema consome primeiro estoque atual.",
+      "Depois consome previsoes e programacoes por available_at.",
+      "A saida do romaneio e a maior data necessaria para fechar seus itens."
+    ],
+    "manual_vs_automatic": [
+      "Toda previsao nasce automatica quando houver dados suficientes.",
+      "Se existir ajuste manual ativo, ele prevalece sobre o calculo automatico.",
+      "O override manual deve provocar recalc dos impactos no restante da operacao."
+    ],
+    "multi_company": [
+      "Toda entidade operacional relevante deve carregar company_code.",
+      "A camada de leitura deve permitir visao consolidada e filtro por empresa.",
+      "Permissoes devem limitar empresa, grupo ou consolidado conforme perfil."
+    ],
+    "integration_failure": [
+      "Erro de fonte nao invalida o ultimo cenario operacional valido.",
+      "A UI e a API devem informar stale_data, ultima_execucao_valida e ultima_falha.",
+      "Partial success deve ser distinguido de success e error."
+    ],
+    "concurrency": [
+      "A ultima gravacao pode prevalecer no estado corrente.",
+      "Toda sobrescrita concorrente deve gerar evento de auditoria com usuario e campos alterados.",
+      "A UI deve avisar quando o registro foi alterado recentemente por outro usuario."
+    ]
+  },
+  "sprints": [
+    {
+      "id": 1,
+      "nome": "Base operacional, seguranca e contratos",
+      "descricao": "Consolidar o backend do modulo PCP como API operacional padronizada, com autenticacao obrigatoria, RBAC, contexto multiempresa e observabilidade minima de producao.",
+      "estado_atual": "Parcialmente implementado",
+      "entregavel": "API do modulo PCP com contratos consistentes, auth obrigatoria, readiness/health check, contexto multiempresa e UI oficial definida.",
+      "risco": "alto",
+      "pre_requisito": null,
+      "features": [
+        {
+          "id": "1.1",
+          "categoria": "api_endpoint",
+          "descricao": "Padronizar contratos da API PCP, erros estruturados, validacao de input, payload limit, health check e graceful shutdown.",
+          "estado_atual": "Rotas ja existem em server.py, mas com respostas heterogeneas, 500 generico e sem health/readiness dedicados.",
+          "evidencias": [
+            "server.py",
+            "backend/provider.py",
+            "README.md"
+          ],
+          "endpoints": [
+            "GET /api/pcp/overview",
+            "GET /api/pcp/painel",
+            "GET /api/pcp/romaneios",
+            "GET /api/pcp/romaneios/{romaneioCode}",
+            "GET /api/pcp/romaneios-kanban",
+            "GET /api/pcp/assembly",
+            "GET /api/pcp/production",
+            "GET /api/pcp/structures",
+            "GET /api/pcp/programming",
+            "GET /api/pcp/users",
+            "GET /api/pcp/integrations",
+            "GET /api/pcp/stock-movements",
+            "GET /api/pcp/apontamento/logs",
+            "GET /api/pcp/apontamento/export",
+            "GET /api/pcp/production-rules",
+            "GET /api/pcp/purchases",
+            "GET /api/pcp/recycling",
+            "GET /api/pcp/costs",
+            "GET /api/pcp/sources",
+            "GET /api/pcp/alerts",
+            "POST /api/pcp/runs/mrp",
+            "POST /api/pcp/sources/sync",
+            "POST /api/pcp/structure-overrides",
+            "POST /api/pcp/programming-entries",
+            "POST /api/pcp/users/save",
+            "POST /api/pcp/integrations/save",
+            "POST /api/pcp/stock-movements/save",
+            "POST /api/pcp/apontamento/save",
+            "POST /api/pcp/apontamento/sync-status",
+            "POST /api/pcp/apontamento/dispatch",
+            "POST /api/pcp/auth/login",
+            "POST /api/pcp/romaneios-kanban/update-date",
+            "POST /api/pcp/romaneios/delete",
+            "POST /api/pcp/romaneios-kanban/sync",
+            "POST /api/pcp/romaneios/upload",
+            "POST /api/pcp/romaneios/refresh",
+            "GET /health",
+            "GET /ready"
+          ],
+          "steps": [
+            "Mapear todas as rotas atuais do modulo PCP e classificar leitura, escrita, acao assincrona e integracao.",
+            "Definir envelope unico para sucesso, accepted, parcial e erro.",
+            "Aplicar validacao de Content-Type, JSON, tamanho de payload, query params e company_code.",
+            "Padronizar status codes de erro e mensagens estruturadas por categoria de falha.",
+            "Adicionar request_id em toda resposta e em todo log de erro.",
+            "Criar GET /health para liveness e GET /ready para readiness de dependencias.",
+            "Implementar graceful shutdown com timeout controlado para requests em andamento.",
+            "Instrumentar logs minimos de latencia, rota, usuario, empresa e origem da requisicao."
+          ],
+          "acceptance_criteria": [
+            "Toda rota do modulo PCP responde com contrato previsivel e request_id.",
+            "Erros de validacao retornam 400 ou 422 sem vazar stack trace.",
+            "Payload acima do limite retorna 413 antes do processamento.",
+            "Rotas inexistentes retornam 404 estruturado.",
+            "Falha temporaria de dependencia critica permite distinguir 500 de 503.",
+            "Health e readiness ficam disponiveis para operacao e deploy."
+          ],
+          "edge_cases": [
+            "JSON invalido no corpo da requisicao deve retornar 400 com mensagem clara.",
+            "Payload maior que o limite configurado deve retornar 413 sem tentar parse completo.",
+            "Header Content-Type ausente ou incorreto em rotas JSON deve retornar 415 quando aplicavel.",
+            "Shutdown durante processamento deve terminar requests em andamento ate o timeout e depois encerrar de forma controlada.",
+            "Dependencia de banco ou integracao indisponivel deve sinalizar readiness reprovado sem matar o processo."
+          ]
+        },
+        {
+          "id": "1.2",
+          "categoria": "auth",
+          "descricao": "Implementar autenticacao obrigatoria e RBAC por area e acao no modulo PCP.",
+          "estado_atual": "Existe POST /api/pcp/auth/login com autenticacao simples por usuario e senha, mas sem sessao formal, expiracao, matriz de permissao ou protecao ampla das rotas.",
+          "evidencias": [
+            "server.py",
+            "backend/provider.py",
+            "README.md"
+          ],
+          "endpoints": [
+            "POST /api/pcp/auth/login",
+            "GET /api/pcp/users",
+            "POST /api/pcp/users/save"
+          ],
+          "steps": [
+            "Definir o mecanismo oficial de sessao ou token para o modulo.",
+            "Exigir autenticacao em todas as rotas operacionais e administrativas, exceto health/readiness.",
+            "Associar permissoes por area e acao a cada usuario autenticado.",
+            "Permitir escopo por empresa, grupo ou visao consolidada conforme perfil.",
+            "Bloquear operacoes sem permissao com 403 estruturado.",
+            "Registrar auditoria de login bem-sucedido, falha, logout e bloqueio.",
+            "Substituir o bootstrap de usuario root com senha fixa por fluxo seguro de inicializacao em ambiente real."
+          ],
+          "acceptance_criteria": [
+            "Usuarios inativos nao conseguem autenticar.",
+            "Toda rota protegida retorna 401 sem credencial valida.",
+            "Toda rota protegida retorna 403 quando o usuario autenticado nao tem permissao suficiente.",
+            "O escopo de empresa do usuario limita as leituras e escritas visiveis.",
+            "As permissoes cobrem leitura, operacao, gestao e integracao."
+          ],
+          "edge_cases": [
+            "Senha invalida deve retornar 401 sem revelar se o usuario existe.",
+            "Tentativas repetidas de login devem disparar rate limit e bloqueio temporario conforme politica de seguranca.",
+            "Token ou sessao expirada deve retornar 401 com codigo de expiracao.",
+            "Troca de permissao em usuario logado deve refletir no proximo request protegido.",
+            "Se a persistencia de usuarios estiver indisponivel, o login deve falhar de forma controlada."
+          ]
+        },
+        {
+          "id": "1.3",
+          "categoria": "api_endpoint",
+          "descricao": "Consolidar contexto multiempresa no backend, nas consultas e nas telas do modulo PCP.",
+          "estado_atual": "Parte das leituras ja aceita company_code, mas o suporte ainda e parcial e nao cobre o modulo inteiro nem a matriz de permissao.",
+          "evidencias": [
+            "server.py",
+            "backend/provider.py",
+            "README.md"
+          ],
+          "endpoints": [
+            "GET /api/pcp/overview",
+            "GET /api/pcp/painel",
+            "GET /api/pcp/romaneios",
+            "GET /api/pcp/assembly",
+            "GET /api/pcp/production",
+            "GET /api/pcp/purchases",
+            "GET /api/pcp/sources",
+            "GET /api/pcp/alerts"
+          ],
+          "steps": [
+            "Garantir company_code em entidades operacionais, snapshots, romaneios, apontamentos e overrides manuais.",
+            "Permitir leitura consolidada do grupo e filtros por empresa individual.",
+            "Aplicar company scope nas operacoes de escrita e de administracao.",
+            "Exibir na UI a empresa ativa ou o modo consolidado em toda tela operacional.",
+            "Separar metadados de frescor, alertas e MRP por empresa e por consolidado."
+          ],
+          "acceptance_criteria": [
+            "O usuario consegue alternar entre consolidado e empresa isolada conforme permissao.",
+            "Dados de Inplast, Recicla e UPE Metal podem coexistir no mesmo ambiente sem mistura incorreta de contexto.",
+            "As escritas manuais registram explicitamente a empresa do ajuste.",
+            "As APIs nao retornam dados de empresa fora do escopo autorizado do usuario."
+          ],
+          "edge_cases": [
+            "Company code inexistente deve retornar 404 ou 422 conforme o caso.",
+            "Usuario sem permissao de consolidado nao deve enxergar o grupo inteiro.",
+            "Entidade sem company_code nao pode ser promovida a estado oficial.",
+            "Mudanca de empresa durante uma edicao deve avisar risco de sobrescrita fora do contexto."
+          ]
+        },
+        {
+          "id": "1.4",
+          "categoria": "frontend",
+          "descricao": "Definir web-react como UI oficial e tratar web/ como legado controlado ate a consolidacao funcional.",
+          "estado_atual": "As duas UIs coexistem e aumentam o risco de divergencia entre prototipo e produto alvo.",
+          "evidencias": [
+            "web/index.html",
+            "web/app.js",
+            "web-react/src/App.jsx",
+            "web-react/src/components/Sidebar.jsx"
+          ],
+          "steps": [
+            "Mapear a cobertura funcional de web/ e web-react/ por modulo.",
+            "Definir web-react como frontend principal para evolucao do produto.",
+            "Fechar os gaps minimos de navegacao e estados de erro no frontend oficial.",
+            "Marcar a UI legacy como referencia, fallback interno ou candidato a remocao controlada.",
+            "Garantir responsividade minima para desktop e apontamento em formato mobile web."
+          ],
+          "acceptance_criteria": [
+            "Existe apenas uma UI reconhecida como oficial pela SPEC.",
+            "A UI oficial cobre cockpit, romaneios, kanban, apontamento, estruturas, programacao, montagem, producao, compras e governanca.",
+            "Toda rota visual obrigatoria possui estados loading, error e empty."
+          ],
+          "edge_cases": [
+            "Se um modulo ainda estiver em construcao no frontend oficial, a UI deve explicitar o status sem simular funcionamento inexistente.",
+            "Navegacao por hash ou rota invalida deve cair em fallback controlado sem perder sessao."
+          ]
+        }
+      ]
+    },
+    {
+      "id": 2,
+      "nome": "Fontes, governanca, cockpit e MRP",
+      "descricao": "Transformar as fontes operacionais e os dashboards do PCP em um fluxo confiavel de sincronizacao, frescor, execucao de MRP e leitura consolidada por empresa.",
+      "estado_atual": "Parcialmente implementado",
+      "entregavel": "Pipeline operacional de fontes com governanca de frescor, cockpit consolidado, alertas e execucao oficial do MRP.",
+      "risco": "alto",
+      "pre_requisito": "Sprint 1",
+      "features": [
+        {
+          "id": "2.1",
+          "categoria": "integracao",
+          "descricao": "Sincronizar fontes reais de estoque e previsao com governanca de snapshot, token opcional e fallback para ultimo estado valido.",
+          "estado_atual": "Ja existe POST /api/pcp/sources/sync com suporte a fontes reais e hints por env ou registry, mas ainda sem contrato final de resiliencia e observabilidade.",
+          "evidencias": [
+            "docs/pcp_sync_fontes_reais.md",
+            "backend/source_sync.py",
+            "backend/config.py",
+            "server.py"
+          ],
+          "endpoints": [
+            "POST /api/pcp/sources/sync",
+            "GET /api/pcp/sources"
+          ],
+          "steps": [
+            "Permitir sync de todas as fontes ativas ou de um subconjunto por source_code.",
+            "Resolver credenciais, URLs publicadas, workbook paths e hints cadastrados.",
+            "Executar parsers por fonte com timeout, retry e captura estruturada de resumo.",
+            "Persistir snapshot_at, record_count, summary, status e ultimo erro por fonte e empresa.",
+            "Manter o ultimo snapshot valido em caso de falha parcial ou total.",
+            "Expor status de frescor, stale_data e ultima execucao valida na API e na UI."
+          ],
+          "acceptance_criteria": [
+            "O sync pode ser disparado para todas as fontes ou apenas para fontes selecionadas.",
+            "O retorno inclui status, requested_sources, results, errors e snapshot_at.",
+            "Falha de uma fonte nao apaga o ultimo snapshot valido das demais nem o estado operacional vigente.",
+            "A UI de governanca mostra se a fonte esta healthy, stale, partial ou error."
+          ],
+          "edge_cases": [
+            "Token ausente ou invalido em ambiente protegido deve retornar 401.",
+            "Timeout ou falha de rede em fonte externa deve aplicar retry e registrar falha estruturada.",
+            "Parser que retorna schema invalido deve falhar com detail e source_code claros.",
+            "Sync concorrente da mesma fonte deve evitar corrida e duplicacao de snapshot oficial."
+          ]
+        },
+        {
+          "id": "2.2",
+          "categoria": "frontend",
+          "descricao": "Operar cockpit, painel, alertas e governanca com filtros multiempresa, estados de frescor e leitura confiavel do cenario corrente.",
+          "estado_atual": "Cockpit e telas basicas existem, mas com parte do conteudo ainda prototipado e sem todos os estados operacionais fechados.",
+          "evidencias": [
+            "web-react/src/pages/Cockpit.jsx",
+            "web-react/src/App.jsx",
+            "data/overview.json",
+            "data/alerts.json",
+            "data/sources.json"
+          ],
+          "endpoints": [
+            "GET /api/pcp/overview",
+            "GET /api/pcp/painel",
+            "GET /api/pcp/alerts",
+            "GET /api/pcp/sources"
+          ],
+          "steps": [
+            "Consolidar indicadores de estoque util, carteira, filas, criticidade e sem previsao.",
+            "Permitir busca, filtro por tipo, filtro por empresa e vista consolidada.",
+            "Exibir ultima sincronizacao valida, estado de frescor e alertas de integracao.",
+            "Destacar gargalos criticos e riscos que impactam romaneios e MRP.",
+            "Suportar estados loading, empty, stale_data, permission_denied e error."
+          ],
+          "acceptance_criteria": [
+            "O cockpit exibe metricas consistentes com o snapshot operacional vigente.",
+            "Alertas e estado das fontes ficam visiveis sem exigir outra tela tecnica.",
+            "Filtros por empresa e tipo alteram a leitura sem misturar contexto.",
+            "A tela deixa explicito quando esta mostrando ultimo snapshot valido e nao um sync recem-sucedido."
+          ],
+          "edge_cases": [
+            "Sem dados para uma empresa, a UI deve mostrar empty state sem quebrar os cards.",
+            "Dados stale devem ficar visivelmente marcados para nao parecerem atuais.",
+            "Fonte parcial deve permitir leitura do ultimo cenario valido com aviso."
+          ]
+        },
+        {
+          "id": "2.3",
+          "categoria": "api_endpoint",
+          "descricao": "Executar o MRP como acao oficial do modulo, preservando overrides manuais e publicando o cenario vigente.",
+          "estado_atual": "POST /api/pcp/runs/mrp existe e hoje devolve ack de fila; o cenario completo de execucao oficial ainda precisa ser formalizado na SPEC.",
+          "evidencias": [
+            "server.py",
+            "README.md",
+            "docs/pcp_contrato_fontes_previsao.md"
+          ],
+          "endpoints": [
+            "POST /api/pcp/runs/mrp",
+            "GET /api/pcp/overview",
+            "GET /api/pcp/romaneios",
+            "GET /api/pcp/assembly",
+            "GET /api/pcp/production",
+            "GET /api/pcp/purchases"
+          ],
+          "permissions": [
+            "mrp.run"
+          ],
+          "steps": [
+            "Permitir disparo do MRP apenas por perfil autorizado.",
+            "Criar run_id, status, timestamps e trilha de execucao.",
+            "Usar estoque atual, previsoes, programacoes manuais e estrutura vigente como entrada.",
+            "Respeitar overrides manuais ativos durante o recalc.",
+            "Atualizar o cenario oficial apenas quando a execucao atingir estado valido.",
+            "Publicar resultado, alertas e impactos por empresa e consolidado."
+          ],
+          "acceptance_criteria": [
+            "A execucao do MRP gera run_id e status rastreavel.",
+            "Perfis sem permissao recebem 403.",
+            "O resultado oficial nao sobrescreve ajustes manuais ativos.",
+            "Falha de execucao preserva o cenario anterior e registra erro estruturado."
+          ],
+          "edge_cases": [
+            "Dois disparos simultaneos de MRP devem ser serializados ou rejeitados com 409.",
+            "Execucao sem fontes minimas validas deve falhar de forma controlada.",
+            "Timeout de processamento deve encerrar a rodada com status claro sem publicar cenario incompleto.",
+            "Run concluida com dados parciais deve ser marcada como partial e nao como success."
+          ]
+        }
+      ]
+    },
+    {
+      "id": 3,
+      "nome": "Romaneios e kanban logistico",
+      "descricao": "Formalizar a ingestao, consolidacao, fila e ajuste manual de romaneios, incluindo merge de romaneio e romaneio nota, refresh por integracao e kanban logistico multiempresa.",
+      "estado_atual": "Parcialmente implementado",
+      "entregavel": "Fluxo completo de romaneios com ingestao multi-origem, consolidacao por ordem de carga, kanban logistico e overrides manuais auditados.",
+      "risco": "alto",
+      "pre_requisito": "Sprint 1 e Sprint 2",
+      "features": [
+        {
+          "id": "3.1",
+          "categoria": "integracao",
+          "descricao": "Receber romaneios por upload, webhook ou sync manual, normalizar documentos e consolidar a ordem de carga.",
+          "estado_atual": "Ja existem upload de PDF, sync por payload e refresh por webhook, inclusive com logica de merge entre documentos complementares.",
+          "evidencias": [
+            "server.py",
+            "backend/romaneio_pdf.py",
+            "backend/romaneio_integration.py",
+            "data/romaneios.json"
+          ],
+          "endpoints": [
+            "POST /api/pcp/romaneios/upload",
+            "POST /api/pcp/romaneios-kanban/sync",
+            "POST /api/pcp/romaneios/refresh",
+            "GET /api/pcp/romaneios",
+            "GET /api/pcp/romaneios/{romaneioCode}"
+          ],
+          "steps": [
+            "Aceitar upload de arquivos PDF e payloads de integracao em schema controlado.",
+            "Normalizar identidade de romaneio e ordem de carga, tipo de documento e origem.",
+            "Consolidar romaneio e romaneio nota da mesma ordem de carga em um unico registro operacional.",
+            "Quando chegar nova versao do mesmo tipo de documento, substituir a versao anterior daquele tipo.",
+            "Persistir itens, pedidos, totalizacao, arquivos de origem e metadados do processamento.",
+            "Atualizar lista, detalhe e kanban sem exigir reconciliacao manual."
+          ],
+          "acceptance_criteria": [
+            "Um romaneio consolidado pode ser composto por romaneio, romaneio nota ou ambos.",
+            "Chegada de documento complementar atualiza o consolidado sem perder informacao relevante.",
+            "Chegada de nova versao do mesmo tipo substitui apenas a versao equivalente daquele tipo.",
+            "Falhas em alguns arquivos do lote podem resultar em partial sem perder os processados com sucesso."
+          ],
+          "edge_cases": [
+            "PDF invalido ou corrompido deve retornar erro por arquivo e nao derrubar o lote inteiro.",
+            "Documento sem identidade resolvivel deve ser rejeitado com detail clara.",
+            "Romaneio e romaneio nota chegando fora de ordem devem convergir para o mesmo consolidado.",
+            "Payload duplicado do mesmo tipo nao deve criar segunda ordem de carga oficial.",
+            "Lote acima do limite deve retornar 413 antes do processamento."
+          ]
+        },
+        {
+          "id": "3.2",
+          "categoria": "frontend",
+          "descricao": "Operar inbox e kanban logistico com fila oficial, filtros, previsao de saida e leitura do detalhe consolidado.",
+          "estado_atual": "Ja existem telas e endpoints para romaneios e kanban, mas ainda sem todos os estados finais de governanca e frescor.",
+          "evidencias": [
+            "web-react/src/pages/RomaneiosInbox.jsx",
+            "web-react/src/pages/KanbanBoard.jsx",
+            "web-react/src/App.jsx",
+            "docs/pcp_prioridade_romaneios.md"
+          ],
+          "endpoints": [
+            "GET /api/pcp/romaneios",
+            "GET /api/pcp/romaneios/{romaneioCode}",
+            "GET /api/pcp/romaneios-kanban"
+          ],
+          "steps": [
+            "Exibir lista de romaneios com prioridade, previsao de saida, status e empresa.",
+            "Exibir o kanban logistico com a fila operacional vigente.",
+            "Permitir leitura do detalhe consolidado por romaneio, incluindo itens e origem documental.",
+            "Explicitar quando a previsao e automatica, manual ou sem previsao.",
+            "Suportar filtros por empresa, criticidade e texto."
+          ],
+          "acceptance_criteria": [
+            "O inbox e o kanban refletem o consolidado vigente por ordem de carga.",
+            "A prioridade padrao respeita data_evento e romaneio_code quando nao houver override.",
+            "A UI exibe previsao de saida, status e ultima origem relevante do consolidado.",
+            "Empresa e estado de frescor ficam visiveis durante a operacao."
+          ],
+          "edge_cases": [
+            "Romaneio sem previsao deve ser destacado sem quebrar a ordenacao geral.",
+            "Romaneio sem item consolidado valido deve cair em fila de excecao ou alerta.",
+            "Filtro com retorno vazio deve mostrar empty state explicativo."
+          ]
+        },
+        {
+          "id": "3.3",
+          "categoria": "api_endpoint",
+          "descricao": "Permitir overrides manuais de prioridade e previsao no kanban, com recalc a jusante e historico de usuario.",
+          "estado_atual": "Ja existe POST /api/pcp/romaneios-kanban/update-date e documentacao de prioridade por override, mas a regra completa de precedencia e auditoria ainda nao esta fechada no produto.",
+          "evidencias": [
+            "server.py",
+            "docs/pcp_prioridade_romaneios.md",
+            "backend/provider.py"
+          ],
+          "endpoints": [
+            "POST /api/pcp/romaneios-kanban/update-date",
+            "POST /api/pcp/romaneios/delete",
+            "GET /api/pcp/romaneios-kanban"
+          ],
+          "permissions": [
+            "romaneios.write",
+            "romaneios.delete"
+          ],
+          "steps": [
+            "Permitir ajuste manual de data de saida, prioridade e status operacional por romaneio.",
+            "Marcar o override manual como referencia vigente enquanto estiver ativo.",
+            "Recalcular impactos a jusante no restante da fila, ETAs e gargalos.",
+            "Registrar usuario, empresa, motivo, campos alterados, antes e depois.",
+            "Alertar sobrescritas concorrentes e manter o estado corrente na politica last_write_wins_with_audit.",
+            "Restringir delete a perfis autorizados e com trilha de auditoria."
+          ],
+          "acceptance_criteria": [
+            "O ajuste manual prevalece sobre a previsao automatica enquanto ativo.",
+            "O sistema recalcula o restante da operacao apos o override manual.",
+            "Toda alteracao manual fica auditada com usuario e timestamp.",
+            "Sobrescritas concorrentes geram historico e aviso na interface."
+          ],
+          "edge_cases": [
+            "Data manual anterior ao horizonte possivel deve exigir justificativa ou retornar 422.",
+            "Dois usuarios alterando o mesmo romaneio em paralelo devem gerar evento de sobrescrita auditado.",
+            "Delete de romaneio integrado deve respeitar permissao e politica de exclusao controlada.",
+            "Falha no recalc nao pode apagar o override salvo; o sistema deve sinalizar estado inconsistente ate nova rodada."
+          ]
+        }
+      ]
+    },
+    {
+      "id": 4,
+      "nome": "Estruturas, programacao e planejamento operacional",
+      "descricao": "Consolidar BOM, overrides de estrutura, programacao manual e quadros de planejamento de montagem, producao, compras, reciclagem e custos.",
+      "estado_atual": "Parcialmente implementado",
+      "entregavel": "Camada oficial de estrutura e programacao usada pelo MRP e pelas telas operacionais.",
+      "risco": "medio",
+      "pre_requisito": "Sprint 1 e Sprint 2",
+      "features": [
+        {
+          "id": "4.1",
+          "categoria": "database",
+          "descricao": "Receber estrutura base homologada, aplicar override operacional e expor a estrutura corrente usada pelo MRP.",
+          "estado_atual": "Ja existem parser, docs, endpoints e payloads de estruturas, mas a operacao definitiva de override e governanca ainda precisa ser formalizada.",
+          "evidencias": [
+            "docs/pcp_estruturas_programacao.md",
+            "parsers/parse_bom_estrutura_padrao.py",
+            "parsers/run_bom_parser.py",
+            "server.py"
+          ],
+          "endpoints": [
+            "GET /api/pcp/structures",
+            "POST /api/pcp/structure-overrides"
+          ],
+          "steps": [
+            "Importar a estrutura base homologada para produto acabado e intermediario.",
+            "Persistir a estrutura oficial importada separada da camada de override do PCP.",
+            "Permitir edicao controlada de campos operacionais como quantity_per, scrap_pct, sequence_no, process_stage, component_role e bloqueios.",
+            "Expor a estrutura corrente consolidada para uso do MRP e das telas.",
+            "Auditar quem alterou override, motivo e vigencia."
+          ],
+          "acceptance_criteria": [
+            "A estrutura base importada e preservada sem perda historica.",
+            "Overrides sao aplicados sem alterar a linha base original.",
+            "A view corrente usada pelo MRP reflete a consolidacao correta.",
+            "Campos obrigatorios e relacoes de item pai e componente sao validados."
+          ],
+          "edge_cases": [
+            "Linha sem item pai resolvivel deve ser rejeitada na importacao.",
+            "Componente inexistente no cadastro oficial deve gerar erro ou fila de excecao.",
+            "Quantidade por menor ou igual a zero deve retornar 422.",
+            "Override bloqueando componente critico deve refletir alerta no planejamento."
+          ]
+        },
+        {
+          "id": "4.2",
+          "categoria": "database",
+          "descricao": "Registrar programacao manual de disponibilidade e compor a previsao operacional com fontes externas e ajustes do PCP.",
+          "estado_atual": "Ja existem docs, templates, endpoints e dados para programacao, mas o contrato final da camada corrente e sua governanca ainda precisa ser consolidado.",
+          "evidencias": [
+            "docs/pcp_contrato_fontes_previsao.md",
+            "docs/pcp_estruturas_programacao.md",
+            "source_templates/template_previsao_montagem.csv",
+            "source_templates/template_previsao_producao.csv",
+            "source_templates/template_previsao_compra.csv"
+          ],
+          "endpoints": [
+            "GET /api/pcp/programming",
+            "POST /api/pcp/programming-entries"
+          ],
+          "steps": [
+            "Receber previsoes externas por fonte homologada e programacoes manuais por acao operacional.",
+            "Compor a visao corrente de supply forecast por empresa, sku e available_at.",
+            "Permitir ajustes manuais de available_at, quantity_planned, sequence_rank, status e notas.",
+            "Garantir que a camada corrente alimente MRP, ETAs de romaneio e visoes de montagem, producao e compra.",
+            "Auditar alteracoes manuais com usuario, motivo e timestamps."
+          ],
+          "acceptance_criteria": [
+            "Forecast externo e programacao manual coexistem sem perda de rastreabilidade.",
+            "A camada corrente permite identificar se a disponibilidade veio de fonte, heuristica ou ajuste manual.",
+            "Quantidade planejada nao pode ser negativa.",
+            "Available_at precisa representar disponibilidade real de uso."
+          ],
+          "edge_cases": [
+            "Forecast_key duplicado no mesmo snapshot e source_code deve retornar 409 ou 422.",
+            "Programacoes sobrepostas para o mesmo SKU devem seguir regra clara de prioridade ou consolidacao.",
+            "Cancelamento de programacao manual deve recalcular o cenario automaticamente.",
+            "Disponibilidade anterior ao snapshot_at deve ser tratada explicitamente como dado invalido ou historico."
+          ]
+        },
+        {
+          "id": "4.3",
+          "categoria": "frontend",
+          "descricao": "Operar as visoes de montagem, producao, compras, reciclagem, custos e regras de maquina como leitura oficial do planejamento.",
+          "estado_atual": "Existem endpoints, datasets e telas base para assembly, production, purchases, recycling, costs e production-rules, mas parte da experiencia ainda e de prototipo.",
+          "evidencias": [
+            "web-react/src/pages/FactorySimulator.jsx",
+            "web-react/src/App.jsx",
+            "data/assembly.json",
+            "data/production.json",
+            "data/purchases.json",
+            "data/recycling.json",
+            "data/costs.json",
+            "data/production_machine_rules.json"
+          ],
+          "endpoints": [
+            "GET /api/pcp/assembly",
+            "GET /api/pcp/production",
+            "GET /api/pcp/purchases",
+            "GET /api/pcp/recycling",
+            "GET /api/pcp/costs",
+            "GET /api/pcp/production-rules"
+          ],
+          "steps": [
+            "Exibir filas e necessidades por dominio operacional com filtros por empresa e criticidade.",
+            "Ler a programacao e as regras vigentes para priorizacao de capacidade.",
+            "Explicitar gargalos, sem previsao, dependencia de compra e impacto de estrutura.",
+            "Suportar estados de loading, empty, stale_data e erro em cada painel.",
+            "Permitir navegacao coerente entre dashboards e detalhe operacional."
+          ],
+          "acceptance_criteria": [
+            "Cada modulo mostra dados coerentes com a camada corrente de estrutura e programacao.",
+            "Filtros por empresa e tipo nao misturam contextos operacionais.",
+            "Custos, reciclagem e compras entram como leitura operacional consistente do cenario vigente."
+          ],
+          "edge_cases": [
+            "Maquina sem regra cadastrada deve ser sinalizada sem quebrar a tela.",
+            "Item sem estrutura valida deve gerar alerta visivel para o PCP.",
+            "Sem dados para um dominio, a tela deve mostrar empty state orientativo."
+          ]
+        }
+      ]
+    },
+    {
+      "id": 5,
+      "nome": "Apontamento, administracao e integracao ERP",
+      "descricao": "Fechar o fluxo operacional de apontamento, administracao interna do modulo e sincronizacao com integracoes externas e ERP.",
+      "estado_atual": "Parcialmente implementado",
+      "entregavel": "Fluxo de apontamento web responsivo, administracao de usuarios e integracoes, movimentacoes manuais e auditoria unificada.",
+      "risco": "medio",
+      "pre_requisito": "Sprint 1",
+      "features": [
+        {
+          "id": "5.1",
+          "categoria": "frontend",
+          "descricao": "Executar o apontamento de producao no PCP e sincronizar o resultado para o Sankhya via integracao.",
+          "estado_atual": "Ja existem telas de referencia para apontamento, endpoints de save, export, sync-status e dispatch, mas a camada oficial ainda precisa sair do modo prototipo.",
+          "evidencias": [
+            "web-react/src/pages/ProductionTracking.jsx",
+            "server.py",
+            "backend/provider.py",
+            "README.md"
+          ],
+          "endpoints": [
+            "POST /api/pcp/auth/login",
+            "POST /api/pcp/apontamento/save",
+            "POST /api/pcp/apontamento/sync-status",
+            "POST /api/pcp/apontamento/dispatch",
+            "GET /api/pcp/apontamento/logs",
+            "GET /api/pcp/apontamento/export"
+          ],
+          "permissions": [
+            "apontamento.read",
+            "apontamento.write",
+            "apontamento.dispatch"
+          ],
+          "steps": [
+            "Permitir login do operador no fluxo de apontamento.",
+            "Listar ordens, iniciar execucao, registrar paradas, perdas, apontamentos de PA e MP e finalizacao.",
+            "Persistir status local do apontamento com trilha de sincronizacao.",
+            "Exportar apontamentos pendentes e despachar para a integracao oficial.",
+            "Atualizar o status de sync com retorno da integracao e manter o historico operacional.",
+            "Funcionar em layout mobile web responsivo para uso no chao de fabrica."
+          ],
+          "acceptance_criteria": [
+            "O operador consegue registrar o ciclo completo de apontamento no PCP.",
+            "O sistema diferencia apontamento pendente, enviado, sincronizado e com erro.",
+            "A sincronizacao com a integracao externa nao perde o apontamento local em caso de falha.",
+            "O Sankhya permanece como destino transacional oficial do fluxo."
+          ],
+          "edge_cases": [
+            "Falha de integracao deve manter o apontamento em fila de reenvio sem apagar o registro local.",
+            "Duplicidade de envio deve ser tratada com idempotencia ou reconciliacao.",
+            "Operador sem permissao de dispatch deve conseguir registrar e salvar, mas nao enviar.",
+            "Perda de conectividade na UI deve preservar rascunho local temporario ate o save oficial."
+          ]
+        },
+        {
+          "id": "5.2",
+          "categoria": "auth",
+          "descricao": "Administrar usuarios, integracoes e movimentacoes manuais de estoque com validacao, permissao e auditoria.",
+          "estado_atual": "Os endpoints e parte da logica de persistencia ja existem, inclusive bloqueio do root em alguns cenarios no modo mock.",
+          "evidencias": [
+            "server.py",
+            "backend/provider.py",
+            "data/stock_movements.json"
+          ],
+          "endpoints": [
+            "GET /api/pcp/users",
+            "POST /api/pcp/users/save",
+            "GET /api/pcp/integrations",
+            "POST /api/pcp/integrations/save",
+            "GET /api/pcp/stock-movements",
+            "POST /api/pcp/stock-movements/save"
+          ],
+          "permissions": [
+            "users.manage",
+            "integrations.manage",
+            "stock_movements.manage"
+          ],
+          "steps": [
+            "Cadastrar e manter usuarios ativos, inativos e seus escopos de permissao.",
+            "Configurar integracoes como n8n webhook de romaneios e apontamento com metodo, auth e payload base.",
+            "Registrar movimentacoes manuais de estoque com sku, quantidade, tipo, empresa e responsavel.",
+            "Aplicar validacao de campos obrigatorios, duplicidade e consistencia de ativacao.",
+            "Auditar toda alteracao administrativa."
+          ],
+          "acceptance_criteria": [
+            "Nao e possivel desativar o bootstrap administrativo sem fluxo valido de substituicao.",
+            "Movimentacoes de estoque exigem SKU e quantidade positiva.",
+            "Apenas perfis autorizados podem alterar usuarios, integracoes e movimentos manuais.",
+            "Toda alteracao administrativa fica rastreavel."
+          ],
+          "edge_cases": [
+            "Webhook sem URL valida deve retornar 422.",
+            "Ativacao de integracoes conflitantes do mesmo tipo deve ser tratada com regra clara.",
+            "Quantidade menor ou igual a zero em movimentacao deve retornar 422.",
+            "Falha ao salvar auditoria nao pode deixar alteracao administrativa sem rastro oficial."
+          ]
+        },
+        {
+          "id": "5.3",
+          "categoria": "infra",
+          "descricao": "Centralizar historico e auditoria de toda alteracao manual e sobrescrita concorrente no modulo PCP.",
+          "estado_atual": "Existe necessidade clara no produto, mas a trilha unificada ainda nao aparece como contrato formal em todas as areas.",
+          "evidencias": [
+            "backend/provider.py",
+            "docs/pcp_prioridade_romaneios.md",
+            "docs/pcp_estruturas_programacao.md"
+          ],
+          "steps": [
+            "Criar modelo unificado de auditoria para overrides, apontamentos, administracao e integracoes.",
+            "Registrar before e after, usuario, empresa, motivo, origem, timestamps e correlacao por request_id.",
+            "Registrar sobrescritas concorrentes com referencia ao evento anterior recente.",
+            "Expor consulta de historico nos contextos onde houver ajuste manual.",
+            "Garantir retencao minima para rastreabilidade operacional."
+          ],
+          "acceptance_criteria": [
+            "Toda alteracao manual relevante gera evento de auditoria padronizado.",
+            "Sobrescritas concorrentes ficam identificaveis por entidade e usuario.",
+            "O modulo permite responder quem mudou o que, quando e por qual motivo."
+          ],
+          "edge_cases": [
+            "Mudanca manual sem usuario autenticado valido deve ser rejeitada.",
+            "Falha parcial entre persistencia do estado e auditoria deve gerar compensacao ou bloqueio da operacao.",
+            "Eventos fora de ordem por clock drift devem usar referencia monotona ou ordenacao consistente."
+          ]
+        }
+      ]
+    }
+  ],
+  "out_of_scope_for_now": [
+    "Substituir integralmente o Sankhya como ERP transacional do grupo.",
+    "Suportar tenancy multi-cliente para empresas de grupos distintos nesta primeira versao.",
+    "Criar aplicativo mobile nativo fora do escopo do web responsivo de apontamento.",
+    "Automacao comercial, faturamento ou CRM fora dos dominios diretamente cobertos pelo PCP."
+  ]
+}
