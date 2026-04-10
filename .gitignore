@@ -7,3 +7,7 @@ __pycache__/
 *.pyc
 *.pyo
 *.pyd
+web-react/node_modules/
+web-react/dist/
+output/
+.playwright-cli/
