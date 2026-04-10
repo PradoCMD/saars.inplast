@@ -12,7 +12,8 @@ O objetivo aqui nao e definir a stack final do produto. A ideia e entregar uma b
 ## Conteudo do repositorio
 
 - `backend/`: camada de leitura e acoes contra o Postgres
-- `web/`: interface web do modulo PCP
+- `web-react/`: frontend oficial do modulo PCP
+- `web/`: interface legacy mantida apenas como referencia auxiliar
 - `data/`: dados mock para demonstracao
 - `parsers/`: parsers Python usados pela ingestao de estoque
 - `database/`: schema e permissoes do Postgres
@@ -27,18 +28,25 @@ O objetivo aqui nao e definir a stack final do produto. A ideia e entregar uma b
 - `server.py`: servidor de referencia do modulo
 - `backend/`: configuracao, providers e queries SQL
 - `data/`: respostas JSON dos endpoints
-- `web/`: frontend web que consome a API
+- `web-react/`: shell oficial servido no runtime a partir de `web-react/dist`
+- `web/`: legado auxiliar, fora da trilha oficial de deploy
 
 ## Como rodar
 
 ```bash
 cd "/caminho/do/repositorio/saars.inplast"
+npm --prefix web-react run build
 python3 server.py
 ```
 
 Depois abra:
 
 - `http://127.0.0.1:8765`
+
+Observacao:
+
+- o servidor agora exige o build de `web-react/dist` para entregar a interface oficial
+- se voce estiver usando Docker, esse build ja acontece dentro da imagem
 
 ## Stack integrada com Postgres dedicado
 
@@ -123,7 +131,7 @@ Observacao:
 - se `PCP_DATABASE_URL` nao for informado, o backend tambem consegue montar a conexao automaticamente a partir de `PCP_POSTGRES_HOST`, `PCP_POSTGRES_DB`, `PCP_APP_DB_PASSWORD` e `PCP_INTEGRATION_DB_PASSWORD`
 - usuarios, integracoes, movimentos de estoque do almoxarifado, datas de referencia dos romaneios e regras de producao passam a ser persistidos no Postgres do proprio modulo
 - os JSONs em `data/` continuam apenas como semente inicial/importacao automatica quando o banco estiver vazio ou quando a referencia embarcada for atualizada
-- os arquivos `docker-compose.*.yaml` agora incluem um servico `pcp-db-migrate`, que reaplica o schema idempotente em cada subida para nao depender de apagar o volume do Postgres em upgrades
+- nos YAMLs atuais do Coolify, o bootstrap do banco acontece no startup do app via `docker/start-pcp.sh`; nao existe hoje um servico separado `pcp-db-migrate`
 
 ## Implantacao
 
@@ -178,6 +186,23 @@ e usa a imagem publicada pelo GitHub Container Registry:
 A automacao dessa imagem fica em:
 
 - `.github/workflows/publish-image.yml`
+
+Para governanca de release/deploy, use primeiro:
+
+- `docs/release_deploy_governanca.md`
+- `docs/release_rollout_status.md`
+- `coolify_deploy_guide.md`
+
+Leitura importante:
+
+- aprovacao funcional do produto nao implica aprovacao de rollout
+- o guia do Coolify e runbook operacional, nao fonte unica de aprovacao de release
+
+Regra pratica de imagem:
+
+- use `main` para deploy imediato ou validacao operacional rapida no Coolify
+- use `sha-<commit>` para rollout pinado depois da publicacao e verificacao da tag
+- evite `latest` como padrao operacional
 
 ## Repo local na VM apps
 

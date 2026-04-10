@@ -25,7 +25,7 @@ from backend.source_sync import SourceSyncError
 
 ROOT = Path(__file__).resolve().parent
 DATA_DIR = ROOT / "data"
-WEB_DIR = ROOT / "web"
+WEB_REACT_DIST_DIR = ROOT / "web-react" / "dist"
 SETTINGS = Settings.from_env()
 PROVIDER = build_provider(SETTINGS, DATA_DIR)
 ROMANEIO_WEBHOOK_SOURCE_CODE = "romaneio_sankhya_webhook"
@@ -259,9 +259,24 @@ def content_type_for(path: Path) -> str:
         return "text/css; charset=utf-8"
     if path.suffix == ".js":
         return "application/javascript; charset=utf-8"
+    if path.suffix == ".svg":
+        return "image/svg+xml"
+    if path.suffix == ".png":
+        return "image/png"
+    if path.suffix == ".ico":
+        return "image/x-icon"
     if path.suffix == ".json":
         return "application/json; charset=utf-8"
     return "text/plain; charset=utf-8"
+
+
+def resolve_web_dir() -> Path:
+    if WEB_REACT_DIST_DIR.exists() and (WEB_REACT_DIST_DIR / "index.html").is_file():
+        return WEB_REACT_DIST_DIR
+    raise RuntimeError(
+        "Frontend oficial indisponivel: `web-react/dist` nao encontrado. "
+        "Gere o build do web-react antes de subir o servidor."
+    )
 
 
 def json_default(value):
@@ -1652,14 +1667,22 @@ class PcpApiHandler(BaseHTTPRequestHandler):
             )
 
     def handle_static(self, raw_path: str) -> None:
+        web_dir = resolve_web_dir()
         path = raw_path or "/"
         if path == "/":
             path = "/index.html"
 
-        file_path = (WEB_DIR / path.lstrip("/")).resolve()
-        if WEB_DIR not in file_path.parents and file_path != WEB_DIR:
+        file_path = (web_dir / path.lstrip("/")).resolve()
+        if web_dir not in file_path.parents and file_path != web_dir:
             self.send_error(HTTPStatus.FORBIDDEN)
             return
+        if not file_path.exists() or not file_path.is_file():
+            # Allow SPA deep links on the official web-react shell.
+            if path.rsplit("/", 1)[-1].find(".") == -1:
+                file_path = web_dir / "index.html"
+            else:
+                self.send_error(HTTPStatus.NOT_FOUND)
+                return
         if not file_path.exists() or not file_path.is_file():
             self.send_error(HTTPStatus.NOT_FOUND)
             return
@@ -1685,7 +1708,11 @@ class PcpApiHandler(BaseHTTPRequestHandler):
 
 def main() -> None:
     server = ThreadingHTTPServer((SETTINGS.host, SETTINGS.port), PcpApiHandler)
-    print(f"PCP SaaS running on http://{SETTINGS.host}:{SETTINGS.port} [{SETTINGS.data_mode}]")
+    web_dir = resolve_web_dir()
+    print(
+        f"PCP SaaS running on http://{SETTINGS.host}:{SETTINGS.port} "
+        f"[{SETTINGS.data_mode}] frontend={web_dir.relative_to(ROOT)}"
+    )
     try:
         server.serve_forever()
     except KeyboardInterrupt:

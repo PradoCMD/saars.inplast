@@ -1,3 +1,13 @@
+FROM node:20-alpine AS frontend-build
+
+WORKDIR /frontend
+
+COPY web-react/package*.json ./
+RUN npm ci
+
+COPY web-react/ ./
+RUN npm run build
+
 FROM python:3.12-slim
 
 ENV PYTHONDONTWRITEBYTECODE=1 \
@@ -11,6 +21,7 @@ RUN apt-get update \
     && pip install --no-cache-dir "psycopg[binary]" pdfplumber
 
 COPY . /app/
+COPY --from=frontend-build /frontend/dist /app/web-react/dist
 
 EXPOSE 8765
 
