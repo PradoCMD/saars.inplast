@@ -57,6 +57,12 @@ Decisao pratica:
 4. cadastrar as variaveis diretamente na UI do Coolify com base em `.env.coolify.example`
 5. configurar o dominio/URL no Coolify apontando para a porta `8765`
 
+Observacao:
+
+- os compose atuais publicam a porta da app com `ports: "${PCP_PORT:-8765}:8765"`
+- isso permite testar direto por IP, por exemplo `http://SEU_IP:8765`
+- se ainda assim nao abrir, o proximo suspeito passa a ser firewall/roteamento da VM, nao o container
+
 ## Variaveis obrigatorias
 
 - `PCP_DATA_MODE=postgres`

@@ -47,8 +47,8 @@ services:
       PCP_INTEGRATION_DB_PASSWORD: ${PCP_INTEGRATION_DB_PASSWORD}
       PCP_DATABASE_URL: ${PCP_DATABASE_URL:-postgresql://pcp_app:${PCP_APP_DB_PASSWORD}@pcp-postgres:5432/${PCP_POSTGRES_DB:-inplast_pcp}}
       PCP_ACTIONS_DATABASE_URL: ${PCP_ACTIONS_DATABASE_URL:-postgresql://pcp_integration:${PCP_INTEGRATION_DB_PASSWORD}@pcp-postgres:5432/${PCP_POSTGRES_DB:-inplast_pcp}}
-    expose:
-      - "8765"
+    ports:
+      - "${PCP_PORT:-8765}:8765"
     healthcheck:
       test:
         [
