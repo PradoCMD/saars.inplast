@@ -86,7 +86,7 @@ function buildSourceSummary(items) {
   }, { ok: 0, attention: 0, blocked: 0 })
 }
 
-function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeLabel, searchQuery, stale, snapshotAt }) {
+function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeLabel, searchQuery, stale, snapshotAt, onNavigate }) {
   if (overviewState.status === 'loading') {
     return (
       <StatePanel
@@ -245,6 +245,9 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
           ? 'Ainda existe leitura operacional, mas a empresa ativa deve agir com prudência até nova atualização oficial.'
           : 'Há leitura útil, porém sem uma base ampla de fontes saudáveis nesta superfície.',
       tone: sourceSummary.ok ? 'ok' : stale ? 'warning' : 'info',
+      actionLabel: 'Ver governança',
+      actionHint: 'Integridade transversal do shell',
+      onAction: () => onNavigate?.('fontes'),
     },
     {
       label: 'Em cautela',
@@ -259,6 +262,9 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
           ? 'A decisão continua possível, mas a leitura da empresa deve absorver alerta e frescor degradado.'
           : 'Não há fonte ou alerta puxando cautela forte para a empresa ativa neste recorte.',
       tone: integrationTone,
+      actionLabel: 'Abrir governança',
+      actionHint: 'Investigar origem da cautela',
+      onAction: () => onNavigate?.('fontes'),
     },
     {
       label: 'Próximo módulo',
@@ -273,6 +279,13 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
           ? `${nextCritical.produto} continua puxando a próxima decisão da empresa ativa.`
           : 'Sem exceção forte no snapshot atual; o foco segue em acompanhamento contínuo.',
       tone: missingForecastCount ? 'high' : nextCritical ? pressureTone : 'ok',
+      actionLabel: missingForecastCount ? 'Abrir kanban' : nextCritical ? 'Abrir romaneios' : 'Abrir kanban',
+      actionHint: missingForecastCount
+        ? 'Fila oficial da empresa ativa'
+        : nextCritical
+          ? 'Detalhe oficial e continuidade da exceção'
+          : 'Acompanhar carteira e previsão',
+      onAction: () => onNavigate?.(missingForecastCount ? 'romaneios-kanban' : nextCritical ? 'romaneios' : 'romaneios-kanban'),
     },
   ]
 
@@ -494,6 +507,16 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
                     {sourceSummary.blocked || sourceSummary.attention || highAlertCount || stale
                       ? 'Use Governança para investigar a origem transversal da cautela antes de tratar a decisão contextual como verdade isolada.'
                       : 'Governança segue como trilho de auditoria transversal, mas não precisa ser o primeiro destino nesta leitura.'}
+                  </p>
+                </article>
+                <article>
+                  <strong>Para onde seguir depois do overview</strong>
+                  <p>
+                    {missingForecastCount
+                      ? 'A próxima camada operacional fica em Kanban e Romaneios, porque a empresa ativa já mostrou romaneios sem previsão confiável.'
+                      : nextCritical
+                        ? 'O próximo passo pode sair direto para Romaneios quando o gargalo principal já estiver claro e pedir detalhe oficial.'
+                        : 'Sem urgência forte, o cockpit continua como ponto de monitoramento e Governança fica disponível para auditoria transversal.'}
                   </p>
                 </article>
               </div>

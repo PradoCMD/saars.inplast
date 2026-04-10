@@ -209,6 +209,7 @@ function SourcesGovernance({
   canSyncSources,
   onSyncSources,
   syncBusy,
+  onNavigate,
 }) {
   if (resourceState.status === 'loading' && !resourceState.data) {
     return (
@@ -311,6 +312,9 @@ function SourcesGovernance({
           ? 'O cockpit continua utilizável, mas a empresa ativa deve ler pressão e cobertura como snapshot em cautela.'
           : 'Os indicadores por empresa seguem apoiados em uma base estável nesta leitura.',
       tone: sourceSummary.blocked ? 'high' : sourceSummary.attention || snapshotStale ? 'warning' : 'ok',
+      actionLabel: 'Abrir cockpit',
+      actionHint: 'Leitura contextual por empresa',
+      onAction: () => onNavigate?.('cockpit'),
     },
     {
       label: 'Impacta kanban',
@@ -325,6 +329,9 @@ function SourcesGovernance({
           ? 'Kanban continua honesto, porém a origem da previsão pede acompanhamento até nova atualização.'
           : 'A fila oficial mantém leitura segura de previsão e exceção nesta rodada.',
       tone: sourceSummary.blocked || snapshotStale ? 'high' : sourceSummary.attention ? 'warning' : 'ok',
+      actionLabel: 'Abrir kanban',
+      actionHint: 'Fila oficial sem mutação fake',
+      onAction: () => onNavigate?.('romaneios-kanban'),
     },
     {
       label: 'Impacta romaneios',
@@ -339,6 +346,9 @@ function SourcesGovernance({
           ? 'O consolidado continua oficial, porém a interpretação da previsão exige mais atenção operacional.'
           : 'Lista oficial, detalhe consolidado e eventos seguem coerentes com a leitura transversal atual.',
       tone: sourceSummary.blocked || highAlertCount ? 'warning' : sourceSummary.attention ? 'info' : 'ok',
+      actionLabel: 'Abrir romaneios',
+      actionHint: 'Detalhe oficial e buffer subordinado',
+      onAction: () => onNavigate?.('romaneios'),
     },
   ]
 
@@ -565,7 +575,7 @@ function SourcesGovernance({
             <div className="panel-header">
               <div>
                 <h3>Impacto nos módulos</h3>
-                <span>Tradução transversal de integridade para decisão no restante do produto.</span>
+                <span>Tradução transversal de integridade para decisão no restante do produto, já com drilldown operacional.</span>
               </div>
               <span className={`tag ${criticalTone}`}>{criticalTone === 'high' ? 'Transversal em risco' : criticalTone === 'warning' ? 'Transversal em cautela' : 'Transversal estável'}</span>
             </div>

@@ -1,504 +1,717 @@
-import { startTransition, useState } from 'react'
+import { useEffect, useEffectEvent, useMemo, useState } from 'react'
 import {
   FiActivity,
-  FiAlertCircle,
-  FiBox,
+  FiAlertTriangle,
   FiCheckCircle,
-  FiCheckSquare,
   FiClock,
-  FiPauseCircle,
-  FiPlayCircle,
-  FiSearch,
-  FiUser,
+  FiRefreshCw,
+  FiSend,
+  FiShield,
+  FiSlash,
 } from 'react-icons/fi'
+import { DonutGauge, Sparkline } from '../components/OperationsCharts'
+import StatePanel from '../components/StatePanel'
+import { createResourceState, getErrorKind, requestJson } from '../lib/api'
+import {
+  buildResourceAliasLookup,
+  filterBySearch,
+  formatDateTime,
+  formatInteger,
+  formatPercent,
+  getEventLabel,
+  latestEntriesByMachine,
+  machineLabel,
+  normalizeMachineCode,
+  safeNumber,
+  toneFromEventType,
+  toneFromSyncStatus,
+} from '../lib/operations'
 
-import './ProductionTracking.css'
+import './OperationsWorkspace.css'
 
-const queueOperations = [
-  {
-    id: 2644,
-    product: 'Produto: CHAPA PP ALVE 12',
-    op: 'Op. e Produto: 5.000 LE 774 / 1452-14',
-    activity: 'Ativ.: Produção',
-    priority: 'info',
-  },
-  {
-    id: 2627,
-    product: 'Produto: CHAPA PP C/MBT B/N CS 400 X 700 MM',
-    op: 'Op. e Produto: 6.000 LE 626 / 6593-1',
-    activity: 'Ativ.: Produção',
-    priority: 'warning',
-  },
-  {
-    id: 2626,
-    product: 'Produto: PERFIL TECNICO NATURAL B 60',
-    op: 'Op. e Produto: 6.000 LE 624 / 6346-1',
-    activity: 'Ativ.: Produção',
-    priority: 'info',
-  },
-]
-
-const pauseReasons = [
-  'AGUARDANDO CARRO',
-  'AGUARDANDO MATERIAL',
-  'AJUSTE MESA DE ALIMENTAÇÃO',
-  'DEFEITO ELÉTRICO',
-  'DEFEITO MECÂNICO',
-  'FALTA DE PROGRAMAÇÃO',
-]
-
-const lossReasons = [
-  'ABAULAMENTO',
-  'BOLHAS',
-  'CAIXAS DE AJUSTE',
-  'CAIXAS SUJAS E DANIFICADAS',
-  'CHAPA DESALINHADA',
-  'CHAPA COM REBARBAS',
-]
-
-const finishedProducts = [
-  { code: 'PMC 425', description: 'Produto: PAPEL CAPA 1 110', qty: '311.600 KG' },
-  { code: 'PMC 522', description: 'Produto: PAPEL MIOLO 100 U', qty: '186.400 KG' },
-  { code: 'COLA BIS', description: 'Produto: COLA BHS - ITA', qty: '27.100 KG' },
-]
-
-const rawMaterials = [
-  { code: 'MP 110', description: 'Produto: PAPEL CAPA 1 110', qty: '318.800 KG' },
-  { code: 'MP 100', description: 'Produto: PAPEL MIOLO 100 U', qty: '194.600 KG' },
-  { code: 'AD 018', description: 'Produto: COLA BHS - ITA', qty: '31.400 KG' },
-]
-
-const executionEntries = [
-  {
-    type: 'Parada: FALHA DO SLOTTER',
-    startedAt: 'Ini. Real: 01/10 17:28:31',
-    endedAt: 'Fim Real: 01/10 17:33:05',
-    note: 'Observação: processo',
-    tone: 'high',
-  },
-  {
-    type: 'Normal',
-    startedAt: 'Ini. Real: 01/10 17:36:45',
-    endedAt: 'Fim Real: 01/10 17:40:58',
-    note: 'Observação: OK',
-    tone: 'ok',
-  },
-]
-
-const sectionChips = [
-  { id: 'acesso', label: 'Acesso e OPs' },
-  { id: 'execucao', label: 'Execução' },
-  { id: 'paradas', label: 'Paradas e perdas' },
-  { id: 'apontamento', label: 'PA e MP' },
-  { id: 'finalizacao', label: 'Finalização' },
-]
-
-function ApontaLogo() {
-  return (
-    <div className="aponta-logo">
-      <div className="aponta-logo-mark">
-        <span />
-        <span />
-        <span />
-      </div>
-      <div className="aponta-logo-text">
-        <strong>APONTA</strong>
-        <small>Apontamento de Produção</small>
-      </div>
-    </div>
-  )
+const INITIAL_FORM = {
+  machine_code: '',
+  event_type: 'apontar',
+  op_code: '',
+  pieces: '',
+  scrap: '',
+  reason: '',
+  time_range: '',
 }
 
-function PhoneShell({ children, className = '' }) {
-  return (
-    <div className="aponta-phone-card">
-      <div className={`aponta-screen ${className}`}>{children}</div>
-    </div>
-  )
+function collectMachineOptions(resourceCatalog, logsItems) {
+  const values = new Set()
+  resourceCatalog.forEach((resource) => {
+    if (resource.code) values.add(String(resource.code).trim().toUpperCase())
+  })
+  logsItems.forEach((item) => {
+    if (item.machine_code) values.add(String(item.machine_code).trim().toUpperCase())
+  })
+  return [...values].sort((left, right) => left.localeCompare(right))
 }
 
-function PhoneHeader({ title, compact = false }) {
-  return (
-    <div className={`aponta-topbar ${compact ? 'compact' : ''}`}>
-      <span className="aponta-topbar-back">‹</span>
-      <strong>{title}</strong>
-      <div className="aponta-topbar-icons">
-        <span />
-        <span />
-      </div>
-    </div>
+function ProductionTracking({
+  accessToken,
+  onUnauthorizedSession,
+  currentUser,
+  searchQuery,
+  reloadKey,
+  selectedCompany,
+  canWrite,
+  canDispatch,
+}) {
+  const [resources, setResources] = useState({
+    logs: createResourceState('loading'),
+    exportQueue: createResourceState('idle'),
+    programming: createResourceState('idle'),
+    rules: createResourceState('idle'),
+  })
+  const [formValues, setFormValues] = useState(INITIAL_FORM)
+  const [notice, setNotice] = useState(null)
+  const [saveBusy, setSaveBusy] = useState(false)
+  const [dispatchBusy, setDispatchBusy] = useState(false)
+  const [statusBusyId, setStatusBusyId] = useState('')
+  const [localReloadKey, setLocalReloadKey] = useState(0)
+
+  const handleUnauthorized = useEffectEvent((message) => {
+    onUnauthorizedSession?.(message)
+  })
+
+  useEffect(() => {
+    if (!accessToken) return
+    let cancelled = false
+
+    async function loadModule() {
+      setResources((current) => ({
+        logs: createResourceState('loading', current.logs.data, null),
+        exportQueue: createResourceState('loading', current.exportQueue.data, null),
+        programming: createResourceState('loading', current.programming.data, null),
+        rules: createResourceState('loading', current.rules.data, null),
+      }))
+
+      const nextResources = {}
+
+      const requestResource = async (key, path) => {
+        try {
+          const data = await requestJson(path, {
+            accessToken,
+            onUnauthorized: handleUnauthorized,
+          })
+          nextResources[key] = createResourceState('ready', data, null)
+        } catch (error) {
+          nextResources[key] = createResourceState(getErrorKind(error), null, error)
+        }
+      }
+
+      await Promise.all([
+        requestResource('logs', '/api/pcp/apontamento/logs'),
+        requestResource('exportQueue', '/api/pcp/apontamento/export?pending_only=true'),
+        requestResource('programming', '/api/pcp/programming?action=produzir'),
+        requestResource('rules', '/api/pcp/production-rules'),
+      ])
+
+      if (cancelled) return
+      setResources((current) => ({ ...current, ...nextResources }))
+    }
+
+    loadModule()
+
+    return () => {
+      cancelled = true
+    }
+  }, [accessToken, localReloadKey, reloadKey])
+
+  const logsItems = useMemo(() => resources.logs.data?.items || [], [resources.logs.data])
+  const exportItems = useMemo(() => resources.exportQueue.data?.items || [], [resources.exportQueue.data])
+  const programmingItems = useMemo(() => resources.programming.data?.items || [], [resources.programming.data])
+  const rulesData = useMemo(() => resources.rules.data || { resource_catalog: [] }, [resources.rules.data])
+
+  const filteredLogs = useMemo(
+    () => filterBySearch(logsItems, searchQuery, (item) => [
+      item.machine_code,
+      item.operator,
+      item.event_type,
+      item.op_code,
+      item.reason,
+      item.integration_status,
+    ]),
+    [logsItems, searchQuery],
   )
-}
 
-function ModalCard({ title, confirmLabel = 'OK', confirmTone = 'success', cancelLabel = '', compact = false }) {
-  return (
-    <div className={`aponta-modal ${compact ? 'compact' : ''}`}>
-      <div className="aponta-modal-body">
-        <strong>{title}</strong>
-        <div className="aponta-modal-actions">
-          {cancelLabel ? <button className="aponta-btn danger">{cancelLabel}</button> : null}
-          <button className={`aponta-btn ${confirmTone}`}>{confirmLabel}</button>
-        </div>
-      </div>
-    </div>
+  const filteredExportItems = useMemo(
+    () => filterBySearch(exportItems, searchQuery, (item) => [
+      item.machine_code,
+      item.operator,
+      item.event_type,
+      item.op_code,
+      item.reason,
+      item.integration_status,
+    ]),
+    [exportItems, searchQuery],
   )
-}
 
-function LoginPhone() {
-  return (
-    <PhoneShell className="aponta-screen-light">
-      <div className="aponta-login-hero">
-        <ApontaLogo />
-      </div>
-      <div className="aponta-login-form">
-        <label className="aponta-pill-input">
-          <FiUser />
-          <input value="angelo.sankhya" readOnly />
-        </label>
-        <label className="aponta-pill-input">
-          <FiAlertCircle />
-          <input value="••••••••" readOnly />
-        </label>
-        <button className="aponta-primary-button">Entrar</button>
-      </div>
-      <div className="aponta-floating-help" />
-    </PhoneShell>
+  const aliasLookup = useMemo(
+    () => buildResourceAliasLookup(rulesData.resource_catalog || []),
+    [rulesData.resource_catalog],
   )
-}
-
-function QueuePhone({ modalTitle }) {
-  return (
-    <PhoneShell className="aponta-screen-dark">
-      <PhoneHeader title="Ordens de Prod." />
-      <div className="aponta-search-box">
-        <FiSearch />
-        <input placeholder="Pesquisar OP" readOnly />
-      </div>
-      <div className="aponta-list-stack">
-        {queueOperations.map((operation) => (
-          <article key={operation.id} className="aponta-order-card">
-            <header>
-              <small>Nro. OP: {operation.id}</small>
-              <span className={`aponta-priority ${operation.priority}`}>!</span>
-            </header>
-            <p>{operation.product}</p>
-            <p>{operation.op}</p>
-            <footer>{operation.activity}</footer>
-          </article>
-        ))}
-      </div>
-      {modalTitle ? (
-        <ModalCard
-          title={modalTitle}
-          confirmLabel={modalTitle.includes('Inicializada') ? 'OK' : 'CONTINUAR'}
-          confirmTone="success"
-          cancelLabel={modalTitle.includes('Inicialização') ? 'CANCELAR' : ''}
-        />
-      ) : null}
-    </PhoneShell>
+  const latestMachinesMap = useMemo(
+    () => latestEntriesByMachine(filteredLogs, aliasLookup),
+    [aliasLookup, filteredLogs],
   )
-}
-
-function ExecutionPhone({ modalTitle = '', success = false }) {
-  return (
-    <PhoneShell className="aponta-screen-dark">
-      <PhoneHeader title="Nro OP: 2625" compact />
-      <div className="aponta-mini-toolbar">
-        <span className="active">Execução</span>
-        <span>Apontamentos</span>
-        <span>+</span>
-      </div>
-      <div className="aponta-stage-card">
-        <small>APONTAMENTO CHAPAS</small>
-        <p>Produto: CHAPA PP C/MBT B/N CS 400 X 700 MM</p>
-        <p>Nro. Lote: 6558-1</p>
-        <p>Qtd. a Produzir: 5000 KG</p>
-      </div>
-      <div className="aponta-action-row">
-        <button className="aponta-round-action">
-          <FiPauseCircle />
-          <span>Pausar</span>
-        </button>
-        <button className="aponta-round-action">
-          <FiCheckCircle />
-          <span>Finalizar atividade</span>
-        </button>
-      </div>
-      <div className="aponta-history-card">
-        <div className="aponta-history-head">Execuções</div>
-        {executionEntries.map((entry) => (
-          <div key={entry.type} className="aponta-history-row">
-            <span className={`dot ${entry.tone}`} />
-            <div>
-              <strong>{entry.type}</strong>
-              <small>{entry.startedAt}</small>
-              <small>{entry.endedAt}</small>
-            </div>
-          </div>
-        ))}
-      </div>
-      {modalTitle ? (
-        <ModalCard title={modalTitle} confirmLabel="OK" confirmTone={success ? 'success' : 'success'} compact />
-      ) : null}
-    </PhoneShell>
+  const machineOptions = useMemo(
+    () => collectMachineOptions(rulesData.resource_catalog || [], logsItems),
+    [logsItems, rulesData.resource_catalog],
   )
-}
-
-function ReasonsPhone({ title, reasons, modalTitle = '', quantityMode = false }) {
-  return (
-    <PhoneShell className="aponta-screen-dark">
-      <PhoneHeader title="Nro OP: 2625" compact />
-      <div className="aponta-mini-toolbar">
-        <span>Execução</span>
-        <span className="active">{title}</span>
-        <span>+</span>
-      </div>
-      <div className="aponta-reasons-card">
-        <div className="aponta-reasons-head">{title}</div>
-        {reasons.map((reason, index) => (
-          <div key={reason} className="aponta-reason-row">
-            <strong>{index + 1}</strong>
-            <span>{reason}</span>
-          </div>
-        ))}
-      </div>
-      {quantityMode ? (
-        <div className="aponta-modal compact">
-          <div className="aponta-modal-body form">
-            <strong>Informe as quantidades</strong>
-            <div className="aponta-mini-form">
-              <input value="100" readOnly />
-              <input value="0" readOnly />
-              <input value="1" readOnly />
-            </div>
-            <div className="aponta-modal-actions">
-              <button className="aponta-btn danger">Cancelar</button>
-              <button className="aponta-btn success">Salvar</button>
-            </div>
-          </div>
-        </div>
-      ) : null}
-      {modalTitle ? <ModalCard title={modalTitle} confirmLabel="OK" compact /> : null}
-    </PhoneShell>
-  )
-}
-
-function PointingPhone({ modalTitle = '', confirmButton = 'Inserir Novo Apontamento', mode = 'produtos' }) {
-  const items = mode === 'produtos' ? finishedProducts : rawMaterials
-  const secondary = mode === 'produtos' ? rawMaterials : finishedProducts
-
-  return (
-    <PhoneShell className="aponta-screen-dark">
-      <PhoneHeader title="Nro OP: 2625" compact />
-      <div className="aponta-mini-toolbar">
-        <span>Apontamentos</span>
-        <span className="active">{mode === 'produtos' ? 'Produtos Acabados' : 'Matérias Primas'}</span>
-        <span>+</span>
-      </div>
-      <div className="aponta-products-stack">
-        <div className="aponta-products-block">
-          <div className="aponta-products-head">{mode === 'produtos' ? 'Produtos Acabados' : 'Matérias Primas'}</div>
-          {items.map((item) => (
-            <div key={item.code} className="aponta-product-row">
-              <div>
-                <strong>{item.description}</strong>
-                <small>Código: {item.code}</small>
-              </div>
-              <span>{item.qty}</span>
-            </div>
-          ))}
-        </div>
-        <div className="aponta-products-block">
-          <div className="aponta-products-head">{mode === 'produtos' ? 'Matérias Primas' : 'Produtos Acabados'}</div>
-          {secondary.slice(0, 2).map((item) => (
-            <div key={item.code} className="aponta-product-row compact">
-              <div>
-                <strong>{item.description}</strong>
-                <small>{item.code}</small>
-              </div>
-              <span>{item.qty}</span>
-            </div>
-          ))}
-        </div>
-      </div>
-      <button className="aponta-bottom-button">
-        <FiPlayCircle />
-        {confirmButton}
-      </button>
-      {modalTitle ? <ModalCard title={modalTitle} confirmLabel="OK" compact /> : null}
-    </PhoneShell>
-  )
-}
-
-function ConfirmPhone({ modalTitle = '' }) {
-  return (
-    <PhoneShell className="aponta-screen-dark">
-      <PhoneHeader title="Nro OP: 2625" compact />
-      <div className="aponta-mini-toolbar">
-        <span>Execução</span>
-        <span>Apontamentos</span>
-        <span className="active">Confirmar</span>
-      </div>
-      <div className="aponta-stage-card">
-        <small>APONTAMENTO CHAPAS</small>
-        <p>Produto: CHAPA PP C/MBT B/N CS 400 X 700 MM</p>
-        <p>Nro. Lote: 6558-1</p>
-        <p>Qtd. a Produzir: 5000 KG</p>
-      </div>
-      <div className="aponta-history-card">
-        <div className="aponta-history-head">Execuções</div>
-        {executionEntries.map((entry) => (
-          <div key={entry.type} className="aponta-history-row">
-            <span className={`dot ${entry.tone}`} />
-            <div>
-              <strong>{entry.type}</strong>
-              <small>{entry.startedAt}</small>
-            </div>
-          </div>
-        ))}
-      </div>
-      <button className="aponta-bottom-button secondary">
-        <FiCheckSquare />
-        Confirmar Apontamento
-      </button>
-      {modalTitle ? <ModalCard title={modalTitle} confirmLabel="OK" compact /> : null}
-    </PhoneShell>
-  )
-}
-
-function ProductionTracking() {
-  const [activeChip, setActiveChip] = useState('acesso')
-
-  const jumpToSection = (chipId) => {
-    startTransition(() => {
-      setActiveChip(chipId)
+  const machineCards = useMemo(() => {
+    const codes = machineOptions.length ? machineOptions : ['INJ-01', 'INJ-02', 'INJ-03']
+    return codes.map((code) => {
+      const normalized = normalizeMachineCode(code, aliasLookup)
+      const latestLog = latestMachinesMap.get(normalized) || null
+      return {
+        code: normalized,
+        label: machineLabel(normalized, normalized.startsWith('LINHA-') ? 'assembly' : 'injecao'),
+        latestLog,
+        tone: latestLog ? toneFromEventType(latestLog.event_type) : 'warning',
+      }
     })
-    const element = document.getElementById(`aponta-${chipId}`)
-    if (element) element.scrollIntoView({ behavior: 'smooth', block: 'start' })
+  }, [aliasLookup, latestMachinesMap, machineOptions])
+
+  const summary = resources.logs.data?.summary || {
+    total: 0,
+    machines_running: 0,
+    machines_stopped: 0,
+    machines_finished: 0,
+    pending_sync: 0,
+    synced: 0,
+    failed_sync: 0,
+  }
+  const syncCoverage = summary.total
+    ? Math.round((safeNumber(summary.synced) / Math.max(safeNumber(summary.total), 1)) * 100)
+    : 100
+  const executionSeries = filteredLogs.slice(0, 12).reverse().map((item) => safeNumber(item.pieces || item.scrap || 0))
+  const programmingChoices = programmingItems.map((item) => ({
+    value: String(item.schedule_key || '').toUpperCase(),
+    label: `${item.sku} · ${item.produto}`,
+  }))
+
+  async function handleSave(event) {
+    event.preventDefault()
+    setSaveBusy(true)
+    setNotice(null)
+
+    try {
+      const payload = {
+        ...formValues,
+        machine_code: String(formValues.machine_code || '').trim().toUpperCase(),
+        event_type: String(formValues.event_type || 'apontar').trim().toLowerCase(),
+        op_code: String(formValues.op_code || '').trim().toUpperCase(),
+        operator: currentUser?.full_name || currentUser?.username || 'Operador',
+        pieces: safeNumber(formValues.pieces),
+        scrap: safeNumber(formValues.scrap),
+        reason: String(formValues.reason || '').trim(),
+        time_range: String(formValues.time_range || '').trim(),
+        integration_target: 'sankhya_n8n',
+        company_code: selectedCompany || undefined,
+      }
+
+      if (!payload.machine_code) {
+        throw new Error('Selecione a máquina antes de registrar um novo apontamento.')
+      }
+
+      if (payload.event_type === 'apontar' && payload.pieces <= 0 && payload.scrap <= 0) {
+        throw new Error('Informe peças boas ou refugo para registrar um apontamento de produção.')
+      }
+
+      if (payload.event_type === 'parada' && !payload.reason) {
+        throw new Error('Explique o motivo da parada antes de salvar.')
+      }
+
+      await requestJson('/api/pcp/apontamento/save', {
+        method: 'POST',
+        body: payload,
+        accessToken,
+        onUnauthorized: onUnauthorizedSession,
+      })
+
+      setNotice({
+        tone: 'success',
+        message: `Apontamento registrado para ${payload.machine_code}. Recarregando fila e estado de sincronização.`,
+      })
+      setFormValues(INITIAL_FORM)
+      setLocalReloadKey((current) => current + 1)
+    } catch (error) {
+      setNotice({ tone: 'error', message: error.message || 'Não foi possível salvar o apontamento.' })
+    } finally {
+      setSaveBusy(false)
+    }
+  }
+
+  async function handleDispatchPending() {
+    if (!filteredExportItems.length) {
+      setNotice({ tone: 'warning', message: 'Não há eventos pendentes para despachar neste momento.' })
+      return
+    }
+
+    const confirmed = window.confirm(
+      `Tem certeza que deseja despachar ${filteredExportItems.length} evento(s) pendente(s) para integração?\n\nEsta ação pode acionar webhooks externos (n8n/Sankhya).`,
+    )
+    if (!confirmed) return
+
+    setDispatchBusy(true)
+    setNotice(null)
+
+    try {
+      const response = await requestJson('/api/pcp/apontamento/dispatch', {
+        method: 'POST',
+        body: {
+          pending_only: true,
+          company_code: selectedCompany || undefined,
+        },
+        accessToken,
+        onUnauthorized: onUnauthorizedSession,
+      })
+
+      setNotice({
+        tone: response.status === 'error' ? 'error' : response.status === 'idle' ? 'warning' : 'success',
+        message: response.message || 'Fila de apontamento enviada para integração.',
+      })
+      setLocalReloadKey((current) => current + 1)
+    } catch (error) {
+      setNotice({ tone: 'error', message: error.message || 'Não foi possível disparar a sincronização.' })
+    } finally {
+      setDispatchBusy(false)
+    }
+  }
+
+  async function handleSyncStatusChange(entry, integrationStatus) {
+    setStatusBusyId(entry.id)
+    setNotice(null)
+
+    try {
+      await requestJson('/api/pcp/apontamento/sync-status', {
+        method: 'POST',
+        body: {
+          company_code: selectedCompany || undefined,
+          items: [
+            {
+              id: entry.id,
+              integration_status: integrationStatus,
+              sync_error: integrationStatus === 'failed' ? 'Marcado manualmente pelo command center.' : '',
+              external_ref: integrationStatus === 'synced' ? entry.external_ref || 'web-react-manual' : '',
+            },
+          ],
+        },
+        accessToken,
+        onUnauthorized: onUnauthorizedSession,
+      })
+
+      setNotice({
+        tone: integrationStatus === 'failed' ? 'warning' : 'success',
+        message: `Status de sincronização atualizado para ${entry.machine_code}.`,
+      })
+      setLocalReloadKey((current) => current + 1)
+    } catch (error) {
+      setNotice({ tone: 'error', message: error.message || 'Não foi possível atualizar o status de sincronização.' })
+    } finally {
+      setStatusBusyId('')
+    }
+  }
+
+  if (resources.logs.status === 'loading' && !resources.logs.data) {
+    return (
+      <StatePanel
+        kind="loading"
+        title="Carregando apontamento operacional"
+        message="Buscando logs, fila pendente, catálogo de máquinas e opções de OP para montar a estação de execução."
+      />
+    )
+  }
+
+  if (resources.logs.status === 'permission') {
+    return (
+      <StatePanel
+        kind="permission"
+        title="Seu papel não pode abrir o apontamento"
+        message={resources.logs.error?.message || 'O backend negou a leitura dos apontamentos desta sessão.'}
+      />
+    )
+  }
+
+  if (resources.logs.status === 'error') {
+    return (
+      <StatePanel
+        kind="error"
+        title="Falha ao carregar o apontamento"
+        message={resources.logs.error?.message || 'Não foi possível carregar os logs operacionais desta sessão.'}
+      />
+    )
   }
 
   return (
-    <div className="aponta-page animate-in">
-      <section className="aponta-hero-panel">
-        <div className="aponta-hero-copy">
-          <span className="aponta-kicker">App mobile</span>
-          <h2>Apontamento de Produção</h2>
+    <div className="apontamento-page animate-in">
+      <section className="apontamento-hero">
+        <span className="ops-kicker">Apontamento real</span>
+        <h2>Execução de chão, fila de sync e governança de evento no mesmo módulo.</h2>
+        <p>
+          O módulo agora deixa de ser storyboard. Ele lê os logs reais do backend, registra novos eventos,
+          permite despachar a fila pendente e ainda sinaliza quando a gestão precisa intervir manualmente na integração.
+        </p>
+        <div className="ops-meta-row">
+          <span><FiActivity /> {formatInteger(summary.machines_running)} máquinas em execução</span>
+          <span><FiAlertTriangle /> {formatInteger(summary.pending_sync)} eventos pendentes</span>
+          <span><FiClock /> Última carga: {filteredLogs[0] ? formatDateTime(filteredLogs[0].created_at) : 'Sem eventos'}</span>
+        </div>
+      </section>
+
+      {notice ? (
+        <div className={`shell-banner ${notice.tone || 'info'}`}>
+          <strong>{notice.tone === 'success' ? 'Fluxo atualizado.' : notice.tone === 'warning' ? 'Intervenção registrada.' : 'Atenção operacional.'}</strong>
+          <span>{notice.message}</span>
+        </div>
+      ) : null}
+
+      <section className="ops-highlight-grid">
+        <article className="ops-stat-card">
+          <small>Total de eventos</small>
+          <strong>{formatInteger(summary.total)}</strong>
+          <p>Histórico recente disponível para operação e auditoria rápida.</p>
+        </article>
+        <article className="ops-stat-card">
+          <small>Rodando / paradas</small>
+          <strong>{formatInteger(summary.machines_running)} / {formatInteger(summary.machines_stopped)}</strong>
+          <p>Leitura instantânea de execução vs. bloqueio no chão.</p>
+        </article>
+        <article className="ops-stat-card">
+          <small>Sincronizados</small>
+          <strong>{formatInteger(summary.synced)}</strong>
+          <p>{formatPercent(syncCoverage)} do histórico já foi reconhecido pela integração.</p>
+        </article>
+        <article className="ops-stat-card">
+          <small>Com falha</small>
+          <strong>{formatInteger(summary.failed_sync)}</strong>
+          <p>Itens que precisam de olhar humano antes de seguir para o Sankhya.</p>
+        </article>
+      </section>
+
+      <section className="ops-chart-grid">
+        <article className="ops-card">
+          <div className="ops-board-header">
+            <div>
+              <small>Saúde da integração</small>
+              <strong>{formatPercent(syncCoverage)}</strong>
+            </div>
+            <span className={`ops-tone-pill tone-${syncCoverage >= 70 ? 'ok' : syncCoverage >= 45 ? 'warning' : 'high'}`}>sync</span>
+          </div>
+          <DonutGauge
+            value={syncCoverage}
+            label="eventos sincronizados"
+            detail="Quanto maior o percentual, menor o retrabalho manual entre operação e gestão."
+            tone={syncCoverage >= 70 ? 'ok' : syncCoverage >= 45 ? 'warning' : 'high'}
+          />
+        </article>
+
+        <article className="ops-card">
+          <div className="ops-board-header">
+            <div>
+              <small>Ritmo recente</small>
+              <strong>{formatInteger(filteredLogs.length)} logs</strong>
+            </div>
+            <span className="ops-tone-pill tone-info">produção</span>
+          </div>
+          <Sparkline values={executionSeries} tone="info" />
+          <p>O traço sobe com peças boas e refugo, ajudando a detectar variações abruptas no ritmo registrado.</p>
+        </article>
+
+        <article className="ops-card">
+          <div className="ops-board-header">
+            <div>
+              <small>Fila pendente</small>
+              <strong>{formatInteger(filteredExportItems.length)}</strong>
+            </div>
+            <span className="ops-tone-pill tone-warning">dispatch</span>
+          </div>
+          <div className="ops-bar-list">
+            {filteredExportItems.slice(0, 4).map((item) => (
+              <div key={item.id} className="ops-bar-row">
+                <header>
+                  <strong>{item.machine_code}</strong>
+                  <span>{item.event_type}</span>
+                </header>
+                <div className="ops-bar-track">
+                  <div
+                    className={`ops-bar-fill tone-${toneFromSyncStatus(item.integration_status)}`}
+                    style={{ width: `${Math.max(12, ((safeNumber(item.pieces) + safeNumber(item.scrap) + 1) / Math.max(1, ...filteredExportItems.slice(0, 4).map((entry) => safeNumber(entry.pieces) + safeNumber(entry.scrap) + 1))) * 100)}%` }}
+                  />
+                </div>
+              </div>
+            ))}
+          </div>
+        </article>
+      </section>
+
+      <section className="apontamento-grid">
+        <article className="ops-form-card">
+          <div className="ops-section-header">
+            <div>
+              <small>Novo evento</small>
+              <strong>Registrar apontamento</strong>
+            </div>
+            <span className={`ops-tone-pill tone-${canWrite ? 'ok' : 'warning'}`}>
+              {canWrite ? 'escrita liberada' : 'somente leitura'}
+            </span>
+          </div>
           <p>
-            As telas abaixo seguem a sequência visual do PDF: login, fila de OPs, execução, paradas,
-            perdas, apontamento de produtos acabados, consumo de matéria-prima, confirmação e finalização.
+            Operador e gestão usam o mesmo composer. A diferença é que a gestão ainda consegue intervir no estado de integração,
+            enquanto o operador foca em iniciar, apontar, parar e finalizar com clareza.
           </p>
-        </div>
-        <div className="aponta-chip-row">
-          {sectionChips.map((chip) => (
+
+          <form onSubmit={handleSave} className="ops-form-grid" style={{ marginTop: 18 }}>
+            <label>
+              <span>Máquina</span>
+              <select
+                value={formValues.machine_code}
+                disabled={!canWrite || saveBusy}
+                onChange={(event) => setFormValues((current) => ({ ...current, machine_code: event.target.value }))}
+              >
+                <option value="">Selecione</option>
+                {machineOptions.map((option) => (
+                  <option key={option} value={option}>
+                    {machineLabel(option, option.startsWith('LINHA-') ? 'assembly' : 'injecao')}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Evento</span>
+              <select
+                value={formValues.event_type}
+                disabled={!canWrite || saveBusy}
+                onChange={(event) => setFormValues((current) => ({ ...current, event_type: event.target.value }))}
+              >
+                <option value="apontar">Apontar</option>
+                <option value="iniciar">Iniciar</option>
+                <option value="parada">Parada</option>
+                <option value="finalizar">Finalizar</option>
+              </select>
+            </label>
+
+            <label className="full">
+              <span>OP vinculada</span>
+              <select
+                value={formValues.op_code}
+                disabled={!canWrite || saveBusy}
+                onChange={(event) => setFormValues((current) => ({ ...current, op_code: event.target.value }))}
+              >
+                <option value="">Selecionar OP opcional</option>
+                {programmingChoices.map((option) => (
+                  <option key={option.value} value={option.value}>
+                    {option.label}
+                  </option>
+                ))}
+              </select>
+            </label>
+
+            <label>
+              <span>Peças boas</span>
+              <input
+                value={formValues.pieces}
+                disabled={!canWrite || saveBusy}
+                onChange={(event) => setFormValues((current) => ({ ...current, pieces: event.target.value }))}
+                placeholder="120"
+              />
+            </label>
+
+            <label>
+              <span>Refugo</span>
+              <input
+                value={formValues.scrap}
+                disabled={!canWrite || saveBusy}
+                onChange={(event) => setFormValues((current) => ({ ...current, scrap: event.target.value }))}
+                placeholder="0"
+              />
+            </label>
+
+            <label>
+              <span>Faixa horária</span>
+              <input
+                value={formValues.time_range}
+                disabled={!canWrite || saveBusy}
+                onChange={(event) => setFormValues((current) => ({ ...current, time_range: event.target.value }))}
+                placeholder="14:00-14:45"
+              />
+            </label>
+
+            <label className="full">
+              <span>Motivo / observação</span>
+              <textarea
+                value={formValues.reason}
+                disabled={!canWrite || saveBusy}
+                onChange={(event) => setFormValues((current) => ({ ...current, reason: event.target.value }))}
+                placeholder="Ex.: ajuste de molde, troca de material ou apontamento normal."
+              />
+            </label>
+
+            <div className="ops-form-actions" style={{ gridColumn: '1 / -1' }}>
+              <button type="submit" className={`btn ${canWrite ? 'btn-primary' : 'btn-secondary'} ${!canWrite ? 'is-blocked' : ''}`} disabled={!canWrite || saveBusy}>
+                {saveBusy ? <FiClock /> : <FiSend />}
+                {saveBusy ? 'Salvando...' : 'Registrar evento'}
+              </button>
+              <button
+                type="button"
+                className="btn btn-secondary"
+                disabled={saveBusy}
+                onClick={() => {
+                  setFormValues(INITIAL_FORM)
+                  setNotice(null)
+                }}
+              >
+                <FiRefreshCw />
+                Limpar composer
+              </button>
+            </div>
+          </form>
+        </article>
+
+        <article className="ops-queue-card">
+          <div className="ops-section-header">
+            <div>
+              <small>Fila de sincronização</small>
+              <strong>Pendentes para o Sankhya</strong>
+            </div>
+            <span className={`ops-tone-pill tone-${filteredExportItems.length ? 'warning' : 'ok'}`}>
+              {filteredExportItems.length ? 'pendente' : 'vazio'}
+            </span>
+          </div>
+          <p>
+            Esta fila mostra exatamente o que ainda precisa sair do front para a integração. Nada fica escondido como “sucesso”
+            se o payload ainda está pendente ou falhou.
+          </p>
+
+          <div className="ops-list" style={{ marginTop: 16 }}>
+            {filteredExportItems.length ? filteredExportItems.slice(0, 6).map((item) => (
+              <article key={item.id} className={`ops-sync-row tone-${toneFromSyncStatus(item.integration_status)}`}>
+                <header>
+                  <div>
+                    <strong>{item.machine_code}</strong>
+                    <small>{getEventLabel(item.event_type)}</small>
+                  </div>
+                  <span className={`ops-tone-pill tone-${toneFromSyncStatus(item.integration_status)}`}>
+                    {item.integration_status}
+                  </span>
+                </header>
+                <p>{item.reason || item.op_code || 'Sem observação adicional no payload.'}</p>
+                <div className="ops-journal-meta">
+                  <span><FiClock /> {formatDateTime(item.created_at)}</span>
+                  <span><FiShield /> {item.integration_target}</span>
+                </div>
+                {canDispatch ? (
+                  <div className="ops-card-actions">
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={statusBusyId === item.id}
+                      onClick={() => handleSyncStatusChange(item, 'synced')}
+                    >
+                      <FiCheckCircle />
+                      Marcar synced
+                    </button>
+                    <button
+                      type="button"
+                      className="btn btn-secondary"
+                      disabled={statusBusyId === item.id}
+                      onClick={() => handleSyncStatusChange(item, 'failed')}
+                    >
+                      <FiSlash />
+                      Marcar failed
+                    </button>
+                  </div>
+                ) : null}
+              </article>
+            )) : <p className="ops-empty-note">Nenhum evento pendente no recorte atual.</p>}
+          </div>
+
+          <div className="ops-form-actions">
             <button
-              key={chip.id}
               type="button"
-              className={`aponta-chip ${activeChip === chip.id ? 'active' : ''}`}
-              onClick={() => jumpToSection(chip.id)}
+              className={`btn ${canDispatch ? 'btn-primary' : 'btn-secondary'} ${!canDispatch ? 'is-blocked' : ''}`}
+              disabled={!canDispatch || dispatchBusy}
+              onClick={handleDispatchPending}
             >
-              {chip.label}
+              {dispatchBusy ? <FiClock /> : <FiSend />}
+              {dispatchBusy ? 'Enviando...' : 'Despachar pendentes'}
             </button>
-          ))}
-        </div>
+          </div>
+        </article>
       </section>
 
-      <section id="aponta-acesso" className="aponta-section">
-        <div className="aponta-section-header">
-          <div>
-            <small>Módulo 01</small>
-            <h3>Acesso e inicialização da OP</h3>
+      <section className="ops-main-grid">
+        <article className="ops-journal-card">
+          <div className="ops-section-header">
+            <div>
+              <small>Journal operacional</small>
+              <strong>Histórico recente de execução</strong>
+            </div>
+            <span className="ops-tone-pill tone-info">{formatInteger(filteredLogs.length)} logs</span>
           </div>
-          <span className="tag ok">PDF validado</span>
-        </div>
-        <div className="aponta-phone-grid">
-          <LoginPhone />
-          <QueuePhone modalTitle="Realizar a inicialização da OP?" />
-          <QueuePhone modalTitle="Ordem de Produção Inicializada com sucesso!" />
-        </div>
-      </section>
+          <div className="ops-journal-list" style={{ marginTop: 16 }}>
+            {filteredLogs.length ? filteredLogs.slice(0, 12).map((item) => (
+              <article key={item.id} className={`ops-journal-row tone-${toneFromSyncStatus(item.integration_status)}`}>
+                <header>
+                  <div>
+                    <strong>{item.machine_code}</strong>
+                    <small>{getEventLabel(item.event_type)}</small>
+                  </div>
+                  <span className={`ops-tone-pill tone-${toneFromSyncStatus(item.integration_status)}`}>
+                    {item.integration_status}
+                  </span>
+                </header>
+                <p>{item.reason || item.op_code || 'Evento sem justificativa adicional.'}</p>
+                <div className="ops-journal-meta">
+                  <span><FiActivity /> {formatInteger(item.pieces)} boas / {formatInteger(item.scrap)} refugo</span>
+                  <span><FiClock /> {formatDateTime(item.created_at)}</span>
+                  <span>{item.operator || 'Sem operador'}</span>
+                </div>
+              </article>
+            )) : <p className="ops-empty-note">Sem logs visíveis com o filtro atual.</p>}
+          </div>
+        </article>
 
-      <section id="aponta-execucao" className="aponta-section">
-        <div className="aponta-section-header">
-          <div>
-            <small>Módulo 02</small>
-            <h3>Execução da atividade</h3>
+        <article className="ops-card">
+          <div className="ops-section-header">
+            <div>
+              <small>Máquinas e estado</small>
+              <strong>Último sinal por recurso</strong>
+            </div>
+            <span className="ops-tone-pill tone-info">campo</span>
           </div>
-          <span className="tag info">Em andamento</span>
-        </div>
-        <div className="aponta-phone-grid">
-          <ExecutionPhone />
-          <ExecutionPhone modalTitle="Inicializada a atividade com sucesso!" success />
-        </div>
-      </section>
-
-      <section id="aponta-paradas" className="aponta-section">
-        <div className="aponta-section-header">
-          <div>
-            <small>Módulo 03</small>
-            <h3>Paradas e perdas</h3>
+          <div className="ops-machine-stack">
+            {machineCards.map((machine) => (
+              <article key={machine.code} className={`ops-machine-row tone-${machine.tone}`}>
+                <header>
+                  <div>
+                    <strong>{machine.label}</strong>
+                    <small>{machine.code}</small>
+                  </div>
+                  <span className={`ops-tone-pill tone-${machine.tone}`}>
+                    {machine.latestLog ? getEventLabel(machine.latestLog.event_type) : 'Sem leitura'}
+                  </span>
+                </header>
+                <p>
+                  {machine.latestLog
+                    ? `${machine.latestLog.operator || 'Sem operador'} · ${machine.latestLog.reason || 'Evento sem observação'}`
+                    : 'Ainda sem evento recente ligado a esta máquina.'}
+                </p>
+                {machine.latestLog ? (
+                  <div className="ops-machine-meta">
+                    <span>{formatDateTime(machine.latestLog.created_at)}</span>
+                    <span>{machine.latestLog.integration_status}</span>
+                  </div>
+                ) : null}
+              </article>
+            ))}
           </div>
-          <span className="tag warning">Operacional</span>
-        </div>
-        <div className="aponta-phone-grid">
-          <ReasonsPhone title="Motivos de Paradas" reasons={pauseReasons} modalTitle="Ordem de Produção parada com sucesso!" />
-          <ReasonsPhone title="Motivos de Perdas" reasons={lossReasons} quantityMode />
-          <ReasonsPhone title="Motivos de Perdas" reasons={lossReasons} modalTitle="Registrado quantidade de PA e registrada perda." />
-        </div>
-      </section>
-
-      <section id="aponta-apontamento" className="aponta-section">
-        <div className="aponta-section-header">
-          <div>
-            <small>Módulo 04</small>
-            <h3>Apontamento de PA e matéria-prima</h3>
-          </div>
-          <span className="tag ok">Pronto para integração</span>
-        </div>
-        <div className="aponta-phone-grid">
-          <PointingPhone confirmButton="Inserir Novo Apontamento" mode="produtos" modalTitle="Apontamento criado!" />
-          <PointingPhone confirmButton="Inserir Novo MP" mode="materias" />
-          <ConfirmPhone modalTitle="Apontamento Confirmado" />
-        </div>
-      </section>
-
-      <section id="aponta-finalizacao" className="aponta-section">
-        <div className="aponta-section-header">
-          <div>
-            <small>Módulo 05</small>
-            <h3>Finalização da atividade</h3>
-          </div>
-          <span className="tag high">Fechamento</span>
-        </div>
-        <div className="aponta-phone-grid">
-          <ExecutionPhone modalTitle="Finalizado a Atividade!" success />
-          <ExecutionPhone modalTitle="Atividade Finalizada com sucesso!" success />
-        </div>
-      </section>
-
-      <section className="aponta-notes-grid">
-        <div className="glass-panel">
-          <div className="panel-header">
-            <h3>Fluxos cobertos</h3>
-          </div>
-          <div className="aponta-note-list">
-            <div><FiUser /><span>Login do operador e acesso restrito</span></div>
-            <div><FiClock /><span>Lista de OPs e inicialização controlada</span></div>
-            <div><FiPauseCircle /><span>Paradas, motivos e retomadas</span></div>
-            <div><FiAlertCircle /><span>Perdas com quantidades registradas</span></div>
-            <div><FiBox /><span>Produtos acabados e matérias-primas</span></div>
-            <div><FiActivity /><span>Confirmação do apontamento e encerramento</span></div>
-          </div>
-        </div>
-
-        <div className="glass-panel">
-          <div className="panel-header">
-            <h3>Próxima integração</h3>
-          </div>
-          <p className="aponta-next-copy">
-            A próxima camada é ligar cada uma dessas telas ao Sankhya para puxar OPs reais, registrar
-            paradas, perdas, quantidades e finalizar a atividade sem sair do app.
-          </p>
-        </div>
+        </article>
       </section>
     </div>
   )

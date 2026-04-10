@@ -14,6 +14,7 @@ import {
   FiUploadCloud,
 } from 'react-icons/fi'
 
+import CommandDeck from '../components/CommandDeck'
 import StatePanel from '../components/StatePanel'
 import { getForecastOrigin } from '../lib/operationalLanguage'
 import './RomaneiosInbox.css'
@@ -144,6 +145,9 @@ function RomaneiosInbox({
   canIngest,
   selectedCompany,
   companySelectionRequired,
+  onNavigate,
+  navigationContext,
+  onNavigationContextConsumed,
 }) {
   const inputRef = useRef(null)
   const [dragActive, setDragActive] = useState(false)
@@ -153,7 +157,9 @@ function RomaneiosInbox({
   }))
   const [manualEntries, setManualEntries] = useState(() => readLocalState(MANUAL_KEY))
   const [pdfQueue, setPdfQueue] = useState(() => readLocalState(PDF_KEY))
-  const [selectedOfficialRomaneio, setSelectedOfficialRomaneio] = useState('')
+  const [selectedOfficialRomaneio, setSelectedOfficialRomaneio] = useState(
+    () => (navigationContext?.targetView === 'romaneios' ? navigationContext.romaneio || '' : ''),
+  )
   const [officialDetailState, setOfficialDetailState] = useState(() => createDetailState())
 
   useEffect(() => {
@@ -169,6 +175,14 @@ function RomaneiosInbox({
   }, [pdfQueue])
 
   const existingItems = useMemo(() => resourceState.data?.items || [], [resourceState.data])
+
+  useEffect(() => {
+    if (navigationContext?.targetView !== 'romaneios' || !navigationContext?.romaneio) return
+    onNavigationContextConsumed?.()
+  }, [
+    navigationContext,
+    onNavigationContextConsumed,
+  ])
 
   const intakeItems = useMemo(() => {
     const manualMapped = manualEntries.map((entry) => ({
@@ -314,6 +328,41 @@ function RomaneiosInbox({
         ? 'Selecione a empresa acima para liberar escrita e leitura agregada.'
         : 'Escopo atual preservado nas entradas manuais e na leitura oficial.',
       tone: companySelectionRequired ? 'warning' : 'ok',
+    },
+  ]
+  const continuityItems = [
+    {
+      label: 'Voltar para a fila',
+      value: effectiveSelectedOfficialRomaneio
+        ? `${effectiveSelectedOfficialRomaneio} segue no fluxo`
+        : 'Fila oficial disponível',
+      detail: effectiveSelectedOfficialRomaneio
+        ? 'Use o Kanban para voltar da exceção ao panorama da carteira da mesma empresa, sem perder o contexto do romaneio aberto.'
+        : 'O Kanban continua sendo a leitura oficial da fila antes do detalhe consolidado.',
+      tone: pendingItemsCount ? 'warning' : 'info',
+      actionLabel: 'Abrir kanban',
+      actionHint: 'Fila oficial por empresa',
+      onAction: () => onNavigate?.('romaneios-kanban'),
+    },
+    {
+      label: 'Revisar contexto',
+      value: selectedCompany || 'Empresa ainda obrigatória',
+      detail: selectedCompany
+        ? 'Abra o Cockpit para recolocar este detalhe no contexto de cobertura, gargalo e pressão imediata da empresa ativa.'
+        : 'O Cockpit continua exigindo empresa. O atalho leva ao módulo já deixando a exigência explícita no shell.',
+      tone: selectedCompany ? 'info' : 'warning',
+      actionLabel: 'Abrir cockpit',
+      actionHint: 'Leitura contextual do overview',
+      onAction: () => onNavigate?.('cockpit'),
+    },
+    {
+      label: 'Auditar origem',
+      value: detailForecast.label,
+      detail: 'Governança continua sendo o trilho transversal para verificar se a exceção do detalhe pode vir de fonte degradada, alerta central ou snapshot stale.',
+      tone: detailForecast.tone === 'high' ? 'warning' : 'info',
+      actionLabel: 'Abrir governança',
+      actionHint: 'Integridade transversal do shell',
+      onAction: () => onNavigate?.('fontes'),
     },
   ]
 
@@ -731,6 +780,18 @@ function RomaneiosInbox({
             </div>
           ) : null}
         </div>
+      </section>
+
+      <section className="glass-panel romaneios-continuity-panel">
+        <div className="panel-header">
+          <div>
+            <h3>Continuidade operacional</h3>
+            <span>Do detalhe oficial para fila, contexto e integridade transversal sem misturar fonte de verdade com buffer local.</span>
+          </div>
+          <span className="tag info">Drilldown</span>
+        </div>
+
+        <CommandDeck items={continuityItems} />
       </section>
 
       <section className="romaneios-intake-grid">

@@ -1,4 +1,5 @@
 import { FiAlertTriangle, FiCalendar, FiLayers, FiPackage, FiShield } from 'react-icons/fi'
+import CommandDeck from '../components/CommandDeck'
 import StatePanel from '../components/StatePanel'
 import { getForecastOrigin } from '../lib/operationalLanguage'
 
@@ -75,7 +76,7 @@ function formatDate(value) {
   })
 }
 
-function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates }) {
+function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates, onNavigate }) {
   if (resourceState.status === 'loading') {
     return (
       <StatePanel
@@ -174,6 +175,39 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates })
     },
   ]
   const hasFilter = Boolean(String(searchQuery || '').trim())
+  const continuityItems = [
+    {
+      label: 'Próximo detalhe',
+      value: forecastSummary.missing
+        ? `${forecastSummary.missing} exigem leitura oficial`
+        : 'Detalhe oficial disponível',
+      detail: forecastSummary.missing
+        ? 'Abra Romaneios para validar header, itens e eventos dos romaneios que seguem sem previsão confiável.'
+        : 'Romaneios aprofunda a mesma linguagem de previsão e exceção já exposta no quadro.',
+      tone: forecastSummary.missing ? 'high' : 'info',
+      actionLabel: 'Abrir romaneios',
+      actionHint: 'Detalhe oficial do backend',
+      onAction: () => onNavigate?.('romaneios'),
+    },
+    {
+      label: 'Contexto da empresa',
+      value: scopeLabel,
+      detail: 'Volte ao Cockpit para revisar cobertura, gargalos e pressão imediata com a mesma empresa ativa.',
+      tone: 'info',
+      actionLabel: 'Abrir cockpit',
+      actionHint: 'Leitura contextual por empresa',
+      onAction: () => onNavigate?.('cockpit'),
+    },
+    {
+      label: 'Risco transversal',
+      value: forecastSummary.missing ? 'Confirmar origem da exceção' : 'Governança disponível',
+      detail: 'Abra Governança quando a exceção do quadro puder vir de frescor degradado, bloqueio de fonte ou alerta central.',
+      tone: forecastSummary.missing ? 'warning' : 'info',
+      actionLabel: 'Abrir governança',
+      actionHint: 'Integridade transversal do shell',
+      onAction: () => onNavigate?.('fontes'),
+    },
+  ]
 
   return (
     <div className="kanban-page animate-in">
@@ -260,6 +294,17 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates })
                       <span>{item.criterio_previsao || 'Sem critério informado'}</span>
                       {(item.items || []).length ? <span>{item.items.length} SKUs no romaneio</span> : null}
                     </div>
+
+                    <button
+                      type="button"
+                      className="btn btn-secondary kanban-card-action"
+                      onClick={() => onNavigate?.('romaneios', {
+                        romaneio: item.romaneio,
+                        originView: 'romaneios-kanban',
+                      })}
+                    >
+                      Abrir detalhe oficial
+                    </button>
                   </article>
                 )
               }) : (
@@ -352,6 +397,18 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates })
               <span><FiAlertTriangle /> Os romaneios sem previsão seguem como exceção explícita da fila, sem virar silêncio visual nem ação fake.</span>
             </article>
           </div>
+        </div>
+
+        <div className="glass-panel">
+          <div className="panel-header">
+            <div>
+              <h3>Continuidade operacional</h3>
+              <span>Trilhos diretos para sair da fila e aprofundar contexto, detalhe e integridade.</span>
+            </div>
+            <span className="tag info">Drilldown</span>
+          </div>
+
+          <CommandDeck items={continuityItems} />
         </div>
       </section>
     </div>

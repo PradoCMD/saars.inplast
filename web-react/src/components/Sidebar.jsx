@@ -9,6 +9,7 @@ import {
   FiShoppingCart,
   FiSmartphone,
   FiTool,
+  FiTrendingUp,
 } from 'react-icons/fi'
 
 const ICONS = {
@@ -18,6 +19,8 @@ const ICONS = {
   romaneios: FiPackage,
   estruturas: FiTool,
   programacao: FiCalendar,
+  injecao: FiTool,
+  extrusao: FiTrendingUp,
   montagem: FiSettings,
   producao: FiActivity,
   compras: FiShoppingCart,

@@ -3,9 +3,11 @@ import CommandDeck from './components/CommandDeck'
 import Sidebar from './components/Sidebar'
 import StatePanel from './components/StatePanel'
 import Topbar from './components/Topbar'
+import { ApiError, buildApiPath, createResourceState, getErrorKind, requestJson } from './lib/api'
 import Cockpit from './pages/Cockpit'
 import FactorySimulator from './pages/FactorySimulator'
 import KanbanBoard from './pages/KanbanBoard'
+import ProgrammingCenter from './pages/ProgrammingCenter'
 import ProductionTracking from './pages/ProductionTracking'
 import RomaneiosInbox from './pages/RomaneiosInbox'
 import SourcesGovernance from './pages/SourcesGovernance'
@@ -34,7 +36,9 @@ const ROLE_PERMISSIONS = {
     'overview.read',
     'painel.read',
     'production.read',
+    'production_rules.read',
     'programming.read',
+    'programming.write',
     'purchases.read',
     'recycling.read',
     'romaneios.delete',
@@ -54,6 +58,7 @@ const ROLE_PERMISSIONS = {
     'overview.read',
     'painel.read',
     'production.read',
+    'production_rules.read',
     'programming.read',
     'purchases.read',
     'recycling.read',
@@ -65,30 +70,18 @@ const ROLE_PERMISSIONS = {
 
 const ROUTES = [
   { id: 'cockpit', label: 'Cockpit', helper: 'Leitura operacional', permission: 'overview.read', implemented: true },
+  { id: 'programacao', label: 'Programação', helper: 'Agenda e capacidade', permission: 'programming.read', implemented: true },
+  { id: 'producao', label: 'Produção', helper: 'Portfólio executivo', permission: 'production.read', implemented: true },
+  { id: 'injecao', label: 'Injeção', helper: 'Malha de máquinas', permission: 'production.read', implemented: true },
+  { id: 'extrusao', label: 'Extrusão', helper: 'Janela e carga', permission: 'production.read', implemented: true },
+  { id: 'apontamento', label: 'Apontamento', helper: 'Execução e sincronização', permission: 'apontamento.read', implemented: true },
+  { id: 'montagem', label: 'Montagem', helper: 'Linhas e esteiras', permission: 'assembly.read', implemented: true },
   { id: 'romaneios-kanban', label: 'Kanban Logístico', helper: 'Fila e gargalos', permission: 'romaneios.read', implemented: true },
   { id: 'romaneios', label: 'Romaneios', helper: 'Inbox e buffer local', permission: 'romaneios.read', implemented: true },
-  { id: 'apontamento', label: 'Apontamento', helper: 'Operação de chão', permission: 'apontamento.read', implemented: true },
-  { id: 'montagem', label: 'Montagem', helper: 'Simulação esteiras', permission: 'assembly.read', implemented: true },
-  { id: 'producao', label: 'Produção', helper: 'Simulação extrusoras', permission: 'production.read', implemented: true },
   { id: 'estruturas', label: 'Estruturas', helper: 'Leitura guiada', permission: 'structures.read', implemented: false },
-  { id: 'programacao', label: 'Programação', helper: 'Planejamento', permission: 'programming.read', implemented: false },
   { id: 'compras', label: 'Compras', helper: 'Suprimentos', permission: 'purchases.read', implemented: false },
   { id: 'fontes', label: 'Governança', helper: 'Saúde das fontes', permission: 'sources.read', implemented: true },
 ]
-
-class ApiError extends Error {
-  constructor(status, code, message, payload = null) {
-    super(message)
-    this.name = 'ApiError'
-    this.status = status
-    this.code = code
-    this.payload = payload
-  }
-}
-
-function createResourceState(status = 'idle', data = null, error = null) {
-  return { status, data, error }
-}
 
 function createDefaultResources() {
   return {
@@ -194,12 +187,6 @@ function persistStoredSession(user) {
   )
 }
 
-function buildApiPath(path, companyCode = '') {
-  if (!companyCode) return path
-  const separator = path.includes('?') ? '&' : '?'
-  return `${path}${separator}company_code=${encodeURIComponent(companyCode)}`
-}
-
 function getCompanyOptions(user) {
   if (!user) return []
   const scope = normalizeCompanyScope(user.company_scope, user.role, user.username)
@@ -257,19 +244,16 @@ function formatFreshnessLabel(value) {
   return `Atualizado há ${diffDays} dia(s)`
 }
 
-function mapErrorKind(error) {
-  if (error?.status === 403) return 'permission'
-  if (error?.status === 401) return 'session'
-  if (error?.status === 422 || error?.code === 'missing_company_code') return 'company'
-  return 'error'
-}
-
 function getRouteModeLabel(route) {
   if (!route?.implemented) return 'Transição controlada'
   if (route.id === 'cockpit') return 'Visão agregada autenticada'
+  if (route.id === 'programacao') return 'Agenda premium conectada'
+  if (route.id === 'producao') return 'Portfólio executivo real'
+  if (route.id === 'injecao') return 'Malha autenticada por máquina'
+  if (route.id === 'extrusao') return 'Janela derivada honesta'
   if (route.id === 'romaneios-kanban') return 'Somente leitura fiel'
   if (route.id === 'romaneios') return 'Oficial + buffer local'
-  if (route.id === 'apontamento') return 'Storyboard validado'
+  if (route.id === 'apontamento') return 'Execução + sync real'
   return 'Operação conectada'
 }
 
@@ -282,9 +266,11 @@ function getRoleCapabilityLabel(user) {
 
 function getPrimaryResourceForRoute(routeId, resources) {
   if (routeId === 'cockpit') return resources.overview
+  if (routeId === 'programacao') return null
   if (routeId === 'romaneios-kanban') return resources.kanban
   if (routeId === 'romaneios') return resources.romaneios
   if (routeId === 'montagem') return resources.assembly
+  if (routeId === 'injecao' || routeId === 'extrusao') return resources.production
   if (routeId === 'producao') return resources.production
   if (routeId === 'fontes') return resources.sources
   return null
@@ -348,7 +334,7 @@ function buildRouteSignalCard(route, resources, canIngest) {
     return {
       label: 'Carga de montagem',
       value: `${items.length} ordens`,
-      detail: 'Simulação alimentada pela fila autenticada desta sessão.',
+      detail: 'Linhas e esteiras apoiadas na fila autenticada da sessão.',
       tone: items.length ? 'info' : 'ok',
     }
   }
@@ -360,6 +346,33 @@ function buildRouteSignalCard(route, resources, canIngest) {
       value: `${items.length} ordens`,
       detail: 'Leitura segura das extrusoras e do backlog operacional.',
       tone: items.length ? 'info' : 'ok',
+    }
+  }
+
+  if (route.id === 'programacao') {
+    return {
+      label: 'Agenda conectada',
+      value: 'Capacidade visível',
+      detail: 'Programação, pressão OEM e catálogo industrial em uma única superfície.',
+      tone: 'info',
+    }
+  }
+
+  if (route.id === 'injecao') {
+    return {
+      label: 'Malha de injeção',
+      value: 'Máquinas + logs',
+      detail: 'Leitura cruzada entre programação, regras e apontamento recente.',
+      tone: 'info',
+    }
+  }
+
+  if (route.id === 'extrusao') {
+    return {
+      label: 'Janela de extrusão',
+      value: 'Carga derivada',
+      detail: 'Distribuição premium do backlog sem inventar telemetria inexistente.',
+      tone: 'warning',
     }
   }
 
@@ -414,8 +427,8 @@ function buildRouteSignalCard(route, resources, canIngest) {
   if (route.id === 'apontamento') {
     return {
       label: 'Estado do fluxo',
-      value: 'Referência visual pronta',
-      detail: 'O módulo segue honesto sobre estar preparado para integração, sem fingir operação completa.',
+      value: 'Execução real',
+      detail: 'Eventos, fila pendente e sincronização manualmente governável no mesmo módulo.',
       tone: 'info',
     }
   }
@@ -427,46 +440,11 @@ function buildRouteSignalCard(route, resources, canIngest) {
     tone: route.implemented ? 'info' : 'warning',
   }
 }
-
-async function requestJson(path, { method = 'GET', body, accessToken = '', onUnauthorized } = {}) {
-  const response = await fetch(path, {
-    method,
-    headers: {
-      ...(body ? { 'Content-Type': 'application/json' } : {}),
-      ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
-    },
-    body: body ? JSON.stringify(body) : undefined,
-  })
-
-  const text = await response.text()
-  const payload = text ? (() => {
-    try {
-      return JSON.parse(text)
-    } catch {
-      return null
-    }
-  })() : null
-
-  if (response.status === 401 && typeof onUnauthorized === 'function') {
-    onUnauthorized(payload?.detail || payload?.error || 'Sessão expirada ou inválida. Faça login novamente.')
-  }
-
-  if (!response.ok) {
-    throw new ApiError(
-      response.status,
-      payload?.code || '',
-      payload?.detail || payload?.error || payload?.message || `Falha ao acessar ${path}.`,
-      payload,
-    )
-  }
-
-  return payload
-}
-
 function App() {
   const restoredUser = loadStoredSession()
 
   const [activeView, setActiveView] = useState('cockpit')
+  const [navigationContext, setNavigationContext] = useState(null)
   const [currentUser, setCurrentUser] = useState(restoredUser)
   const [authStatus, setAuthStatus] = useState(restoredUser ? 'authenticated' : 'anonymous')
   const [authMessage, setAuthMessage] = useState('')
@@ -544,6 +522,7 @@ function App() {
     persistStoredSession(null)
     setCurrentUser(null)
     setSelectedCompany('')
+    setNavigationContext(null)
     setResources(createDefaultResources())
     setNotice(null)
     setMrpBusy(false)
@@ -565,6 +544,7 @@ function App() {
     const handleHashChange = () => {
       const nextHash = window.location.hash.replace('#', '') || 'cockpit'
       setActiveView(nextHash)
+      setNavigationContext((current) => (current?.targetView === nextHash ? current : null))
     }
 
     window.addEventListener('hashchange', handleHashChange)
@@ -629,7 +609,7 @@ function App() {
           )
           nextResources[key] = createResourceState('ready', data, null)
         } catch (error) {
-          nextResources[key] = createResourceState(mapErrorKind(error), null, error)
+          nextResources[key] = createResourceState(getErrorKind(error), null, error)
         }
       }
 
@@ -752,6 +732,29 @@ function App() {
     }
   }
 
+  function handleNavigate(nextView, context = null) {
+    const nextRoute = accessibleRoutes.find((route) => route.id === nextView)
+
+    if (!nextRoute) {
+      setNotice({ tone: 'warning', message: 'Seu papel atual não pode abrir este módulo a partir deste atalho.' })
+      return
+    }
+
+    setNotice(null)
+    setSearchQuery('')
+    setNavigationContext(
+      context
+        ? {
+            ...context,
+            targetView: nextRoute.id,
+            requestedAt: Date.now(),
+          }
+        : null,
+    )
+    setActiveView(nextRoute.id)
+    window.location.hash = `#${nextRoute.id}`
+  }
+
   function renderActiveView() {
     const scopeLabel = effectiveCompany || (hasWildcardScope ? 'Consolidado' : companyScope[0] || 'Sem empresa')
 
@@ -766,6 +769,7 @@ function App() {
           searchQuery={searchQuery}
           stale={isStaleData}
           snapshotAt={resources.overview.data?.snapshot_at}
+          onNavigate={handleNavigate}
         />
       )
     }
@@ -777,6 +781,7 @@ function App() {
           scopeLabel={scopeLabel}
           searchQuery={searchQuery}
           canManageDates={hasPermission(currentUser, 'romaneios.write')}
+          onNavigate={handleNavigate}
         />
       )
     }
@@ -792,24 +797,57 @@ function App() {
           canIngest={hasPermission(currentUser, 'romaneios.ingest')}
           selectedCompany={effectiveCompany}
           companySelectionRequired={multiCompanySelectionRequired}
+          onNavigate={handleNavigate}
+          navigationContext={navigationContext}
+          onNavigationContextConsumed={() => setNavigationContext(null)}
+        />
+      )
+    }
+
+    if (activeRoute.id === 'programacao') {
+      return (
+        <ProgrammingCenter
+          accessToken={currentUser?.access_token}
+          onUnauthorizedSession={handleUnauthorizedSession}
+          selectedCompany={effectiveCompany}
+          companySelectionRequired={multiCompanySelectionRequired}
+          searchQuery={searchQuery}
+          canWrite={hasPermission(currentUser, 'programming.write')}
+          currentUser={currentUser}
+          reloadKey={reloadKey}
+          scopeLabel={scopeLabel}
         />
       )
     }
 
     if (activeRoute.id === 'apontamento') {
-      return <ProductionTracking />
+      return (
+        <ProductionTracking
+          accessToken={currentUser?.access_token}
+          onUnauthorizedSession={handleUnauthorizedSession}
+          currentUser={currentUser}
+          searchQuery={searchQuery}
+          reloadKey={reloadKey}
+          selectedCompany={effectiveCompany}
+          canWrite={hasPermission(currentUser, 'apontamento.write')}
+          canDispatch={hasPermission(currentUser, 'apontamento.dispatch')}
+        />
+      )
     }
 
     if (activeRoute.id === 'montagem') {
       return (
         <FactorySimulator
           title="Esteiras de Montagem"
-          description="Ordem horária simulada a partir da fila oficial de montagem."
-          numLanes={2}
+          description="Linhas, esteiras e sequência oficial de montagem com uma leitura mais madura de capacidade."
           type="assembly"
-          items={resources.assembly.data?.items || []}
-          resourceState={resources.assembly}
+          accessToken={currentUser?.access_token}
+          onUnauthorizedSession={handleUnauthorizedSession}
+          selectedCompany={effectiveCompany}
+          companySelectionRequired={multiCompanySelectionRequired}
           searchQuery={searchQuery}
+          reloadKey={reloadKey}
+          scopeLabel={scopeLabel}
         />
       )
     }
@@ -817,13 +855,50 @@ function App() {
     if (activeRoute.id === 'producao') {
       return (
         <FactorySimulator
-          title="Extrusoras de Produção"
-          description="Alocação das ordens com leitura segura do backlog de produção."
-          numLanes={6}
+          title="Produção OEM Command Center"
+          description="Portfólio executivo de produção com backlog, pressão OEM e malha de máquina sem cair em storyboard genérico."
           type="production"
-          items={resources.production.data?.items || []}
-          resourceState={resources.production}
+          accessToken={currentUser?.access_token}
+          onUnauthorizedSession={handleUnauthorizedSession}
+          selectedCompany={effectiveCompany}
+          companySelectionRequired={multiCompanySelectionRequired}
           searchQuery={searchQuery}
+          reloadKey={reloadKey}
+          scopeLabel={scopeLabel}
+        />
+      )
+    }
+
+    if (activeRoute.id === 'injecao') {
+      return (
+        <FactorySimulator
+          title="Injeção"
+          description="Leitura premium de injetoras com agenda autenticada, regras catalogadas e últimos sinais de execução."
+          type="injection"
+          accessToken={currentUser?.access_token}
+          onUnauthorizedSession={handleUnauthorizedSession}
+          selectedCompany={effectiveCompany}
+          companySelectionRequired={multiCompanySelectionRequired}
+          searchQuery={searchQuery}
+          reloadKey={reloadKey}
+          scopeLabel={scopeLabel}
+        />
+      )
+    }
+
+    if (activeRoute.id === 'extrusao') {
+      return (
+        <FactorySimulator
+          title="Extrusão"
+          description="Janela executiva de extrusão derivada do backlog autenticado, com clareza sobre o que é cálculo e o que é leitura oficial."
+          type="extrusion"
+          accessToken={currentUser?.access_token}
+          onUnauthorizedSession={handleUnauthorizedSession}
+          selectedCompany={effectiveCompany}
+          companySelectionRequired={multiCompanySelectionRequired}
+          searchQuery={searchQuery}
+          reloadKey={reloadKey}
+          scopeLabel={scopeLabel}
         />
       )
     }
@@ -838,6 +913,7 @@ function App() {
           canSyncSources={hasPermission(currentUser, 'sources.sync')}
           onSyncSources={handleSyncSources}
           syncBusy={syncBusy}
+          onNavigate={handleNavigate}
         />
       )
     }
