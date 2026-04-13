@@ -1,6 +1,7 @@
 #!/usr/bin/env python3
 from __future__ import annotations
 
+import sys
 import base64
 import binascii
 import hashlib
@@ -53,6 +54,7 @@ ROLE_PERMISSIONS = {
         "production_rules.read",
         "programming.read",
         "programming.write",
+        "programming_entry.save",
         "purchases.read",
         "recycling.read",
         "romaneios.delete",
@@ -1205,7 +1207,7 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 self.record_critical_action(parsed.path, status="success", user=audit_user, company_code=audit_company_code)
                 return
 
-            if parsed.path == "/api/pcp/programming-entries":
+            if parsed.path in ("/api/pcp/programming-entries", "/api/pcp/programming"):
                 payload = _require_object_payload(self.read_json_body(), route=parsed.path)
                 audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))
                 audit_user = self.require_authorized_user(permission="programming.write", company_code=audit_company_code)
@@ -1716,7 +1718,7 @@ class PcpApiHandler(BaseHTTPRequestHandler):
         self.wfile.write(body)
 
     def log_message(self, format: str, *args) -> None:  # noqa: A003
-        return
+        sys.stderr.write("%s - - [%s] %s\n" % (self.address_string(), self.log_date_time_string(), format % args))
 
 
 def main() -> None:

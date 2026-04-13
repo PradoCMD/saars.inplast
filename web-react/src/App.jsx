@@ -688,7 +688,10 @@ function App() {
     }
   }
 
-  async function handleRunMrp() {
+  async function handleRunMrp(event) {
+    if (event && typeof event === 'object' && 'preventDefault' in event) {
+      event.preventDefault()
+    }
     if (!hasPermission(currentUser, 'mrp.run')) {
       setNotice({ tone: 'error', message: 'Seu perfil não possui permissão para rodar o MRP.' })
       return
@@ -724,10 +727,12 @@ function App() {
       return
     }
 
-    const requestedSources = Array.isArray(sourceCodes)
-      ? sourceCodes.filter(Boolean)
-      : sourceCodes
-        ? [sourceCodes]
+    // Ensure we don't treat a React event as a source code array/string
+    const actualSourceCodes = (sourceCodes && typeof sourceCodes === 'object' && 'nativeEvent' in sourceCodes) ? null : sourceCodes
+    const requestedSources = Array.isArray(actualSourceCodes)
+      ? actualSourceCodes.filter(Boolean)
+      : actualSourceCodes
+        ? [actualSourceCodes]
         : []
 
     setSyncBusy(true)

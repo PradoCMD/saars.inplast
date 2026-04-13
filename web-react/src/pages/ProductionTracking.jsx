@@ -78,7 +78,7 @@ function ProductionTracking({
   const formLocked = !canWrite || writeBlockedByScope || saveBusy
 
   useEffect(() => {
-    if (!accessToken) return
+    if (accessToken === undefined) return
     let cancelled = false
 
     async function loadModule() {

@@ -69,48 +69,49 @@ function ProgrammingCenter({
   const formLocked = !canWrite || writeBlockedByScope || submitBusy
 
   useEffect(() => {
-    if (!accessToken) return
+    if (accessToken === undefined) return
     let cancelled = false
 
     async function loadResources() {
-      setResources((current) => ({
-        programming: createResourceState('loading', current.programming.data, null),
-        painel: companySelectionRequired
-          ? createResourceState('company', current.painel.data, null)
-          : createResourceState('loading', current.painel.data, null),
-        rules: createResourceState('loading', current.rules.data, null),
+      // Step 1: Set loading state
+      setResources(prev => ({
+        ...prev,
+        programming: { ...prev.programming, status: 'loading' },
+        painel: companySelectionRequired ? { status: 'company', data: prev.painel.data } : { ...prev.painel, status: 'loading' },
+        rules: { ...prev.rules, status: 'loading' }
       }))
 
-      const nextResources = {}
+      try {
+        // Step 2: Fetch Programming
+        const progData = await requestJson('/api/pcp/programming', { accessToken, onUnauthorized: onUnauthorizedSession })
+        if (cancelled) return
+        
+        // Step 3: Fetch Rules
+        const rulesData = await requestJson('/api/pcp/production-rules', { accessToken, onUnauthorized: onUnauthorizedSession })
+        if (cancelled) return
 
-      const requestResource = async (key, path) => {
-        try {
-          const data = await requestJson(path, {
-            accessToken,
-            onUnauthorized: onUnauthorizedSession,
-          })
-          nextResources[key] = createResourceState('ready', data, null)
-        } catch (error) {
-          nextResources[key] = createResourceState(getErrorKind(error), null, error)
+        // Step 4: Fetch Painel if needed
+        let painelData = null
+        if (!companySelectionRequired) {
+          painelData = await requestJson(buildApiPath('/api/pcp/painel', selectedCompany || ''), { accessToken, onUnauthorized: onUnauthorizedSession })
         }
+        if (cancelled) return
+
+        setResources({
+          programming: createResourceState('ready', progData),
+          painel: createResourceState(companySelectionRequired ? 'company' : 'ready', painelData),
+          rules: createResourceState('ready', rulesData)
+        })
+      } catch (err) {
+        if (cancelled) return
+        console.error('ProgrammingCenter load error:', err)
+        setResources(prev => ({
+          ...prev,
+          programming: createResourceState(getErrorKind(err), prev.programming.data, err),
+          painel: companySelectionRequired ? createResourceState('company', prev.painel.data) : createResourceState('error', prev.painel.data),
+          rules: createResourceState('ready', prev.rules.data || { items: [] })
+        }))
       }
-
-      await Promise.all([
-        requestResource('programming', '/api/pcp/programming'),
-        companySelectionRequired
-          ? Promise.resolve().then(() => {
-              nextResources.painel = createResourceState(
-                'company',
-                null,
-                new Error('Selecione uma empresa para enxergar a pressão OEM na programação.'),
-              )
-            })
-          : requestResource('painel', buildApiPath('/api/pcp/painel', selectedCompany || '')),
-        requestResource('rules', '/api/pcp/production-rules'),
-      ])
-
-      if (cancelled) return
-      setResources((current) => ({ ...current, ...nextResources }))
     }
 
     loadResources()

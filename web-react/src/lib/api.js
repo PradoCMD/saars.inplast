@@ -25,6 +25,15 @@ export function getErrorKind(error) {
   return 'error'
 }
 
+function safeStringify(obj) {
+  try {
+    return JSON.stringify(obj)
+  } catch (err) {
+    if (err.message.includes('circular')) return '[Circular Object]'
+    return String(obj)
+  }
+}
+
 export async function requestJson(path, { method = 'GET', body, accessToken = '', onUnauthorized, signal } = {}) {
   const response = await fetch(path, {
     method,
@@ -33,8 +42,8 @@ export async function requestJson(path, { method = 'GET', body, accessToken = ''
       ...(body ? { 'Content-Type': 'application/json' } : {}),
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
-    body: body ? JSON.stringify(body) : undefined,
-    ...(signal ? { signal } : {}),
+    body: body ? safeStringify(body) : undefined,
+    signal: signal || (method === 'GET' ? AbortSignal.timeout(10000) : undefined),
   })
 
   const text = await response.text()

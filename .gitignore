@@ -11,6 +11,7 @@ web-react/node_modules/
 web-react/dist/
 output/
 .playwright-cli/
+data/
 
 # Ignorar arquivos sensíveis e de dados brutos
 scripts/google_credentials.json
