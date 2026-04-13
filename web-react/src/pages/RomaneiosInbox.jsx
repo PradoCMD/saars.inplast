@@ -312,7 +312,7 @@ function RomaneiosInbox({
     {
       label: 'Fonte oficial',
       value: `${existingItems.length}`,
-      detail: 'Itens já autenticados pelo backend e visíveis para esta sessão.',
+      detail: 'Itens já autenticados pelo sistema e visíveis para esta sessão.',
       tone: 'ok',
     },
     {
@@ -425,7 +425,7 @@ function RomaneiosInbox({
           <h2>Inbox de Romaneios</h2>
           <p>
             O módulo passa a trabalhar como lista oficial com detalhe consolidado, mantendo o buffer local como
-            apoio operacional. Nada no buffer altera a fonte de verdade do backend autenticado.
+            apoio operacional. Nada no buffer altera a fonte de verdade do banco de dados.
           </p>
         </div>
         <div className="romaneios-hero-stats">
@@ -461,7 +461,7 @@ function RomaneiosInbox({
           message={
             companySelectionRequired
               ? 'Para criar entradas manuais ou enfileirar PDFs, escolha a empresa ativa antes de continuar.'
-              : 'O backend valida ingestão por papel. Por isso o buffer local fica travado para esta sessão.'
+              : 'O sistema valida o acesso por permissões. Por isso o buffer local fica travado para esta sessão.'
           }
         />
       ) : null}
@@ -471,7 +471,7 @@ function RomaneiosInbox({
           <div className="panel-header">
             <div>
               <h3>Romaneios oficiais</h3>
-              <span>Selecione um romaneio do backend para abrir o detalhe consolidado desta sessão.</span>
+              <span>Selecione um romaneio do sistema para abrir o detalhe consolidado desta sessão.</span>
             </div>
             <span className="tag info">Backend autenticado</span>
           </div>
@@ -536,7 +536,7 @@ function RomaneiosInbox({
               <StatePanel
                 kind="empty"
                 title="Nenhum romaneio oficial para este filtro"
-                message="A lista backend está vazia ou o recorte de busca não encontrou resultados."
+                message="A lista está vazia ou o recorte de busca não encontrou resultados."
                 compact
               />
             ) : null}
@@ -556,7 +556,7 @@ function RomaneiosInbox({
             <StatePanel
               kind="empty"
               title="Selecione um romaneio oficial"
-              message="O detalhe consolidado é carregado apenas a partir da lista oficial do backend."
+              message="O detalhe consolidado é carregado apenas a partir da lista oficial."
               compact
             />
           ) : null}
@@ -565,7 +565,7 @@ function RomaneiosInbox({
             <StatePanel
               kind="loading"
               title="Carregando detalhe consolidado"
-              message={`Buscando o romaneio oficial ${effectiveSelectedOfficialRomaneio} no backend autenticado.`}
+              message={`Buscando o romaneio oficial ${effectiveSelectedOfficialRomaneio} no sistema autenticado.`}
               compact
             />
           ) : null}
@@ -670,7 +670,7 @@ function RomaneiosInbox({
                     <StatePanel
                       kind="empty"
                       title="Sem itens detalhados"
-                      message="O backend não retornou itens detalhados para este romaneio oficial."
+                      message="O sistema não retornou itens detalhados para este romaneio oficial."
                       compact
                     />
                   )}
@@ -710,7 +710,7 @@ function RomaneiosInbox({
                           <small>Fonte de verdade</small>
                           <strong>Detalhe oficial autenticado</strong>
                         </div>
-                        <span><FiShield /> O romaneio acima vem do backend oficial; o buffer local abaixo segue subordinado e não altera este consolidado.</span>
+                        <span><FiShield /> O romaneio acima vem do sistema oficial; o buffer local abaixo segue subordinado e não altera este consolidado.</span>
                       </article>
                     </div>
                   </div>
@@ -739,7 +739,7 @@ function RomaneiosInbox({
                       </article>
                       <article>
                         <strong>Limite atual do payload oficial</strong>
-                        <p>O backend atual entrega header, itens e eventos. A UI não inventa badge documental específico sem campo confiável da API.</p>
+                        <p>O sistema atual entrega header, itens e eventos. A UI não inventa badge documental específico sem campo confiável da API.</p>
                       </article>
                     </div>
                   </div>

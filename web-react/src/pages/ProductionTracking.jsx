@@ -352,7 +352,7 @@ function ProductionTracking({
       <StatePanel
         kind="permission"
         title="Seu papel não pode abrir o apontamento"
-        message={resources.logs.error?.message || 'O backend negou a leitura dos apontamentos desta sessão.'}
+        message={resources.logs.error?.message || 'O sistema bloqueou a leitura dos apontamentos desta sessão.'}
       />
     )
   }
@@ -373,7 +373,7 @@ function ProductionTracking({
         <span className="ops-kicker">Apontamento real</span>
         <h2>Execução de chão, fila de sync e governança de evento no mesmo módulo.</h2>
         <p>
-          O módulo agora deixa de ser storyboard. Ele lê os logs reais do backend, registra novos eventos,
+          O módulo agora deixa de ser storyboard. Ele lê os logs reais do sistema, registra novos eventos,
           permite despachar a fila pendente e ainda sinaliza quando a gestão precisa intervir manualmente na integração.
         </p>
         <div className="ops-meta-row">

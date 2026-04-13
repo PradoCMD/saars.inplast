@@ -112,7 +112,7 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
       <StatePanel
         kind="permission"
         title="Seu papel não pode abrir o cockpit agregado"
-        message={overviewState.error?.message || 'O backend negou a leitura do overview para a sessão atual.'}
+        message={overviewState.error?.message || 'O sistema bloqueou a leitura do overview para a sessão atual.'}
       />
     )
   }
@@ -474,7 +474,7 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
             <StatePanel
               kind="permission"
               title="Fontes indisponíveis para este papel"
-              message={sourcesState.error?.message || 'O backend negou a leitura das fontes para esta sessão.'}
+              message={sourcesState.error?.message || 'O sistema bloqueou a leitura das fontes para esta sessão.'}
               compact
             />
           ) : null}
@@ -549,7 +549,7 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
               <StatePanel
                 kind="permission"
                 title="Alertas indisponíveis para este papel"
-                message={alertsState.error?.message || 'O backend negou a leitura dos alertas desta sessão.'}
+                message={alertsState.error?.message || 'O sistema bloqueou a leitura dos alertas desta sessão.'}
                 compact
               />
             ) : null}
@@ -558,7 +558,7 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
               <StatePanel
                 kind="error"
                 title="Falha ao carregar alertas"
-                message={alertsState.error?.message || 'Não foi possível ler os alertas centrais do backend.'}
+                message={alertsState.error?.message || 'Não foi possível carregar os alertas centrais.'}
                 compact
               />
             ) : null}

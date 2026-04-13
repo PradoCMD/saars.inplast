@@ -1,0 +1,68 @@
+.saars-tooltip-wrapper {
+  position: relative;
+  display: inline-flex;
+}
+
+.saars-tooltip-content {
+  position: absolute;
+  z-index: 9999;
+  width: max-content;
+  max-width: 260px;
+  background: var(--bg-tooltip, rgba(15, 23, 31, 0.98));
+  color: var(--text-primary);
+  padding: 8px 12px;
+  border-radius: 10px;
+  font-size: 0.8rem;
+  font-family: var(--font-body);
+  line-height: 1.4;
+  text-transform: none;
+  font-weight: 400;
+  box-shadow: 0 10px 25px rgba(0, 0, 0, 0.3), inset 0 0 0 1px var(--line-strong);
+  pointer-events: none;
+  backdrop-filter: blur(8px);
+  animation: tooltip-fade-in 0.2s cubic-bezier(0.16, 1, 0.3, 1) forwards;
+}
+
+.saars-tooltip-bottom {
+  top: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.saars-tooltip-top {
+  bottom: calc(100% + 8px);
+  left: 50%;
+  transform: translateX(-50%);
+}
+
+.saars-tooltip-left {
+  top: 50%;
+  right: calc(100% + 8px);
+  transform: translateY(-50%);
+}
+
+.saars-tooltip-right {
+  top: 50%;
+  left: calc(100% + 8px);
+  transform: translateY(-50%);
+}
+
+@keyframes tooltip-fade-in {
+  from {
+    opacity: 0;
+    transform: translate(var(--tv-x, -50%), calc(var(--tv-y, 0) + 4px));
+  }
+  to {
+    opacity: 1;
+    transform: translate(var(--tv-x, -50%), var(--tv-y, 0));
+  }
+}
+
+.saars-tooltip-bottom, .saars-tooltip-top {
+  --tv-x: -50%;
+  --tv-y: 0px;
+}
+.saars-tooltip-left, .saars-tooltip-right {
+  --tv-x: 0px;
+  --tv-y: -50%;
+}

@@ -6,8 +6,9 @@ import {
   FiPlusCircle,
   FiSend,
 } from 'react-icons/fi'
-import { DonutGauge, Sparkline } from '../components/OperationsCharts'
+import { Sparkline, DonutGauge } from '../components/OperationsCharts'
 import StatePanel from '../components/StatePanel'
+import Tooltip from '../components/Tooltip'
 import { buildApiPath, createResourceState, getErrorKind, requestJson } from '../lib/api'
 import {
   filterBySearch,
@@ -215,7 +216,7 @@ function ProgrammingCenter({
         throw new Error('Preencha SKU, produto e quantidade planejada antes de salvar a nova janela.')
       }
 
-      const response = await requestJson('/api/pcp/programming-entries', {
+      await requestJson('/api/pcp/programming-entries', {
         method: 'POST',
         body: payload,
         accessToken,
@@ -225,12 +226,9 @@ function ProgrammingCenter({
 
       clearTimeout(timeoutId)
 
-      const acceptedAsMock = response.status === 'mock_saved'
       setNotice({
-        tone: acceptedAsMock ? 'warning' : 'success',
-        message: acceptedAsMock
-          ? 'A entrada foi aceita pelo contrato atual, mas este ambiente ainda depende da próxima rodada oficial para materializar a fila.'
-          : 'Nova janela registrada com sucesso. Recarregando a agenda.',
+        tone: 'success',
+        message: 'Nova janela registrada com sucesso.',
       })
       setFormValues(INITIAL_FORM)
       setLocalReloadKey((current) => current + 1)
@@ -511,9 +509,8 @@ function ProgrammingCenter({
                 {canWrite ? 'escrita liberada' : 'somente leitura'}
               </span>
             </div>
-            <p>
-              Quando a escrita estiver liberada, o command center registra novas entradas de programação sem abandonar o shell.
-              Se o backend responder em modo mock, a UI deixa isso explícito em vez de fingir persistência total.
+            <p className="ops-hint" style={{ marginTop: 6 }}>
+              Preencha os campos abaixo para planejar o lote na capacidade atual.
             </p>
 
             <form onSubmit={handleSubmit} className="ops-form-grid" style={{ marginTop: 18 }}>
@@ -610,26 +607,31 @@ function ProgrammingCenter({
               </label>
 
               <div className="ops-form-actions" style={{ gridColumn: '1 / -1' }}>
-                <button
-                  type="submit"
-                  className={`btn ${canWrite ? 'btn-primary' : 'btn-secondary'} ${!canWrite || writeBlockedByScope ? 'is-blocked' : ''}`}
-                  disabled={!canWrite || writeBlockedByScope || submitBusy}
-                >
-                  {submitBusy ? <FiClock /> : <FiSend />}
-                  {submitBusy ? 'Salvando...' : 'Registrar janela'}
-                </button>
-                <button
-                  type="button"
-                  className="btn btn-secondary"
-                  disabled={submitBusy}
-                  onClick={() => {
-                    setFormValues(INITIAL_FORM)
-                    setNotice(null)
-                  }}
-                >
-                  <FiPlusCircle />
-                  Limpar composer
-                </button>
+                <Tooltip content="Submete os dados da nova janela para a linha selecionada" position="bottom">
+                  <button
+                    type="submit"
+                    className={`btn ${canWrite ? 'btn-primary' : 'btn-secondary'} ${!canWrite || writeBlockedByScope ? 'is-blocked' : ''}`}
+                    disabled={!canWrite || writeBlockedByScope || submitBusy}
+                  >
+                    {submitBusy ? <FiClock /> : <FiSend />}
+                    {submitBusy ? 'Salvando...' : 'Registrar'}
+                  </button>
+                </Tooltip>
+                
+                <Tooltip content="Limpa os campos do formulário para iniciar um novo planejamento" position="bottom">
+                  <button
+                    type="button"
+                    className="btn btn-secondary"
+                    disabled={submitBusy}
+                    onClick={() => {
+                      setFormValues(INITIAL_FORM)
+                      setNotice(null)
+                    }}
+                  >
+                    <FiPlusCircle />
+                    Limpar
+                  </button>
+                </Tooltip>
               </div>
             </form>
           </article>

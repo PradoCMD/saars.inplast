@@ -226,7 +226,7 @@ function SourcesGovernance({
       <StatePanel
         kind="permission"
         title="Seu papel não pode abrir a governança de fontes"
-        message={resourceState.error?.message || 'O backend negou a leitura das fontes para a sessão atual.'}
+        message={resourceState.error?.message || 'O sistema bloqueou a leitura das fontes para a sessão atual.'}
       />
     )
   }
@@ -432,7 +432,7 @@ function SourcesGovernance({
 
           <span className="sources-sync-note">
             {canSyncSources
-              ? 'A sincronização continua sendo ação real de backend. Use o sync por fonte abaixo quando o problema for isolado.'
+              ? 'A sincronização continua sendo ação real de sistema. Use o sync por fonte abaixo quando o problema for isolado.'
               : 'Seu papel acompanha saúde e alertas, mas não pode disparar sincronização a partir desta tela.'}
           </span>
         </aside>
@@ -448,7 +448,7 @@ function SourcesGovernance({
         <article className={`metric-card ${sourceSummary.attention ? 'tone-warning' : 'tone-info'}`}>
           <small>Fontes em atenção</small>
           <strong>{sourceSummary.attention}</strong>
-          <span>Warning, stale ou partial sem mascarar o contrato do backend.</span>
+          <span>Warning, stale ou partial sem mascarar o contrato do sistema.</span>
         </article>
 
         <article className={`metric-card ${sourceSummary.blocked ? 'tone-high' : 'tone-info'}`}>
@@ -526,7 +526,7 @@ function SourcesGovernance({
               <StatePanel
                 kind="permission"
                 title="Seu papel não pode abrir os alertas"
-                message={alertsState.error?.message || 'O backend negou a leitura dos alertas desta sessão.'}
+                message={alertsState.error?.message || 'O sistema bloqueou a leitura dos alertas desta sessão.'}
                 compact
               />
             ) : null}
@@ -565,7 +565,7 @@ function SourcesGovernance({
               <StatePanel
                 kind="empty"
                 title="Sem alertas neste recorte"
-                message="Não há alertas ativos para o filtro atual ou o backend não retornou sinais centrais."
+                message="Não há alertas ativos para o filtro atual ou o sistema não retornou sinais centrais."
                 compact
               />
             ) : null}
@@ -594,7 +594,7 @@ function SourcesGovernance({
               <article>
                 <strong>Escopo do shell não redefine a saúde</strong>
                 <p>
-                  O badge de escopo continua visível, mas a saúde das fontes não é recortada por empresa nesta superfície. Isso evita sugerir um filtro que o backend atual não sustenta.
+                  O badge de escopo continua visível, mas a saúde das fontes não é recortada por empresa nesta superfície. Isso evita sugerir um filtro que o sistema atual não sustenta.
                 </p>
               </article>
             </div>

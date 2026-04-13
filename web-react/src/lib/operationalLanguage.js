@@ -24,6 +24,6 @@ export function getForecastOrigin(previsaoStatus, criterioPrevisao) {
     key: 'automatic',
     tone: 'info',
     label: 'Previsão automática',
-    detail: criterioPrevisao || 'Critério calculado pelo backend oficial',
+    detail: criterioPrevisao || 'Critério calculado pelo sistema oficial',
   }
 }

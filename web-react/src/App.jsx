@@ -11,6 +11,9 @@ import ProgrammingCenter from './pages/ProgrammingCenter'
 import ProductionTracking from './pages/ProductionTracking'
 import RomaneiosInbox from './pages/RomaneiosInbox'
 import SourcesGovernance from './pages/SourcesGovernance'
+import StockMovements from './pages/StockMovements'
+import SystemGovernance from './pages/SystemGovernance'
+import { useTheme } from './hooks/useTheme'
 
 const APP_SESSION_STORAGE_KEY = 'pcp_app_session_v1'
 
@@ -76,11 +79,12 @@ const ROUTES = [
   { id: 'extrusao', label: 'Extrusão', helper: 'Janela e carga', permission: 'production.read', implemented: true },
   { id: 'apontamento', label: 'Apontamento', helper: 'Execução e sincronização', permission: 'apontamento.read', implemented: true },
   { id: 'montagem', label: 'Montagem', helper: 'Linhas e esteiras', permission: 'assembly.read', implemented: true },
-  { id: 'romaneios-kanban', label: 'Kanban Logístico', helper: 'Fila e gargalos', permission: 'romaneios.read', implemented: true },
+  { id: 'romaneios-kanban', label: 'Kanban Logístico', helper: 'Quadro dinâmico logístico exclusivo', permission: 'romaneios.read', implemented: true },
   { id: 'romaneios', label: 'Romaneios', helper: 'Inbox e buffer local', permission: 'romaneios.read', implemented: true },
+  { id: 'estoque', label: 'Estoque', helper: 'Saldos e Movimentações', permission: 'stock.read', implemented: true },
   { id: 'estruturas', label: 'Estruturas', helper: 'Leitura guiada', permission: 'structures.read', implemented: false },
   { id: 'compras', label: 'Compras', helper: 'Suprimentos', permission: 'purchases.read', implemented: false },
-  { id: 'fontes', label: 'Governança', helper: 'Saúde das fontes', permission: 'sources.read', implemented: true },
+  { id: 'governanca', label: 'Governança', helper: 'Usuários, Fontes e Integrações', permission: 'sources.read', implemented: true },
 ]
 
 function createDefaultResources() {
@@ -88,9 +92,12 @@ function createDefaultResources() {
     overview: createResourceState(),
     kanban: createResourceState(),
     romaneios: createResourceState(),
+    stock: createResourceState(),
     assembly: createResourceState(),
     production: createResourceState(),
     sources: createResourceState(),
+    users: createResourceState(),
+    integrations: createResourceState(),
     alerts: createResourceState(),
   }
 }
@@ -148,7 +155,7 @@ function loadStoredSession() {
 
   try {
     const parsed = JSON.parse(window.localStorage.getItem(APP_SESSION_STORAGE_KEY) || 'null')
-    if (!parsed?.access_token) return null
+    if (!parsed?.id && !parsed?.username) return null
 
     if (parsed.expires_at) {
       const expiresAt = new Date(parsed.expires_at)
@@ -158,7 +165,7 @@ function loadStoredSession() {
       }
     }
 
-    return normalizeUserPayload(parsed, parsed.access_token, parsed.expires_at)
+    return normalizeUserPayload(parsed, '', parsed.expires_at)
   } catch {
     return null
   }
@@ -181,7 +188,6 @@ function persistStoredSession(user) {
       full_name: user.full_name,
       role: user.role,
       company_scope: user.company_scope || [],
-      access_token: user.access_token || '',
       expires_at: user.expires_at || '',
     }),
   )
@@ -269,10 +275,11 @@ function getPrimaryResourceForRoute(routeId, resources) {
   if (routeId === 'programacao') return null
   if (routeId === 'romaneios-kanban') return resources.kanban
   if (routeId === 'romaneios') return resources.romaneios
+  if (routeId === 'estoque') return resources.stock
   if (routeId === 'montagem') return resources.assembly
   if (routeId === 'injecao' || routeId === 'extrusao') return resources.production
   if (routeId === 'producao') return resources.production
-  if (routeId === 'fontes') return resources.sources
+  if (routeId === 'governanca') return resources.sources
   return null
 }
 
@@ -324,7 +331,7 @@ function buildRouteSignalCard(route, resources, canIngest) {
       value: `${items.length} oficiais`,
       detail: canIngest
         ? 'Buffer local liberado nesta sessão, sempre separado da fonte oficial.'
-        : 'Sessão em leitura segura; o backend oficial segue como única referência.',
+        : 'Sessão em leitura segura; o sistema oficial segue como única referência.',
       tone: canIngest ? 'info' : 'ok',
     }
   }
@@ -376,30 +383,30 @@ function buildRouteSignalCard(route, resources, canIngest) {
     }
   }
 
-  if (route.id === 'fontes') {
+  if (route.id === 'governanca') {
     if (resources.sources.status === 'loading' && !resources.sources.data) {
       return {
-        label: 'Saúde das integrações',
+        label: 'Saúde sistêmica',
         value: 'Atualizando',
-        detail: 'Buscando frescor das fontes e alertas centrais do backend.',
+        detail: 'Buscando frescor das fontes, usuários, integrações e alertas centrais do sistema.',
         tone: 'info',
       }
     }
 
     if (resources.sources.status === 'permission') {
       return {
-        label: 'Saúde das integrações',
+        label: 'Saúde sistêmica',
         value: 'Leitura restrita',
-        detail: resources.sources.error?.message || 'Seu papel não pode abrir a governança de fontes.',
+        detail: resources.sources.error?.message || 'Seu papel não pode abrir a governança.',
         tone: 'warning',
       }
     }
 
     if (resources.sources.status === 'error' || resources.alerts.status === 'error') {
       return {
-        label: 'Saúde das integrações',
+        label: 'Saúde sistêmica',
         value: 'Falha de leitura',
-        detail: resources.sources.error?.message || resources.alerts.error?.message || 'Não foi possível carregar o estado atual das integrações.',
+        detail: resources.sources.error?.message || resources.alerts.error?.message || 'Não foi possível carregar o estado das integrações e usuários.',
         tone: 'high',
       }
     }
@@ -411,16 +418,25 @@ function buildRouteSignalCard(route, resources, canIngest) {
     const highAlertCount = alerts.filter((item) => String(item.severity || '').toLowerCase().includes('high')).length
 
     return {
-      label: 'Saúde das integrações',
+      label: 'Saúde das integrações e sistema',
       value: missingCount
         ? `${missingCount} bloqueios`
         : attentionCount
           ? `${attentionCount} fontes atrasadas`
-          : 'Fontes sob controle',
+          : 'Sistema sob controle',
       detail: alerts.length
         ? `${alerts.length} alertas ativos${highAlertCount ? `, ${highAlertCount} em alta severidade` : ''}.`
-        : 'Sem alertas centrais ativos nas integrações rastreadas.',
+        : 'Sinais centrais limpos. Operação rodando com dados autênticos.',
       tone: missingCount || highAlertCount ? 'high' : attentionCount || alerts.length ? 'warning' : 'ok',
+    }
+  }
+
+  if (route.id === 'estoque') {
+    return {
+      label: 'Gestão de estoques',
+      value: 'Saldos unificados',
+      detail: 'Acompanhamento do estoque real e histórico de movimentações da operação.',
+      tone: 'info',
     }
   }
 
@@ -442,6 +458,7 @@ function buildRouteSignalCard(route, resources, canIngest) {
 }
 function App() {
   const restoredUser = loadStoredSession()
+  const { theme, toggleTheme } = useTheme()
 
   const [activeView, setActiveView] = useState('cockpit')
   const [navigationContext, setNavigationContext] = useState(null)
@@ -583,9 +600,12 @@ function App() {
         overview: multiCompanySelectionRequired ? createResourceState('company', null, companyError) : createResourceState('loading', previous.overview.data, null),
         kanban: multiCompanySelectionRequired ? createResourceState('company', null, companyError) : createResourceState('loading', previous.kanban.data, null),
         romaneios: createResourceState('loading', previous.romaneios.data, null),
+        stock: createResourceState('loading', previous.stock.data, null),
         assembly: createResourceState('loading', previous.assembly.data, null),
         production: createResourceState('loading', previous.production.data, null),
         sources: createResourceState('loading', previous.sources.data, null),
+        users: createResourceState('loading', previous.users.data, null),
+        integrations: createResourceState('loading', previous.integrations.data, null),
         alerts: createResourceState('loading', previous.alerts.data, null),
       }))
 
@@ -617,9 +637,12 @@ function App() {
         loadResource('overview', '/api/pcp/overview', { requiresScopedCompany: true }),
         loadResource('kanban', '/api/pcp/romaneios-kanban', { requiresScopedCompany: true }),
         loadResource('romaneios', '/api/pcp/romaneios', { optionalCompany: true }),
+        loadResource('stock', '/api/pcp/stock-movements', { optionalCompany: true }),
         loadResource('assembly', '/api/pcp/assembly'),
         loadResource('production', '/api/pcp/production'),
         loadResource('sources', '/api/pcp/sources'),
+        loadResource('users', '/api/pcp/users'),
+        loadResource('integrations', '/api/pcp/integrations'),
         loadResource('alerts', '/api/pcp/alerts'),
       ])
 
@@ -908,17 +931,36 @@ function App() {
       )
     }
 
-    if (activeRoute.id === 'fontes') {
+    if (activeRoute.id === 'estoque') {
       return (
-        <SourcesGovernance
-          resourceState={resources.sources}
+        <StockMovements
+          resourceState={resources.stock}
+          currentUser={currentUser}
+          accessToken={currentUser?.access_token}
+          onUnauthorizedSession={handleUnauthorizedSession}
+          searchQuery={searchQuery}
+          onRequestReload={() => setReloadKey((current) => current + 1)}
+        />
+      )
+    }
+
+    if (activeRoute.id === 'governanca') {
+      return (
+        <SystemGovernance
+          sourcesState={resources.sources}
+          usersState={resources.users}
+          integrationsState={resources.integrations}
           alertsState={resources.alerts}
+          currentUser={currentUser}
           scopeLabel={effectiveCompany || 'Transversal ao shell autenticado'}
           searchQuery={searchQuery}
           canSyncSources={hasPermission(currentUser, 'sources.sync')}
           onSyncSources={handleSyncSources}
           syncBusy={syncBusy}
           onNavigate={handleNavigate}
+          accessToken={currentUser?.access_token}
+          onUnauthorizedSession={handleUnauthorizedSession}
+          onRequestReload={() => setReloadKey((current) => current + 1)}
         />
       )
     }
@@ -965,7 +1007,7 @@ function App() {
           <div className="auth-panel-head">
             <span className="status-pill">Acesso protegido</span>
             <h2>Login do sistema</h2>
-            <p>Entre com um usuário válido do backend atual para carregar o shell oficial do produto.</p>
+            <p>Entre com um usuário válido do sistema atual para carregar o shell oficial do produto.</p>
           </div>
 
           <form className="auth-form" onSubmit={handleLoginSubmit}>
@@ -1020,6 +1062,8 @@ function App() {
         selectedCompany={effectiveCompany}
         freshnessLabel={freshnessLabel}
         companySelectionRequired={multiCompanySelectionRequired}
+        theme={theme}
+        toggleTheme={toggleTheme}
       />
 
       <main className="main-content">

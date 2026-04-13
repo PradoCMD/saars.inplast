@@ -43,6 +43,93 @@
   --font-body: 'IBM Plex Sans', sans-serif;
   --font-data: 'IBM Plex Mono', monospace;
   --sidebar-width: 300px;
+  
+  --bg-gradient: radial-gradient(circle at top left, rgba(105, 195, 189, 0.18), transparent 24%), radial-gradient(circle at bottom right, rgba(137, 183, 255, 0.12), transparent 18%), linear-gradient(180deg, #091219 0%, #0f1820 100%);
+  --sidebar-gradient: linear-gradient(180deg, rgba(11, 18, 25, 0.98) 0%, rgba(12, 19, 27, 0.94) 100%);
+  --topbar-bg: rgba(8, 14, 19, 0.8);
+  --btn-primary-text: #032322;
+}
+
+[data-theme="light"] {
+  --bg-base: #f8fafc;
+  --bg-canvas: #f1f5f9;
+  --bg-elevated: rgba(255, 255, 255, 0.96);
+  --bg-panel: rgba(255, 255, 255, 0.92);
+  --bg-panel-strong: #ffffff;
+  --bg-muted: rgba(0, 0, 0, 0.04);
+  --bg-input: rgba(0, 0, 0, 0.04);
+
+  --accent-primary: #14b8a6;
+  --accent-primary-strong: #0d9488;
+  --accent-secondary: #3b82f6;
+  --accent-warning: #f59e0b;
+  --accent-success: #10b981;
+  --accent-danger: #ef4444;
+
+  --text-primary: #0f172a;
+  --text-secondary: #475569;
+  --text-muted: #64748b;
+
+  --line-soft: rgba(0, 0, 0, 0.08);
+  --line-strong: rgba(0, 0, 0, 0.15);
+  --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.05);
+  --shadow-glow: 0 0 0 1px rgba(20, 184, 166, 0.2), 0 12px 30px rgba(0, 0, 0, 0.08);
+
+  --status-ok: #059669;
+  --status-ok-bg: rgba(16, 185, 129, 0.12);
+  --status-info: #2563eb;
+  --status-info-bg: rgba(59, 130, 246, 0.12);
+  --status-warning: #d97706;
+  --status-warning-bg: rgba(245, 158, 11, 0.12);
+  --status-high: #dc2626;
+  --status-high-bg: rgba(239, 68, 68, 0.12);
+  
+  --bg-gradient: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+  --sidebar-gradient: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+  --topbar-bg: rgba(255, 255, 255, 0.8);
+  --btn-primary-text: #ffffff;
+}
+
+@media (prefers-color-scheme: light) {
+  :root:not([data-theme="dark"]) {
+    --bg-base: #f8fafc;
+    --bg-canvas: #f1f5f9;
+    --bg-elevated: rgba(255, 255, 255, 0.96);
+    --bg-panel: rgba(255, 255, 255, 0.92);
+    --bg-panel-strong: #ffffff;
+    --bg-muted: rgba(0, 0, 0, 0.04);
+    --bg-input: rgba(0, 0, 0, 0.04);
+
+    --accent-primary: #14b8a6;
+    --accent-primary-strong: #0d9488;
+    --accent-secondary: #3b82f6;
+    --accent-warning: #f59e0b;
+    --accent-success: #10b981;
+    --accent-danger: #ef4444;
+
+    --text-primary: #0f172a;
+    --text-secondary: #475569;
+    --text-muted: #64748b;
+
+    --line-soft: rgba(0, 0, 0, 0.08);
+    --line-strong: rgba(0, 0, 0, 0.15);
+    --shadow-soft: 0 10px 30px rgba(0, 0, 0, 0.05), 0 1px 3px rgba(0,0,0,0.05);
+    --shadow-glow: 0 0 0 1px rgba(20, 184, 166, 0.2), 0 12px 30px rgba(0, 0, 0, 0.08);
+
+    --status-ok: #059669;
+    --status-ok-bg: rgba(16, 185, 129, 0.12);
+    --status-info: #2563eb;
+    --status-info-bg: rgba(59, 130, 246, 0.12);
+    --status-warning: #d97706;
+    --status-warning-bg: rgba(245, 158, 11, 0.12);
+    --status-high: #dc2626;
+    --status-high-bg: rgba(239, 68, 68, 0.12);
+    
+    --bg-gradient: linear-gradient(180deg, #f8fafc 0%, #f1f5f9 100%);
+    --sidebar-gradient: linear-gradient(180deg, #ffffff 0%, #f8fafc 100%);
+    --topbar-bg: rgba(255, 255, 255, 0.8);
+    --btn-primary-text: #ffffff;
+  }
 }
 
 * {
@@ -59,10 +146,7 @@ body,
 body {
   font-family: var(--font-body);
   color: var(--text-primary);
-  background:
-    radial-gradient(circle at top left, rgba(105, 195, 189, 0.18), transparent 24%),
-    radial-gradient(circle at bottom right, rgba(137, 183, 255, 0.12), transparent 18%),
-    linear-gradient(180deg, #091219 0%, #0f1820 100%);
+  background: var(--bg-gradient);
   -webkit-font-smoothing: antialiased;
   overflow: hidden;
 }
@@ -119,8 +203,7 @@ a {
 .sidebar {
   padding: 22px 18px;
   border-right: 1px solid var(--line-soft);
-  background:
-    linear-gradient(180deg, rgba(11, 18, 25, 0.98) 0%, rgba(12, 19, 27, 0.94) 100%);
+  background: var(--sidebar-gradient);
   display: flex;
   flex-direction: column;
   gap: 20px;
@@ -342,7 +425,7 @@ a {
   align-items: start;
   padding: 20px 28px 18px;
   border-bottom: 1px solid var(--line-soft);
-  background: rgba(8, 14, 19, 0.8);
+  background: var(--topbar-bg);
   backdrop-filter: blur(14px);
 }
 
@@ -693,7 +776,7 @@ a {
 }
 
 .btn-primary {
-  color: #032322;
+  color: var(--btn-primary-text);
   background: linear-gradient(135deg, var(--accent-primary-strong), var(--accent-primary));
   box-shadow: var(--shadow-glow);
   font-weight: 700;

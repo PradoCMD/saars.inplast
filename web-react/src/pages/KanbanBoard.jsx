@@ -118,7 +118,7 @@ function KanbanBoard({
       <StatePanel
         kind="company"
         title="Este kanban precisa de uma empresa ativa"
-        message="O backend exige `company_code` para o recorte multiempresa. Selecione uma empresa acima para continuar."
+        message="É necessário o recorte por empresa. Selecione uma empresa acima para continuar."
       />
     )
   }
@@ -184,7 +184,7 @@ function KanbanBoard({
     {
       label: 'Previsão automática',
       value: `${forecastSummary.automatic}`,
-      detail: 'Origem ligada a estoque, heurística ou cálculo oficial do backend.',
+      detail: 'Origem ligada a estoque, heurística ou cálculo do sistema.',
       tone: forecastSummary.automatic ? 'info' : 'ok',
     },
     {
@@ -212,7 +212,7 @@ function KanbanBoard({
         : 'Romaneios aprofunda a mesma linguagem de previsão e exceção já exposta no quadro.',
       tone: forecastSummary.missing ? 'high' : 'info',
       actionLabel: 'Abrir romaneios',
-      actionHint: 'Detalhe oficial do backend',
+      actionHint: 'Visualizar detalhes',
       onAction: () => onNavigate?.('romaneios'),
     },
     {
@@ -291,7 +291,7 @@ function KanbanBoard({
           <p>
             O quadro continua fiel ao contrato autenticado. Em vez de simular movimentações, ele mostra
             quando a previsão é automática, quando veio do PCP e, para papéis autorizados, permite ajustar
-            a data diretamente no card sem inventar um drag-and-drop que o backend não suporta.
+            a data diretamente no card sem inventar um drag-and-drop .
           </p>
         </div>
 

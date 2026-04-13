@@ -356,7 +356,7 @@ function FactorySimulator({
       <StatePanel
         kind="permission"
         title={`Sem acesso a ${title.toLowerCase()}`}
-        message={resources.queue.error?.message || 'O backend negou a leitura desta malha operacional.'}
+        message={resources.queue.error?.message || 'O sistema bloqueou a leitura desta malha operacional.'}
       />
     )
   }

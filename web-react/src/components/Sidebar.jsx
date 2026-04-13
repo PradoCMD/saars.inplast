@@ -3,6 +3,8 @@ import {
   FiBarChart2,
   FiCalendar,
   FiLayers,
+  FiMoon,
+  FiSun,
   FiPackage,
   FiSettings,
   FiShield,
@@ -17,6 +19,7 @@ const ICONS = {
   apontamento: FiSmartphone,
   'romaneios-kanban': FiLayers,
   romaneios: FiPackage,
+  estoque: FiLayers,
   estruturas: FiTool,
   programacao: FiCalendar,
   injecao: FiTool,
@@ -24,10 +27,10 @@ const ICONS = {
   montagem: FiSettings,
   producao: FiActivity,
   compras: FiShoppingCart,
-  fontes: FiShield,
+  governanca: FiShield,
 }
 
-function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLabel, companySelectionRequired }) {
+function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLabel, companySelectionRequired, theme, toggleTheme }) {
   const roleLabel = String(currentUser?.role || 'operator').toUpperCase()
   const scopeLabel = selectedCompany || 'Consolidado'
 
@@ -89,7 +92,30 @@ function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLa
         })}
       </nav>
 
-      <div className="sidebar-footer">
+      <div className="sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
+        <button 
+          className="nav-item theme-switch" 
+          onClick={toggleTheme} 
+          style={{ 
+            background: 'transparent', 
+            border: 'none', 
+            cursor: 'pointer', 
+            textAlign: 'left', 
+            width: '100%',
+            padding: '12px 16px',
+            marginBottom: '4px'
+          }}
+          aria-label="Alternar tema visual"
+        >
+          <span className="icon">
+            {theme === 'dark' ? <FiMoon /> : <FiSun />}
+          </span>
+          <span className="nav-copy">
+            <strong>{theme === 'dark' ? 'Modo Escuro' : 'Modo Claro'}</strong>
+            <small>Alternar preferência</small>
+          </span>
+        </button>
+
         <div className="status-card">
           <div className="status-indicator live" />
           <div className="status-info">
