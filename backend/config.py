@@ -22,6 +22,26 @@ def _build_database_url_from_parts(username: str, password_env: str) -> str | No
     return f"postgresql://{quote(username)}:{quote(password)}@{host}:{port}/{quote(database)}"
 
 
+def _load_dotenv(repo_root: Path) -> None:
+    env_path = repo_root / ".env"
+    if not env_path.is_file():
+        return
+    for line in env_path.read_text(encoding="utf-8").splitlines():
+        line = line.strip()
+        if not line or line.startswith("#") or "=" not in line:
+            continue
+        key, value = line.split("=", 1)
+        key = key.strip()
+        value = value.strip()
+        if len(value) >= 2 and (
+            (value.startswith('"') and value.endswith('"')) or
+            (value.startswith("'") and value.endswith("'"))
+        ):
+            value = value[1:-1]
+        if key not in os.environ:
+            os.environ[key] = value
+
+
 @dataclass(frozen=True)
 class Settings:
     host: str
@@ -46,6 +66,10 @@ class Settings:
 
     @classmethod
     def from_env(cls) -> "Settings":
+        default_repo_root = Path(__file__).resolve().parent.parent
+        repo_root = Path((os.getenv("PCP_REPO_ROOT") or "").strip() or default_repo_root)
+        _load_dotenv(repo_root)
+
         data_mode = os.getenv("PCP_DATA_MODE", "mock").strip().lower() or "mock"
         if data_mode not in {"mock", "postgres"}:
             raise RuntimeError("PCP_DATA_MODE deve ser 'mock' ou 'postgres'")

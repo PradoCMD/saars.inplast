@@ -1039,24 +1039,27 @@ class PcpApiHandler(BaseHTTPRequestHandler):
             handle.write(json.dumps(event, ensure_ascii=False) + "\n")
 
     def _extract_bearer_token(self) -> str:
+        cookie_header = str(self.headers.get("Cookie", "") or "").strip()
+        for part in cookie_header.split(";"):
+            part = part.strip()
+            if part.startswith("pcp_session="):
+                cookie_token = part[len("pcp_session="):].strip()
+                if cookie_token:
+                    return cookie_token
+
         authorization = str(self.headers.get("Authorization", "") or "").strip()
         expected_prefix = f"{AUTH_TOKEN_TYPE} "
-        if not authorization.startswith(expected_prefix):
-            raise ApiRequestError(
-                HTTPStatus.UNAUTHORIZED,
-                "Authentication required",
-                "Informe um token Bearer válido para acessar esta rota.",
-                code="missing_token",
-            )
-        token = authorization[len(expected_prefix):].strip()
-        if not token:
-            raise ApiRequestError(
-                HTTPStatus.UNAUTHORIZED,
-                "Authentication required",
-                "Informe um token Bearer válido para acessar esta rota.",
-                code="missing_token",
-            )
-        return token
+        if authorization.startswith(expected_prefix):
+            token = authorization[len(expected_prefix):].strip()
+            if token:
+                return token
+
+        raise ApiRequestError(
+            HTTPStatus.UNAUTHORIZED,
+            "Authentication required",
+            "Sessão expirada ou não autenticada. Faça login novamente.",
+            code="missing_token",
+        )
 
     def _resolve_current_user(self) -> dict:
         token_payload = decode_access_token(self._extract_bearer_token())
@@ -1277,15 +1280,17 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                     return
                 access_token, expires_at = issue_access_token(user)
                 self.record_audit_event("auth.login", status="success", user=user, detail="Login autenticado com sucesso.")
+                cookie_str = f"pcp_session={access_token}; HttpOnly; Path=/; SameSite=Lax"
                 self.send_json(
                     HTTPStatus.OK,
                     {
                         "status": "authenticated",
                         "user": public_user_record(user),
-                        "access_token": access_token,
-                        "token_type": AUTH_TOKEN_TYPE,
+                        "access_token": "", 
+                        "token_type": "Cookie",
                         "expires_at": expires_at,
                     },
+                    extra_headers=[("Set-Cookie", cookie_str)]
                 )
                 return
 
@@ -1694,11 +1699,14 @@ class PcpApiHandler(BaseHTTPRequestHandler):
         self.end_headers()
         self.wfile.write(body)
 
-    def send_json(self, status: HTTPStatus, payload: dict) -> None:
+    def send_json(self, status: HTTPStatus, payload: dict, extra_headers: list[tuple[str, str]] | None = None) -> None:
         body = json.dumps(payload, ensure_ascii=False, default=json_default).encode("utf-8")
         self.send_response(status)
         self.send_header("Content-Type", "application/json; charset=utf-8")
         self.send_header("Content-Length", str(len(body)))
+        if extra_headers:
+            for key, value in extra_headers:
+                self.send_header(key, value)
         self.end_headers()
         self.wfile.write(body)
 
