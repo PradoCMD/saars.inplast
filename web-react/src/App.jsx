@@ -991,25 +991,18 @@ function App() {
     return (
       <main className="auth-layout">
         <section className="auth-hero">
-          <div className="auth-kicker">Posto de comando autenticado</div>
-          <h1>Operação, MRP e logística em uma camada de decisão confiável.</h1>
-          <p>
-            O frontend React agora respeita o contrato autenticado do PCP: sessão real, papel ativo,
-            escopo de empresa e tratamento explícito de expiração, permissão e contexto multiempresa.
-          </p>
           <div className="auth-highlights">
-            <article>
-              <small>Sessão</small>
-              <strong>Bearer token + reset em 401</strong>
-            </article>
-            <article>
-              <small>Papéis</small>
-              <strong>root, manager e operator</strong>
-            </article>
-            <article>
-              <small>Escopo</small>
-              <strong>Empresa ativa visível na UI</strong>
-            </article>
+             <div className="auth-logo-large">
+               <img src="/inplast-logo.png" alt="Inplast Logo" />
+             </div>
+             <div className="auth-hero-3d-visual">
+                <div className="cube-3d"></div>
+                <div className="glow-sphere"></div>
+             </div>
+          </div>
+          <div className="auth-content-group">
+            <div className="auth-kicker">Posto de comando autenticado</div>
+            <h1>Control Desk PCP</h1>
           </div>
         </section>
 
@@ -1053,11 +1046,6 @@ function App() {
             </div>
           ) : null}
 
-          <div className="auth-reference-card">
-            <small>Primeiro acesso</small>
-            <strong>Use o usuário root para administração inicial.</strong>
-            <p>Depois do login, a própria UI passa a esconder ações fora do papel autenticado.</p>
-          </div>
         </section>
       </main>
     )
@@ -1126,7 +1114,7 @@ function App() {
             </div>
           ) : null}
 
-          <CommandDeck items={commandDeckItems} />
+          {hasPermission(currentUser, 'system.debug') && <CommandDeck items={commandDeckItems} />}
 
           {renderActiveView()}
         </div>

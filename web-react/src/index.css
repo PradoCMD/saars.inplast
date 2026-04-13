@@ -961,89 +961,144 @@ a {
 .auth-layout {
   min-height: 100vh;
   display: grid;
-  grid-template-columns: minmax(0, 1.35fr) minmax(360px, 440px);
+  grid-template-columns: minmax(0, 1.4fr) minmax(360px, 460px);
   gap: 0;
-}
-
-.auth-hero,
-.auth-panel {
-  padding: 42px;
+  background: var(--bg-base);
+  overflow: hidden;
 }
 
 .auth-hero {
+  position: relative;
   display: flex;
   flex-direction: column;
   justify-content: space-between;
-  background:
-    radial-gradient(circle at top left, rgba(81, 184, 177, 0.22), transparent 24%),
-    linear-gradient(180deg, rgba(7, 14, 21, 0.92), rgba(9, 16, 23, 0.98));
+  align-items: center;
+  text-align: center;
+  padding: 80px 40px;
+  background: 
+    radial-gradient(circle at 20% 30%, rgba(105, 195, 189, 0.15) 0%, transparent 40%),
+    radial-gradient(circle at 80% 70%, rgba(137, 183, 255, 0.1) 0%, transparent 40%),
+    var(--bg-gradient);
+  overflow: hidden;
+}
+
+.auth-hero-3d-visual {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  pointer-events: none;
+  z-index: 0;
+}
+
+.glow-sphere {
+  position: absolute;
+  width: 600px;
+  height: 600px;
+  background: radial-gradient(circle, rgba(105, 195, 189, 0.08) 0%, transparent 70%);
+  filter: blur(80px);
+  top: -100px;
+  right: -100px;
+  animation: float-slow 20s ease-in-out infinite alternate;
+}
+
+.cube-3d {
+  position: absolute;
+  bottom: 10%;
+  left: 10%;
+  width: 400px;
+  height: 400px;
+  background: radial-gradient(circle, rgba(137, 183, 255, 0.05) 0%, transparent 80%);
+  filter: blur(60px);
+  animation: float-slow 25s ease-in-out infinite alternate-reverse;
+}
+
+@keyframes float-slow {
+  from { transform: translate(0, 0) scale(1); }
+  to { transform: translate(40px, 60px) scale(1.1); }
+}
+
+.auth-hero > * {
+  position: relative;
+  z-index: 10;
+}
+
+.auth-highlights {
+  width: 100%;
+  display: flex;
+  justify-content: center;
+  margin-top: 20px;
+}
+
+.auth-logo-large {
+  max-width: 420px;
+  opacity: 1;
+  filter: drop-shadow(0 20px 50px rgba(0,0,0,0.4));
+  transition: transform 0.3s ease;
+}
+
+.auth-logo-large:hover {
+  transform: scale(1.02);
+}
+
+.auth-logo-large img {
+  width: 100%;
+  height: auto;
+  object-fit: contain;
+}
+
+.auth-content-group {
+  margin-top: auto;
+  margin-bottom: auto;
+  display: flex;
+  flex-direction: column;
+  align-items: center;
 }
 
 .auth-kicker {
   display: inline-flex;
-  width: fit-content;
-  padding: 7px 12px;
+  padding: 8px 16px;
   border-radius: 999px;
-  background: rgba(116, 167, 255, 0.12);
-  color: var(--status-info);
-  font-size: 0.78rem;
-  font-weight: 700;
+  background: rgba(105, 195, 189, 0.1);
+  border: 1px solid rgba(105, 195, 189, 0.2);
+  color: var(--accent-primary);
+  font-size: 0.85rem;
+  font-weight: 600;
   text-transform: uppercase;
-  letter-spacing: 0.08em;
+  letter-spacing: 0.1em;
+  margin-bottom: 24px;
 }
 
 .auth-hero h1 {
-  margin-top: 24px;
-  max-width: 760px;
-  font-size: clamp(3.2rem, 5.2vw, 5.4rem);
-  line-height: 0.94;
-}
-
-.auth-hero p {
-  margin-top: 18px;
-  max-width: 680px;
-  color: var(--text-secondary);
-  font-size: 1.08rem;
-  line-height: 1.7;
-}
-
-.auth-highlights {
-  display: grid;
-  grid-template-columns: repeat(3, minmax(0, 1fr));
-  gap: 14px;
-  margin-top: 28px;
-}
-
-.auth-highlights article,
-.auth-reference-card {
-  padding: 18px;
-  border-radius: 18px;
-  background: var(--bg-panel);
-  box-shadow: inset 0 0 0 1px var(--line-soft);
-}
-
-.auth-highlights strong,
-.auth-reference-card strong {
-  display: block;
-  margin-top: 8px;
-  font-size: 1.04rem;
+  font-size: clamp(4rem, 8vw, 7.5rem);
+  line-height: 1;
+  font-weight: 800;
+  letter-spacing: -0.04em;
+  color: var(--text-primary);
+  text-shadow: 0 10px 40px rgba(0,0,0,0.3);
+  margin: 0;
 }
 
 .auth-panel {
   display: flex;
   flex-direction: column;
   justify-content: center;
+  padding: 60px;
+  background: var(--bg-panel-strong);
+  border-left: 1px solid var(--line-soft);
+  z-index: 20;
 }
 
 .auth-panel-head h2 {
-  font-size: 2.6rem;
+  font-size: 3rem;
+  color: var(--text-primary);
 }
 
-.auth-panel-head p,
-.auth-reference-card p {
-  margin-top: 10px;
+.auth-panel-head p {
+  margin-top: 14px;
   color: var(--text-secondary);
-  line-height: 1.7;
+  font-size: 1.1rem;
 }
 
 .auth-form {
