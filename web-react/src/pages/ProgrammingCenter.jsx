@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   FiAlertTriangle,
   FiClock,
@@ -64,10 +64,8 @@ function ProgrammingCenter({
   const [submitBusy, setSubmitBusy] = useState(false)
   const [notice, setNotice] = useState(null)
   const [localReloadKey, setLocalReloadKey] = useState(0)
-
-  const handleUnauthorized = useEffectEvent((message) => {
-    onUnauthorizedSession?.(message)
-  })
+  const writeBlockedByScope = canWrite && companySelectionRequired
+  const formLocked = !canWrite || writeBlockedByScope || submitBusy
 
   useEffect(() => {
     if (!accessToken) return
@@ -88,7 +86,7 @@ function ProgrammingCenter({
         try {
           const data = await requestJson(path, {
             accessToken,
-            onUnauthorized: handleUnauthorized,
+            onUnauthorized: onUnauthorizedSession,
           })
           nextResources[key] = createResourceState('ready', data, null)
         } catch (error) {
@@ -119,7 +117,7 @@ function ProgrammingCenter({
     return () => {
       cancelled = true
     }
-  }, [accessToken, companySelectionRequired, localReloadKey, reloadKey, selectedCompany])
+  }, [accessToken, companySelectionRequired, localReloadKey, onUnauthorizedSession, reloadKey, selectedCompany])
 
   const programmingItems = useMemo(() => resources.programming.data?.items || [], [resources.programming.data])
   const panelItems = useMemo(() => resources.painel.data?.items || [], [resources.painel.data])
@@ -182,12 +180,32 @@ function ProgrammingCenter({
     setSubmitBusy(true)
     setNotice(null)
 
+    const controller = new AbortController()
+    const timeoutId = setTimeout(() => controller.abort(), 12000)
+
     try {
+      if (writeBlockedByScope) {
+        throw new Error('Selecione uma empresa ativa antes de criar uma nova janela de programação.')
+      }
+
+      if (!formValues.planned_start_at || !formValues.available_at) {
+        throw new Error('As datas de início planejado e disponibilidade promissada não podem ficar vazias.')
+      }
+
+      const start = new Date(formValues.planned_start_at)
+      const available = new Date(formValues.available_at)
+
+      if (available.getTime() < start.getTime()) {
+        throw new Error('Incoerência temporal (time travel): A data de disponibilidade não pode ser anterior ao início planejado.')
+      }
+
       const payload = {
         ...formValues,
         sku: String(formValues.sku || '').trim().toUpperCase(),
         produto: String(formValues.produto || '').trim(),
         quantity_planned: safeNumber(formValues.quantity_planned),
+        assembly_line_code: String(formValues.assembly_line_code || '').trim().toUpperCase() || undefined,
+        workstation_code: String(formValues.workstation_code || '').trim().toUpperCase() || undefined,
         company_code: selectedCompany || undefined,
         planning_status: 'planejado',
         planning_origin: 'web_react_command_center',
@@ -202,7 +220,10 @@ function ProgrammingCenter({
         body: payload,
         accessToken,
         onUnauthorized: onUnauthorizedSession,
+        signal: controller.signal,
       })
+
+      clearTimeout(timeoutId)
 
       const acceptedAsMock = response.status === 'mock_saved'
       setNotice({
@@ -214,7 +235,14 @@ function ProgrammingCenter({
       setFormValues(INITIAL_FORM)
       setLocalReloadKey((current) => current + 1)
     } catch (error) {
-      setNotice({ tone: 'error', message: error.message || 'Não foi possível registrar a janela de programação.' })
+      clearTimeout(timeoutId)
+      const isTimeout = error.name === 'AbortError'
+      setNotice({
+        tone: 'error',
+        message: isTimeout
+          ? 'Tempo limite excedido. A rede do chão de fábrica pode estar instável.'
+          : error.message || 'Não foi possível registrar a janela de programação.',
+      })
     } finally {
       setSubmitBusy(false)
     }
@@ -289,6 +317,13 @@ function ProgrammingCenter({
         <div className={`shell-banner ${notice.tone || 'info'}`}>
           <strong>{notice.tone === 'success' ? 'Programação atualizada.' : notice.tone === 'warning' ? 'Atenção na persistência.' : 'Atenção operacional.'}</strong>
           <span>{notice.message}</span>
+        </div>
+      ) : null}
+
+      {writeBlockedByScope ? (
+        <div className="shell-banner warning">
+          <strong>Escrita bloqueada sem empresa ativa.</strong>
+          <span>Para evitar programação ambígua em multiempresa, selecione uma empresa antes de registrar novas janelas.</span>
         </div>
       ) : null}
 
@@ -486,7 +521,7 @@ function ProgrammingCenter({
                 <span>Ação</span>
                 <select
                   value={formValues.action}
-                  disabled={!canWrite || submitBusy}
+                  disabled={formLocked}
                   onChange={(event) => setFormValues((current) => ({ ...current, action: event.target.value }))}
                 >
                   <option value="produzir">Produzir</option>
@@ -498,7 +533,7 @@ function ProgrammingCenter({
                 <span>Quantidade planejada</span>
                 <input
                   value={formValues.quantity_planned}
-                  disabled={!canWrite || submitBusy}
+                  disabled={formLocked}
                   onChange={(event) => setFormValues((current) => ({ ...current, quantity_planned: event.target.value }))}
                   placeholder="2400"
                 />
@@ -508,7 +543,7 @@ function ProgrammingCenter({
                 <span>SKU</span>
                 <input
                   value={formValues.sku}
-                  disabled={!canWrite || submitBusy}
+                  disabled={formLocked}
                   onChange={(event) => setFormValues((current) => ({ ...current, sku: event.target.value }))}
                   placeholder="4100006"
                 />
@@ -518,7 +553,7 @@ function ProgrammingCenter({
                 <span>Linha ou célula</span>
                 <input
                   value={formValues.assembly_line_code}
-                  disabled={!canWrite || submitBusy}
+                  disabled={formLocked}
                   onChange={(event) => setFormValues((current) => ({ ...current, assembly_line_code: event.target.value }))}
                   placeholder="INJ-03"
                 />
@@ -528,7 +563,7 @@ function ProgrammingCenter({
                 <span>Produto</span>
                 <input
                   value={formValues.produto}
-                  disabled={!canWrite || submitBusy}
+                  disabled={formLocked}
                   onChange={(event) => setFormValues((current) => ({ ...current, produto: event.target.value }))}
                   placeholder="TAMPA ALOJAMENTO DISJUNTOR MONO PC CR"
                 />
@@ -538,7 +573,7 @@ function ProgrammingCenter({
                 <span>Posto</span>
                 <input
                   value={formValues.workstation_code}
-                  disabled={!canWrite || submitBusy}
+                  disabled={formLocked}
                   onChange={(event) => setFormValues((current) => ({ ...current, workstation_code: event.target.value }))}
                   placeholder="MAQ-03"
                 />
@@ -549,7 +584,7 @@ function ProgrammingCenter({
                 <input
                   type="datetime-local"
                   value={formValues.planned_start_at}
-                  disabled={!canWrite || submitBusy}
+                  disabled={formLocked}
                   onChange={(event) => setFormValues((current) => ({ ...current, planned_start_at: event.target.value }))}
                 />
               </label>
@@ -559,7 +594,7 @@ function ProgrammingCenter({
                 <input
                   type="datetime-local"
                   value={formValues.available_at}
-                  disabled={!canWrite || submitBusy}
+                  disabled={formLocked}
                   onChange={(event) => setFormValues((current) => ({ ...current, available_at: event.target.value }))}
                 />
               </label>
@@ -568,14 +603,18 @@ function ProgrammingCenter({
                 <span>Notas operacionais</span>
                 <textarea
                   value={formValues.notes}
-                  disabled={!canWrite || submitBusy}
+                  disabled={formLocked}
                   onChange={(event) => setFormValues((current) => ({ ...current, notes: event.target.value }))}
                   placeholder={`Entrada criada por ${currentUser?.full_name || currentUser?.username || 'PCP'}`}
                 />
               </label>
 
               <div className="ops-form-actions" style={{ gridColumn: '1 / -1' }}>
-                <button type="submit" className={`btn ${canWrite ? 'btn-primary' : 'btn-secondary'} ${!canWrite ? 'is-blocked' : ''}`} disabled={!canWrite || submitBusy}>
+                <button
+                  type="submit"
+                  className={`btn ${canWrite ? 'btn-primary' : 'btn-secondary'} ${!canWrite || writeBlockedByScope ? 'is-blocked' : ''}`}
+                  disabled={!canWrite || writeBlockedByScope || submitBusy}
+                >
                   {submitBusy ? <FiClock /> : <FiSend />}
                   {submitBusy ? 'Salvando...' : 'Registrar janela'}
                 </button>

@@ -11,3 +11,10 @@ web-react/node_modules/
 web-react/dist/
 output/
 .playwright-cli/
+
+# Ignorar arquivos sensíveis e de dados brutos
+scripts/google_credentials.json
+scripts/*service_account*.json
+.sheet_id
+*.xlsx
+*.pdf

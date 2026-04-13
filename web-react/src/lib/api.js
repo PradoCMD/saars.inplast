@@ -25,7 +25,7 @@ export function getErrorKind(error) {
   return 'error'
 }
 
-export async function requestJson(path, { method = 'GET', body, accessToken = '', onUnauthorized } = {}) {
+export async function requestJson(path, { method = 'GET', body, accessToken = '', onUnauthorized, signal } = {}) {
   const response = await fetch(path, {
     method,
     headers: {
@@ -33,6 +33,7 @@ export async function requestJson(path, { method = 'GET', body, accessToken = ''
       ...(accessToken ? { Authorization: `Bearer ${accessToken}` } : {}),
     },
     body: body ? JSON.stringify(body) : undefined,
+    ...(signal ? { signal } : {}),
   })
 
   const text = await response.text()

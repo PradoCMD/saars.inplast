@@ -35,10 +35,8 @@ function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLa
     <aside className="sidebar">
       <div className="sidebar-header">
         <div className="logo-box">
-          <div className="logo-mark">
-            <span />
-            <span />
-            <span />
+          <div className="logo-mark" style={{ background: 'transparent', boxShadow: 'none' }}>
+            <img src="/inplast-logo.png" alt="Inplast Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
           </div>
           <div className="logo-text">
             <strong>Inplast</strong>

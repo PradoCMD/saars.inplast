@@ -1,6 +1,8 @@
-import { FiAlertTriangle, FiCalendar, FiLayers, FiPackage, FiShield } from 'react-icons/fi'
+import { useState } from 'react'
+import { FiAlertTriangle, FiCalendar, FiLayers, FiPackage, FiShield, FiXCircle } from 'react-icons/fi'
 import CommandDeck from '../components/CommandDeck'
 import StatePanel from '../components/StatePanel'
+import { requestJson } from '../lib/api'
 import { getForecastOrigin } from '../lib/operationalLanguage'
 
 const numberFormat = new Intl.NumberFormat('pt-BR')
@@ -76,7 +78,31 @@ function formatDate(value) {
   })
 }
 
-function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates, onNavigate }) {
+function toDateTimeLocalValue(value) {
+  if (!value) return ''
+  const date = new Date(value)
+  if (Number.isNaN(date.getTime())) return ''
+  const timezoneOffset = date.getTimezoneOffset() * 60000
+  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16)
+}
+
+function KanbanBoard({
+  resourceState,
+  scopeLabel,
+  searchQuery,
+  canManageDates,
+  accessToken,
+  onUnauthorizedSession,
+  selectedCompany,
+  onRequestReload,
+  onNavigate,
+}) {
+  const [editingRomaneio, setEditingRomaneio] = useState('')
+  const [editingValue, setEditingValue] = useState('')
+  const [savingRomaneio, setSavingRomaneio] = useState('')
+  const [notice, setNotice] = useState(null)
+  const protocolLabel = canManageDates ? 'Ajuste PCP sem drag fake' : 'Somente leitura'
+
   if (resourceState.status === 'loading') {
     return (
       <StatePanel
@@ -150,7 +176,7 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates, o
     {
       label: 'Produtos sob pressão',
       value: `${products.length}`,
-      detail: canManageDates ? 'Seu papel gere a operação fora do quadro, sem drag-and-drop fake.' : 'Seu papel segue em leitura segura neste quadro.',
+      detail: canManageDates ? 'Seu papel ajusta previsão PCP no card, sem drag-and-drop fake.' : 'Seu papel segue em leitura segura neste quadro.',
       tone: canManageDates ? 'info' : 'warning',
     },
   ]
@@ -164,7 +190,7 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates, o
     {
       label: 'Previsão manual',
       value: `${forecastSummary.manual}`,
-      detail: 'Datas informadas pelo PCP, ainda exibidas sem fingir mutação no quadro.',
+      detail: 'Datas assumidas pelo PCP, com ajuste pontual permitido sem reordenar a fila artificialmente.',
       tone: forecastSummary.manual ? 'warning' : 'ok',
     },
     {
@@ -209,16 +235,63 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates, o
     },
   ]
 
+  async function handleScheduleSave(item, clearSchedule = false) {
+    setSavingRomaneio(item.romaneio)
+    setNotice(null)
+
+    try {
+      const payload = {
+        romaneio: item.romaneio,
+        empresa: item.empresa || selectedCompany || undefined,
+        company_code: item.empresa || selectedCompany || undefined,
+        previsao_saida_at: clearSchedule ? null : (editingValue ? new Date(editingValue).toISOString() : null),
+        reason: clearSchedule ? 'pcp_manual_clear' : 'pcp_manual',
+      }
+
+      if (!payload.company_code) {
+        throw new Error('Selecione uma empresa ativa antes de atualizar a previsão deste romaneio.')
+      }
+
+      if (!clearSchedule && !payload.previsao_saida_at) {
+        throw new Error('Informe uma previsão de saída antes de salvar no kanban.')
+      }
+
+      await requestJson('/api/pcp/romaneios-kanban/update-date', {
+        method: 'POST',
+        body: payload,
+        accessToken,
+        onUnauthorized: onUnauthorizedSession,
+      })
+
+      setNotice({
+        tone: clearSchedule ? 'warning' : 'success',
+        message: clearSchedule
+          ? `Previsão removida do romaneio ${item.romaneio}.`
+          : `Previsão atualizada para o romaneio ${item.romaneio}.`,
+      })
+      setEditingRomaneio('')
+      setEditingValue('')
+      onRequestReload?.()
+    } catch (error) {
+      setNotice({
+        tone: 'error',
+        message: error.message || 'Não foi possível atualizar a previsão do romaneio.',
+      })
+    } finally {
+      setSavingRomaneio('')
+    }
+  }
+
   return (
     <div className="kanban-page animate-in">
       <section className="kanban-hero">
         <div>
           <span className="kanban-kicker">Kanban logístico seguro</span>
-          <h2>Fila oficial por empresa, com origem da previsão explícita e protocolo read-only preservado.</h2>
+          <h2>Fila oficial por empresa, com origem da previsão explícita e ajuste manual do PCP sem arraste fake.</h2>
           <p>
-            O quadro continua fiel ao contrato autenticado. Em vez de simular movimentações, ele agora deixa
-            mais claro quando a previsão é automática, quando é manual e quando o romaneio segue sem data
-            confiável de saída.
+            O quadro continua fiel ao contrato autenticado. Em vez de simular movimentações, ele mostra
+            quando a previsão é automática, quando veio do PCP e, para papéis autorizados, permite ajustar
+            a data diretamente no card sem inventar um drag-and-drop que o backend não suporta.
           </p>
         </div>
 
@@ -229,7 +302,7 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates, o
           </div>
           <div>
             <small>Protocolo</small>
-            <strong>{canManageDates ? 'Gestão fora do quadro' : 'Somente leitura'}</strong>
+            <strong>{protocolLabel}</strong>
           </div>
         </div>
       </section>
@@ -244,6 +317,13 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates, o
         ))}
       </section>
 
+      {canManageDates ? (
+        <div className="shell-banner info">
+          <strong>Gestão PCP habilitada no próprio card.</strong>
+          <span>A previsão manual pode ser definida ou limpa por romaneio, sem reordenar artificialmente a fila oficial.</span>
+        </div>
+      ) : null}
+
       <section className="kanban-origin-strip" aria-label="Origem da previsão">
         {originCards.map((card) => (
           <article key={card.label} className={`kanban-origin-card tone-${card.tone}`}>
@@ -253,6 +333,13 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates, o
           </article>
         ))}
       </section>
+
+      {notice ? (
+        <div className={`shell-banner ${notice.tone || 'info'}`}>
+          <strong>{notice.tone === 'success' ? 'Previsão atualizada.' : notice.tone === 'warning' ? 'Previsão removida.' : 'Ação não concluída.'}</strong>
+          <span>{notice.message}</span>
+        </div>
+      ) : null}
 
       <section className="kanban-board">
         {lanes.map((lane) => (
@@ -294,6 +381,66 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates, o
                       <span>{item.criterio_previsao || 'Sem critério informado'}</span>
                       {(item.items || []).length ? <span>{item.items.length} SKUs no romaneio</span> : null}
                     </div>
+
+                    {canManageDates ? (
+                      <div className="kanban-card-editor">
+                        {editingRomaneio === item.romaneio ? (
+                          <>
+                            <label className="kanban-card-field">
+                              <span>Previsão PCP</span>
+                              <input
+                                type="datetime-local"
+                                value={editingValue}
+                                onChange={(event) => setEditingValue(event.target.value)}
+                                disabled={savingRomaneio === item.romaneio}
+                              />
+                            </label>
+                            <div className="kanban-card-editor-actions">
+                              <button
+                                type="button"
+                                className="btn btn-primary kanban-card-inline-action"
+                                disabled={savingRomaneio === item.romaneio}
+                                onClick={() => handleScheduleSave(item)}
+                              >
+                                {savingRomaneio === item.romaneio ? 'Salvando...' : 'Salvar data'}
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary kanban-card-inline-action"
+                                disabled={savingRomaneio === item.romaneio}
+                                onClick={() => {
+                                  setEditingRomaneio('')
+                                  setEditingValue('')
+                                }}
+                              >
+                                Cancelar
+                              </button>
+                              <button
+                                type="button"
+                                className="btn btn-secondary kanban-card-inline-action"
+                                disabled={savingRomaneio === item.romaneio}
+                                onClick={() => handleScheduleSave(item, true)}
+                              >
+                                <FiXCircle />
+                                Limpar
+                              </button>
+                            </div>
+                          </>
+                        ) : (
+                          <button
+                            type="button"
+                            className="btn btn-secondary kanban-card-action"
+                            onClick={() => {
+                              setNotice(null)
+                              setEditingRomaneio(item.romaneio)
+                              setEditingValue(toDateTimeLocalValue(item.previsao_saida_at))
+                            }}
+                          >
+                            {item.previsao_saida_at ? 'Ajustar previsão' : 'Definir previsão'}
+                          </button>
+                        )}
+                      </div>
+                    ) : null}
 
                     <button
                       type="button"
@@ -376,9 +523,9 @@ function KanbanBoard({ resourceState, scopeLabel, searchQuery, canManageDates, o
             <article className="signal-card">
               <div>
                 <small>Fonte de verdade</small>
-                <strong>Fila oficial read-only</strong>
+                <strong>Fila oficial sem arraste fake</strong>
               </div>
-              <span><FiShield /> O quadro continua observando a carteira oficial por empresa, sem drag fictício nem mutação local.</span>
+              <span><FiShield /> O quadro continua observando a carteira oficial por empresa, com ajuste pontual de previsão sem drag fictício nem reordenação local.</span>
             </article>
 
             <article className="signal-card">

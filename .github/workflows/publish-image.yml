@@ -36,7 +36,8 @@ jobs:
           tags: |
             type=raw,value=main,enable=${{ github.ref == 'refs/heads/main' }}
             type=raw,value=latest,enable=${{ github.ref == 'refs/heads/main' }}
-            type=sha,prefix=sha-
+            type=sha,format=short,prefix=sha-
+            type=sha,format=long,prefix=sha-
 
       - name: Build and push
         uses: docker/build-push-action@v6
@@ -46,3 +47,17 @@ jobs:
           push: true
           tags: ${{ steps.meta.outputs.tags }}
           labels: ${{ steps.meta.outputs.labels }}
+
+      - name: Release summary
+        run: |
+          {
+            echo "## GHCR tags geradas"
+            echo
+            echo '```text'
+            echo "${{ steps.meta.outputs.tags }}"
+            echo '```'
+            echo
+            echo "- Use \`main\` para deploy imediato no Coolify."
+            echo "- Use \`sha-<commit>\` somente depois de confirmar que a tag desejada foi publicada e esta acessivel."
+            echo "- Evite \`latest\` como padrao operacional."
+          } >> "$GITHUB_STEP_SUMMARY"

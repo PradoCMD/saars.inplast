@@ -251,7 +251,7 @@ function getRouteModeLabel(route) {
   if (route.id === 'producao') return 'Portfólio executivo real'
   if (route.id === 'injecao') return 'Malha autenticada por máquina'
   if (route.id === 'extrusao') return 'Janela derivada honesta'
-  if (route.id === 'romaneios-kanban') return 'Somente leitura fiel'
+  if (route.id === 'romaneios-kanban') return 'Fila oficial + ajuste PCP'
   if (route.id === 'romaneios') return 'Oficial + buffer local'
   if (route.id === 'apontamento') return 'Execução + sync real'
   return 'Operação conectada'
@@ -781,6 +781,10 @@ function App() {
           scopeLabel={scopeLabel}
           searchQuery={searchQuery}
           canManageDates={hasPermission(currentUser, 'romaneios.write')}
+          accessToken={currentUser?.access_token}
+          onUnauthorizedSession={handleUnauthorizedSession}
+          selectedCompany={effectiveCompany}
+          onRequestReload={() => setReloadKey((current) => current + 1)}
           onNavigate={handleNavigate}
         />
       )
@@ -829,6 +833,7 @@ function App() {
           searchQuery={searchQuery}
           reloadKey={reloadKey}
           selectedCompany={effectiveCompany}
+          companySelectionRequired={multiCompanySelectionRequired}
           canWrite={hasPermission(currentUser, 'apontamento.write')}
           canDispatch={hasPermission(currentUser, 'apontamento.dispatch')}
         />

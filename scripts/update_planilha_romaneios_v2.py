@@ -1,5 +1,7 @@
 import openpyxl
 from openpyxl.worksheet.datavalidation import DataValidation
+from openpyxl.comments import Comment
+from openpyxl.styles import Alignment, Font, PatternFill, Border, Side
 import os
 import glob
 import re
@@ -80,9 +82,47 @@ def parse_romaneio_pdf(pdf_path):
 
 def main():
     print("Iniciando processamento (Incluindo arquivos NOTA)...")
-    folder = "/Volumes/logistica/Automação Romaneio Logistica x PCP/"
+    
+    # Resolve caminhos dinamicamente baseado na localização do script
+    SCRIPT_DIR = os.path.dirname(os.path.abspath(__file__))
+    BASE_DIR = os.path.dirname(SCRIPT_DIR)  # Pasta pai = "Pedidos transportadora (Automação)"
+    
+    # Planilha alvo - no mesmo nível da pasta pai (ao lado da pasta scripts)
+    PLANILHA = os.path.join(BASE_DIR, "PEDIDOS TRANSPORTADORAS 2025 (AUTOMAÇÃO).xlsx")
+    
+    # Pasta de PDFs de romaneio (compartilhamento logistica)
+    # Tenta múltiplos pontos de montagem possíveis
+    POSSIVEIS_PASTAS_PDF = [
+        "/Volumes/logistica/Automação Romaneio Logistica x PCP/",
+        "//srv/logistica/Automação Romaneio Logistica x PCP/",
+        os.path.join(BASE_DIR, "Romaneios"),  # Fallback: subpasta local
+    ]
+    
+    folder = None
+    for pasta in POSSIVEIS_PASTAS_PDF:
+        if os.path.isdir(pasta):
+            folder = pasta
+            break
+    
+    if not folder:
+        print("ERRO: Nenhuma pasta de PDFs de romaneio encontrada!")
+        print("Pastas tentadas:")
+        for p in POSSIVEIS_PASTAS_PDF:
+            print(f"  - {p}")
+        input("\nPressione ENTER para sair...")
+        return
+    
+    print(f"Pasta de PDFs: {folder}")
+    print(f"Planilha alvo: {PLANILHA}")
+    
+    if not os.path.isfile(PLANILHA):
+        print(f"\nERRO: Planilha não encontrada em:\n  {PLANILHA}")
+        print(f"\nVerifique se o arquivo existe na pasta:")
+        print(f"  {BASE_DIR}")
+        input("\nPressione ENTER para sair...")
+        return
+    
     pdfs = sorted(glob.glob(os.path.join(folder, "ROMANEIO *.pdf")))
-    # REMOVIDO PARA PROCESSAR O NOTA: pdfs = [p for p in pdfs if "NOTA" not in os.path.basename(p).upper()]
     
     print(f"Lendo {len(pdfs)} arquivos de PDF...")
     pdf_data = {} # Agrupados por ORDEM
@@ -105,7 +145,7 @@ def main():
             print(f"Erro ao ler {p}: {e}")
 
     print("Carregando planilha alvo...")
-    wb = openpyxl.load_workbook('./PEDIDOS TRANSPORTADORAS 2025 (1).xlsx', data_only=False)
+    wb = openpyxl.load_workbook(PLANILHA, data_only=False)
     ws = wb['PROGRAMAÇÃO']
 
     # Read products mapping
@@ -213,19 +253,74 @@ def main():
 
     # Write in order
     target_col = 3
+    
+    # Estilos para as células de data (linha 1)
+    date_font = Font(bold=True, size=11, color="FFFFFF")
+    date_fill = PatternFill(start_color="2F5496", end_color="2F5496", fill_type="solid")
+    date_alignment = Alignment(horizontal="center", vertical="center")
+    header_font = Font(bold=True, size=10)
+    header_alignment = Alignment(horizontal="center", vertical="center", wrap_text=True)
+    thin_border = Border(
+        left=Side(style="thin"),
+        right=Side(style="thin"),
+        top=Side(style="thin"),
+        bottom=Side(style="thin"),
+    )
+    
+    # UMA ÚNICA DataValidation para todas as datas (evita bloat)
+    dv_date = DataValidation(
+        type="date",
+        operator="greaterThanOrEqual",
+        formula1="DATE(2020,1,1)",
+        allow_blank=True,
+        showInputMessage=True,
+        showErrorMessage=True,
+    )
+    dv_date.promptTitle = "📅 Data do Romaneio"
+    dv_date.prompt = "Altere a data para reordenar as colunas.\nFormato: dd/mm/aaaa"
+    dv_date.errorTitle = "Data Inválida"
+    dv_date.error = "Por favor, insira uma data válida no formato dd/mm/aaaa."
+    ws.add_data_validation(dv_date)
+    
     for i, rg in enumerate(romaneio_groups):
+        # --- Célula de DATA (linha 1) ---
         c_cell = ws.cell(row=1, column=target_col, value=rg['date'])
-        c_cell.number_format = 'dd/mm/yyyy'
+        c_cell.number_format = 'DD/MM/YYYY'
+        c_cell.font = date_font
+        c_cell.fill = date_fill
+        c_cell.alignment = date_alignment
+        c_cell.border = thin_border
         
-        dv = DataValidation(type="date", operator="greaterThanOrEqual", formula1="DATE(2020,1,1)", allow_blank=True)
-        dv.error = "Por favor, insira uma data válida."
-        dv.errorTitle = "Data Inválida"
-        dv.add(c_cell)
-        ws.add_data_validation(dv)
+        # Adiciona a célula à validação de data compartilhada
+        dv_date.add(c_cell)
         
-        ws.cell(row=2, column=target_col, value=rg['name'])
-        ws.cell(row=2, column=target_col+1, value='ESTOQUE INT')
+        # Comentário explicativo na célula de data
+        c_cell.comment = Comment(
+            "📅 Altere esta data para reordenar os romaneios.\n"
+            "Na próxima execução, as colunas serão\n"
+            "reorganizadas pela ordem das datas.",
+            "Automação PCP",
+            width=280,
+            height=80,
+        )
         
+        # Célula "ESTOQUE INT" na linha 1 (coluna par)
+        est_header = ws.cell(row=1, column=target_col + 1)
+        est_header.fill = PatternFill(start_color="D6E4F0", end_color="D6E4F0", fill_type="solid")
+        est_header.border = thin_border
+        
+        # --- Nome do romaneio (linha 2) ---
+        name_cell = ws.cell(row=2, column=target_col, value=rg['name'])
+        name_cell.font = header_font
+        name_cell.alignment = header_alignment
+        name_cell.border = thin_border
+        
+        est_cell = ws.cell(row=2, column=target_col+1, value='ESTOQUE INT')
+        est_cell.font = header_font
+        est_cell.alignment = header_alignment
+        est_cell.border = thin_border
+        
+        # --- Dados e fórmulas (linha 3+) ---
         prev_estoque_col_letter = 'B' if target_col == 3 else openpyxl.utils.get_column_letter(target_col - 1)
         curr_romaneio_col_letter = openpyxl.utils.get_column_letter(target_col)
         
@@ -238,10 +333,10 @@ def main():
                 
         target_col += 2
 
-    out_file = './PEDIDOS TRANSPORTADORAS 2025 (1).xlsx'
-    print(f"Sobrescrevendo planilha {out_file}...")
-    wb.save(out_file)
-    print("Pronto! Planilha finalizada.")
+    print(f"Sobrescrevendo planilha {PLANILHA}...")
+    wb.save(PLANILHA)
+    print("\n✅ Pronto! Planilha finalizada com sucesso!")
+    input("\nPressione ENTER para fechar...")
 
 if __name__ == '__main__':
     main()

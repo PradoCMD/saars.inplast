@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useMemo, useState } from 'react'
+import { useEffect, useMemo, useState } from 'react'
 import {
   FiActivity,
   FiAlertTriangle,
@@ -57,6 +57,7 @@ function ProductionTracking({
   searchQuery,
   reloadKey,
   selectedCompany,
+  companySelectionRequired,
   canWrite,
   canDispatch,
 }) {
@@ -72,10 +73,9 @@ function ProductionTracking({
   const [dispatchBusy, setDispatchBusy] = useState(false)
   const [statusBusyId, setStatusBusyId] = useState('')
   const [localReloadKey, setLocalReloadKey] = useState(0)
-
-  const handleUnauthorized = useEffectEvent((message) => {
-    onUnauthorizedSession?.(message)
-  })
+  const writeBlockedByScope = canWrite && companySelectionRequired
+  const dispatchBlockedByScope = canDispatch && companySelectionRequired
+  const formLocked = !canWrite || writeBlockedByScope || saveBusy
 
   useEffect(() => {
     if (!accessToken) return
@@ -95,7 +95,7 @@ function ProductionTracking({
         try {
           const data = await requestJson(path, {
             accessToken,
-            onUnauthorized: handleUnauthorized,
+            onUnauthorized: onUnauthorizedSession,
           })
           nextResources[key] = createResourceState('ready', data, null)
         } catch (error) {
@@ -119,7 +119,7 @@ function ProductionTracking({
     return () => {
       cancelled = true
     }
-  }, [accessToken, localReloadKey, reloadKey])
+  }, [accessToken, localReloadKey, onUnauthorizedSession, reloadKey])
 
   const logsItems = useMemo(() => resources.logs.data?.items || [], [resources.logs.data])
   const exportItems = useMemo(() => resources.exportQueue.data?.items || [], [resources.exportQueue.data])
@@ -200,6 +200,10 @@ function ProductionTracking({
     setNotice(null)
 
     try {
+      if (writeBlockedByScope) {
+        throw new Error('Selecione uma empresa ativa antes de registrar apontamentos neste contexto multiempresa.')
+      }
+
       const payload = {
         ...formValues,
         machine_code: String(formValues.machine_code || '').trim().toUpperCase(),
@@ -247,6 +251,14 @@ function ProductionTracking({
   }
 
   async function handleDispatchPending() {
+    if (dispatchBlockedByScope) {
+      setNotice({
+        tone: 'warning',
+        message: 'Selecione uma empresa ativa antes de despachar pendências para integração.',
+      })
+      return
+    }
+
     if (!filteredExportItems.length) {
       setNotice({ tone: 'warning', message: 'Não há eventos pendentes para despachar neste momento.' })
       return
@@ -284,6 +296,14 @@ function ProductionTracking({
   }
 
   async function handleSyncStatusChange(entry, integrationStatus) {
+    if (dispatchBlockedByScope) {
+      setNotice({
+        tone: 'warning',
+        message: 'Selecione uma empresa ativa antes de intervir manualmente no status de sincronização.',
+      })
+      return
+    }
+
     setStatusBusyId(entry.id)
     setNotice(null)
 
@@ -359,6 +379,7 @@ function ProductionTracking({
         <div className="ops-meta-row">
           <span><FiActivity /> {formatInteger(summary.machines_running)} máquinas em execução</span>
           <span><FiAlertTriangle /> {formatInteger(summary.pending_sync)} eventos pendentes</span>
+          <span><FiShield /> Escopo ativo: {selectedCompany || 'Seleção obrigatória'}</span>
           <span><FiClock /> Última carga: {filteredLogs[0] ? formatDateTime(filteredLogs[0].created_at) : 'Sem eventos'}</span>
         </div>
       </section>
@@ -367,6 +388,13 @@ function ProductionTracking({
         <div className={`shell-banner ${notice.tone || 'info'}`}>
           <strong>{notice.tone === 'success' ? 'Fluxo atualizado.' : notice.tone === 'warning' ? 'Intervenção registrada.' : 'Atenção operacional.'}</strong>
           <span>{notice.message}</span>
+        </div>
+      ) : null}
+
+      {(writeBlockedByScope || dispatchBlockedByScope) ? (
+        <div className="shell-banner warning">
+          <strong>Escrita e intervenção bloqueadas sem empresa ativa.</strong>
+          <span>Para evitar apontamento ou despacho ambíguo em multiempresa, selecione uma empresa antes de operar a estação.</span>
         </div>
       ) : null}
 
@@ -470,7 +498,7 @@ function ProductionTracking({
               <span>Máquina</span>
               <select
                 value={formValues.machine_code}
-                disabled={!canWrite || saveBusy}
+                disabled={formLocked}
                 onChange={(event) => setFormValues((current) => ({ ...current, machine_code: event.target.value }))}
               >
                 <option value="">Selecione</option>
@@ -486,7 +514,7 @@ function ProductionTracking({
               <span>Evento</span>
               <select
                 value={formValues.event_type}
-                disabled={!canWrite || saveBusy}
+                disabled={formLocked}
                 onChange={(event) => setFormValues((current) => ({ ...current, event_type: event.target.value }))}
               >
                 <option value="apontar">Apontar</option>
@@ -500,7 +528,7 @@ function ProductionTracking({
               <span>OP vinculada</span>
               <select
                 value={formValues.op_code}
-                disabled={!canWrite || saveBusy}
+                disabled={formLocked}
                 onChange={(event) => setFormValues((current) => ({ ...current, op_code: event.target.value }))}
               >
                 <option value="">Selecionar OP opcional</option>
@@ -516,7 +544,7 @@ function ProductionTracking({
               <span>Peças boas</span>
               <input
                 value={formValues.pieces}
-                disabled={!canWrite || saveBusy}
+                disabled={formLocked}
                 onChange={(event) => setFormValues((current) => ({ ...current, pieces: event.target.value }))}
                 placeholder="120"
               />
@@ -526,7 +554,7 @@ function ProductionTracking({
               <span>Refugo</span>
               <input
                 value={formValues.scrap}
-                disabled={!canWrite || saveBusy}
+                disabled={formLocked}
                 onChange={(event) => setFormValues((current) => ({ ...current, scrap: event.target.value }))}
                 placeholder="0"
               />
@@ -536,7 +564,7 @@ function ProductionTracking({
               <span>Faixa horária</span>
               <input
                 value={formValues.time_range}
-                disabled={!canWrite || saveBusy}
+                disabled={formLocked}
                 onChange={(event) => setFormValues((current) => ({ ...current, time_range: event.target.value }))}
                 placeholder="14:00-14:45"
               />
@@ -546,14 +574,18 @@ function ProductionTracking({
               <span>Motivo / observação</span>
               <textarea
                 value={formValues.reason}
-                disabled={!canWrite || saveBusy}
+                disabled={formLocked}
                 onChange={(event) => setFormValues((current) => ({ ...current, reason: event.target.value }))}
                 placeholder="Ex.: ajuste de molde, troca de material ou apontamento normal."
               />
             </label>
 
             <div className="ops-form-actions" style={{ gridColumn: '1 / -1' }}>
-              <button type="submit" className={`btn ${canWrite ? 'btn-primary' : 'btn-secondary'} ${!canWrite ? 'is-blocked' : ''}`} disabled={!canWrite || saveBusy}>
+              <button
+                type="submit"
+                className={`btn ${canWrite ? 'btn-primary' : 'btn-secondary'} ${!canWrite || writeBlockedByScope ? 'is-blocked' : ''}`}
+                disabled={!canWrite || writeBlockedByScope || saveBusy}
+              >
                 {saveBusy ? <FiClock /> : <FiSend />}
                 {saveBusy ? 'Salvando...' : 'Registrar evento'}
               </button>
@@ -610,7 +642,7 @@ function ProductionTracking({
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      disabled={statusBusyId === item.id}
+                      disabled={statusBusyId === item.id || dispatchBlockedByScope}
                       onClick={() => handleSyncStatusChange(item, 'synced')}
                     >
                       <FiCheckCircle />
@@ -619,7 +651,7 @@ function ProductionTracking({
                     <button
                       type="button"
                       className="btn btn-secondary"
-                      disabled={statusBusyId === item.id}
+                      disabled={statusBusyId === item.id || dispatchBlockedByScope}
                       onClick={() => handleSyncStatusChange(item, 'failed')}
                     >
                       <FiSlash />
@@ -634,8 +666,8 @@ function ProductionTracking({
           <div className="ops-form-actions">
             <button
               type="button"
-              className={`btn ${canDispatch ? 'btn-primary' : 'btn-secondary'} ${!canDispatch ? 'is-blocked' : ''}`}
-              disabled={!canDispatch || dispatchBusy}
+              className={`btn ${canDispatch ? 'btn-primary' : 'btn-secondary'} ${!canDispatch || dispatchBlockedByScope ? 'is-blocked' : ''}`}
+              disabled={!canDispatch || dispatchBlockedByScope || dispatchBusy}
               onClick={handleDispatchPending}
             >
               {dispatchBusy ? <FiClock /> : <FiSend />}

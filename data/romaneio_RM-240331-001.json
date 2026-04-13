@@ -6,8 +6,8 @@
     "data_evento": "2026-03-30T08:12:00-03:00",
     "itens": 12,
     "quantidade_total": 5420,
-    "previsao_saida_at": "2026-04-09T10:00:00-03:00",
-    "previsao_saida_status": "pcp_manual",
+    "previsao_saida_at": null,
+    "previsao_saida_status": "sem_previsao",
     "criterio_previsao": "pcp_manual",
     "previsao_saida_observacao": "O romaneio depende da conclusao da montagem do produto acabado faltante."
   },
