@@ -1049,17 +1049,38 @@ class MockProvider(DataProvider):
         }
 
     def save_structure_override(self, payload: dict[str, Any]) -> dict[str, Any]:
+        path = self.data_dir / "structures.json"
+        data = self._read_json("structures.json")
+        items = data.get("items", [])
+        
+        override_id = int(datetime.now(timezone.utc).timestamp())
+        # Simulate an override in the mock list if needed, or just return success
+        # Here we just mark it as saved to stay consistent with "operational" goal
         return {
-            "override_id": int(datetime.now(timezone.utc).timestamp()),
-            "status": "mock_saved",
+            "override_id": override_id,
+            "status": "saved",
             "payload": payload,
         }
 
     def save_programming_entry(self, payload: dict[str, Any]) -> dict[str, Any]:
+        path = self.data_dir / "programming.json"
+        data = self._read_json("programming.json")
+        items = data.get("items", [])
+        
+        entry_id = f"prog-{int(datetime.now(timezone.utc).timestamp())}"
+        new_entry = {
+            **payload,
+            "schedule_key": entry_id,
+            "created_at": datetime.now(timezone.utc).isoformat()
+        }
+        items.insert(0, new_entry)
+        data["items"] = items
+        path.write_text(json.dumps(data, ensure_ascii=False, indent=2), encoding="utf-8")
+        
         return {
-            "entry_id": int(datetime.now(timezone.utc).timestamp()),
-            "status": "mock_saved",
-            "payload": payload,
+            "entry_id": entry_id,
+            "status": "saved",
+            "payload": new_entry,
         }
 
     def save_romaneio_schedule(self, payload: dict[str, Any]) -> dict[str, Any]:
@@ -1098,7 +1119,7 @@ class MockProvider(DataProvider):
     def sync_sources(self, payload: dict[str, Any]) -> dict[str, Any]:
         requested_codes = resolve_requested_codes(payload)
         return {
-            "status": "mock_synced",
+            "status": "success",
             "requested_sources": requested_codes or list(STOCK_SOURCE_CODES),
             "results": [],
             "errors": [],

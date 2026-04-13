@@ -1,0 +1,29 @@
+{
+  "skills": [
+    {
+      "name": "webapp-testing",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/webapp-testing",
+      "description": "Toolkit para testar aplicações web locais usando Playwright. Suporta verificação de funcionalidades frontend, debugging de comportamento UI, captura de screenshots e visualização de logs do browser.",
+      "scripts": [
+        "scripts/with_server.py - Gerencia ciclo de vida do servidor (múltiplos servidores)"
+      ],
+      "usage": "Testes automatizados, smoke tests, regression tests, debugging visual"
+    },
+    {
+      "name": "code-reviewer",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/code-reviewer",
+      "description": "Kit completo de code review para TypeScript, JavaScript, Python, Swift, Kotlin, Go. Inclui análise automatizada, verificação de best practices, scanning de segurança e geração de checklist de review.",
+      "scripts": [
+        "scripts/pr_analyzer.py - Analisador de PRs",
+        "scripts/code_quality_checker.py - Verificador de qualidade de código",
+        "scripts/review_report_generator.py - Gerador de relatórios de review"
+      ],
+      "references": [
+        "references/code_review_checklist.md",
+        "references/coding_standards.md",
+        "references/common_antipatterns.md"
+      ],
+      "usage": "Code review, feedback de PRs, identificação de issues, standards de qualidade"
+    }
+  ]
+}

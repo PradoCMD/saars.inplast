@@ -1,0 +1,44 @@
+{
+  "skills": [
+    {
+      "name": "senior-architect",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/senior-architect",
+      "description": "Validação de arquitetura de sistemas, verificação de estrutura de pastas, fluxos n8n e padrões de integração.",
+      "scripts": [
+        "scripts/architecture_diagram_generator.py",
+        "scripts/project_architect.py",
+        "scripts/dependency_analyzer.py"
+      ],
+      "references": [
+        "references/architecture_patterns.md",
+        "references/system_design_workflows.md"
+      ],
+      "usage": "Validação de arquitetura, estrutura de pastas, fluxos n8n, integrações"
+    },
+    {
+      "name": "code-reviewer",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/code-reviewer",
+      "description": "Revisão de código TypeScript/Node, análise de segurança JWT, performance de queries Drizzle.",
+      "scripts": [
+        "scripts/pr_analyzer.py",
+        "scripts/code_quality_checker.py",
+        "scripts/review_report_generator.py"
+      ],
+      "references": [
+        "references/code_review_checklist.md",
+        "references/coding_standards.md",
+        "references/common_antipatterns.md"
+      ],
+      "usage": "Revisão de código, segurança (JWT), performance (queries), stack técnica (React 19)"
+    },
+    {
+      "name": "pdf-processing-pro",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/pdf-processing-pro",
+      "description": "Processamento de PDFs para extração de propostas comerciais e validação de SPECs.",
+      "scripts": [
+        "scripts/pdf_extractor.py"
+      ],
+      "usage": "Análise de propostas comerciais em PDF, extração de requisitos visuais"
+    }
+  ]
+}

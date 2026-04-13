@@ -1,0 +1,32 @@
+{
+  "skills": [
+    {
+      "name": "frontend-design",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/frontend-design",
+      "description": "Design e desenvolvimento frontend com foco em UI/UX, component design e design system.",
+      "usage": "Layout, hierarquia visual, tipografia, cores, responsividade"
+    },
+    {
+      "name": "ui-design-system",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/ui-design-system",
+      "description": "Criação e manutenção de design systems consistentes.",
+      "usage": "Design systems, component library, consistência visual"
+    },
+    {
+      "name": "ui-ux-pro-max",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/ui-ux-pro-max",
+      "description": "UX/UI avançado com foco em experiência do usuário, fluxos de navegação e estados de interface.",
+      "usage": "UX avançado, estados de interface (loading, error, empty), feedback visual, acessibilidade"
+    },
+    {
+      "name": "react-best-practices",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/react-best-practices",
+      "description": "Melhores práticas React para implementação frontend.",
+      "references": [
+        "references/react_hooks_guide.md",
+        "references/performance_patterns.md"
+      ],
+      "usage": "React, implementação de UI, component composition"
+    }
+  ]
+}

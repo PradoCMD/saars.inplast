@@ -1,0 +1,123 @@
+{
+  "name": "Atualizar Planilha Romaneios (Lógica Python)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "atualizar-romaneios",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM?includeGridData=false",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsServiceAccountApi",
+        "options": {}
+      },
+      "id": "get-meta",
+      "name": "Obter Metadados",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM/values/PROGRAMA%C3%87%C3%83O!A1:DZ300",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsServiceAccountApi",
+        "options": {}
+      },
+      "id": "get-values",
+      "name": "Ler Dados",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawValues = $json.values || [];\nconst meta = $('Obter Metadados').first().json;\nconst sheet = meta.sheets.find(s => s.properties.title === 'PROGRAMAÇÃO');\nconst sheetId = sheet ? sheet.properties.sheetId : 0;\n\nif (rawValues.length < 2) return [{ json: { error: 'Sem dados suficientes' } }];\n\nconst row1 = rawValues[0] || [];\nconst row2 = rawValues[1] || [];\nconst romaneios = [];\n\n// Lógica igual ao Python: procura na linha 2 por algo que comece com \"RM\"\nfor (let c = 2; c < row2.length; c += 2) {\n  const name = String(row2[c] || '').trim();\n  if (name.toUpperCase().startsWith('RM')) {\n    const dateStr = row1[c] || '';\n    let parsedDate = null;\n    \n    if (dateStr) {\n      const p = String(dateStr).match(/(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})/);\n      if (p) parsedDate = new Date(parseInt(p[3]), parseInt(p[2])-1, parseInt(p[1]));\n      else {\n        const s = Number(dateStr);\n        if (s > 40000 && s < 60000) parsedDate = new Date((s-25569)*86400000);\n      }\n    }\n\n    const items = {};\n    for (let r = 2; r < rawValues.length; r++) {\n      const val = rawValues[r][c];\n      if (val !== undefined && val !== '' && val !== null) {\n        const num = Number(val);\n        if (!isNaN(num) && num !== 0) items[r] = num;\n      }\n    }\n    romaneios.push({ date: parsedDate, name, items });\n  }\n}\n\nif (romaneios.length === 0) return [{ json: { error: 'Nenhum RM encontrado' } }];\n\nconst sorted = [\n  ...romaneios.filter(r => r.date).sort((a,b) => a.date - b.date),\n  ...romaneios.filter(r => !r.date)\n];\n\nconst totalRows = rawValues.length;\nconst totalCols = sorted.length * 2;\n\nfunction colLetter(n) { let r=''; while(n>0){n--;r=String.fromCharCode(65+n%26)+r;n=Math.floor(n/26);} return r; }\n\nconst grid = [];\nfor (let r = 0; r < totalRows; r++) grid.push(new Array(totalCols).fill(''));\n\nfor (let i = 0; i < sorted.length; i++) {\n  const rm = sorted[i], t = i*2;\n  if (rm.date) grid[0][t] = `${String(rm.date.getDate()).padStart(2,'0')}/${String(rm.date.getMonth()+1).padStart(2,'0')}/${rm.date.getFullYear()}`;\n  grid[1][t] = rm.name;\n  grid[1][t+1] = 'ESTOQUE INT';\n  const prev = t===0 ? 'B' : colLetter(3+t-1), curr = colLetter(3+t);\n  for (let r=2; r < totalRows; r++) {\n    if (rm.items[r] !== undefined) grid[r][t] = rm.items[r];\n    grid[r][t+1] = `=${prev}${r+1}-${curr}${r+1}`;\n  }\n}\n\nreturn [{\n  json: {\n    sheetId,\n    writeRange: 'PROGRAMAÇÃO!C1:' + colLetter(2 + totalCols) + totalRows,\n    clearRange: 'PROGRAMAÇÃO!C1:DZ' + totalRows,\n    values: grid,\n    totalRomaneios: sorted.length,\n    totalRows\n  }\n}];"
+      },
+      "id": "process",
+      "name": "Processar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM/values/{{ encodeURIComponent($json.clearRange) }}:clear",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsServiceAccountApi",
+        "options": {}
+      },
+      "id": "clear",
+      "name": "Limpar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM/values/{{ encodeURIComponent($('Processar').first().json.writeRange) }}?valueInputOption=USER_ENTERED",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsServiceAccountApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ range: $('Processar').first().json.writeRange, majorDimension: 'ROWS', values: $('Processar').first().json.values }) }}",
+        "options": {}
+      },
+      "id": "write",
+      "name": "Escrever",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Processar').first().json;\nconst n = input.totalRomaneios, rows = input.totalRows, sid = input.sheetId;\nconst G={red:0,green:1,blue:0}, LG={red:0.85,green:0.92,blue:0.83}, BL={red:0.56,green:0.67,blue:0.86}, BK={red:0,green:0,blue:0}, RD={red:1,green:0,blue:0};\nconst rq = [];\n\n// Resetar formatação de fundo e alinhamento do bloco C:DZ\nrq.push({\n  repeatCell: {\n    range: { sheetId: sid, startRowIndex: 0, endRowIndex: rows, startColumnIndex: 2, endColumnIndex: 128 },\n    cell: { userEnteredFormat: { backgroundColor: { red: 1, green: 1, blue: 1 }, textFormat: { foregroundColor: { red: 0, green: 0, blue: 0 } }, horizontalAlignment: 'CENTER' } },\n    fields: 'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)'\n  }\n});\n\nfor(let i=0;i<n;i++){\n  const c=2+(i*2), hd = input.values[0][i*2] && input.values[0][i*2] !== '';\n  // Header Data\n  rq.push({repeatCell:{range:{sheetId:sid,startRowIndex:0,endRowIndex:1,startColumnIndex:c,endColumnIndex:c+1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd/mm/yyyy'},backgroundColor:hd?G:LG,textFormat:{bold:true,fontSize:11},horizontalAlignment:'CENTER'}},fields:'userEnteredFormat(numberFormat,backgroundColor,textFormat,horizontalAlignment)'}});\n  // Header ESTOQUE INT (linha 1)\n  rq.push({repeatCell:{range:{sheetId:sid,startRowIndex:0,endRowIndex:1,startColumnIndex:c+1,endColumnIndex:c+2},cell:{userEnteredFormat:{backgroundColor:LG}},fields:'userEnteredFormat(backgroundColor)'}});\n  // Header Nome RM (linha 2)\n  rq.push({repeatCell:{range:{sheetId:sid,startRowIndex:1,endRowIndex:2,startColumnIndex:c,endColumnIndex:c+1},cell:{userEnteredFormat:{backgroundColor:BL,textFormat:{bold:true,fontSize:10},horizontalAlignment:'CENTER',wrapStrategy:'WRAP'}},fields:'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,wrapStrategy)'}});\n  // Header ESTOQUE INT (linha 2)\n  rq.push({repeatCell:{range:{sheetId:sid,startRowIndex:1,endRowIndex:2,startColumnIndex:c+1,endColumnIndex:c+2},cell:{userEnteredFormat:{backgroundColor:LG,textFormat:{bold:true,fontSize:10},horizontalAlignment:'CENTER'}},fields:'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment)'}});\n  // Dados ESTOQUE INT (linhas 3+)\n  rq.push({repeatCell:{range:{sheetId:sid,startRowIndex:2,endRowIndex:rows,startColumnIndex:c+1,endColumnIndex:c+2},cell:{userEnteredFormat:{backgroundColor:LG,textFormat:{bold:true}}},fields:'userEnteredFormat(backgroundColor,textFormat)'}});\n}\n\n// Condicional Negativo Vermelho\nrq.push({\n  addConditionalFormatRule: {\n    rule: {\n      ranges: [{ sheetId: sid, startRowIndex: 2, endRowIndex: rows, startColumnIndex: 2, endColumnIndex: 2 + n * 2 }],\n      booleanRule: {\n        condition: { type: 'NUMBER_LESS', values: [{ userEnteredValue: '0' }] },\n        format: { backgroundColor: RD }\n      }\n    },\n    index: 0\n  }\n});\n\nreturn [{json:{requests:rq}}];"
+      },
+      "id": "format",
+      "name": "Formatação",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsServiceAccountApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ requests: $json.requests }) }}",
+        "options": {}
+      },
+      "id": "apply-colors",
+      "name": "Aplicar Cores",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Obter Metadados", "type": "main", "index": 0 }]] },
+    "Obter Metadados": { "main": [[{ "node": "Ler Dados", "type": "main", "index": 0 }]] },
+    "Ler Dados": { "main": [[{ "node": "Processar", "type": "main", "index": 0 }]] },
+    "Processar": { "main": [[{ "node": "Limpar", "type": "main", "index": 0 }]] },
+    "Limpar": { "main": [[{ "node": "Escrever", "type": "main", "index": 0 }]] },
+    "Escrever": { "main": [[{ "node": "Formatação", "type": "main", "index": 0 }]] },
+    "Formatação": { "main": [[{ "node": "Aplicar Cores", "type": "main", "index": 0 }]] }
+  }
+}

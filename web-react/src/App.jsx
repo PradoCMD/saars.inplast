@@ -535,7 +535,12 @@ function App() {
     window.location.hash = `#${nextView}`
   }
 
-  function resetToLoggedOutState(message, status = 'anonymous') {
+  async function resetToLoggedOutState(message, status = 'anonymous') {
+    try {
+      await requestJson('/api/pcp/auth/logout', { method: 'POST' })
+    } catch {
+      // ignore
+    }
     persistStoredSession(null)
     setCurrentUser(null)
     setSelectedCompany('')

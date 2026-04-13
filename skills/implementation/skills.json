@@ -1,0 +1,60 @@
+{
+  "skills": [
+    {
+      "name": "senior-frontend",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/senior-frontend",
+      "description": "Toolkit sênior para desenvolvimento frontend com React, Next.js, TypeScript. Inclui análise de projeto, validação de patterns, optimization e best practices.",
+      "scripts": [
+        "scripts/code_analyzer.py - Analisador de código frontend",
+        "scripts/component_architect.py - Arquiteto de componentes"
+      ],
+      "references": [
+        "references/frontend_best_practices.md",
+        "references/react_patterns.md",
+        "references/typescript_guide.md"
+      ],
+      "usage": "Desenvolvimento frontend React/Next.js, component design, TypeScript"
+    },
+    {
+      "name": "senior-backend",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/senior-backend",
+      "description": "Toolkit sênior para desenvolvimento backend com Node.js, Express, APIs REST/GraphQL, PostgreSQL.",
+      "scripts": [
+        "scripts/api_analyzer.py - Analisador de APIs",
+        "scripts/db_architect.py - Arquiteto de banco de dados"
+      ],
+      "references": [
+        "references/backend_best_practices.md",
+        "references/api_design.md",
+        "references/security_guide.md"
+      ],
+      "usage": "Desenvolvimento backend Node.js/Express, APIs REST, PostgreSQL, Drizzle ORM"
+    },
+    {
+      "name": "react-best-practices",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/react-best-practices",
+      "description": "Melhores práticas e patterns para React 19, Hooks modernos, performance optimization.",
+      "references": [
+        "references/react_hooks_guide.md",
+        "references/performance_patterns.md",
+        "references/state_management.md"
+      ],
+      "usage": "React hooks, component patterns, state management, performance"
+    },
+    {
+      "name": "code-reviewer",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/code-reviewer",
+      "description": "Code review e quality checks.",
+      "scripts": [
+        "scripts/code_quality_checker.py"
+      ],
+      "usage": "Quality assurance, code review, best practices"
+    },
+    {
+      "name": "docker-expert",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/docker-expert",
+      "description": "Expert em Docker e containerização.",
+      "usage": "Docker, docker-compose, containerização"
+    }
+  ]
+}

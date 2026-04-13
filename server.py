@@ -1294,6 +1294,11 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 )
                 return
 
+            if parsed.path == "/api/pcp/auth/logout":
+                cookie_str = "pcp_session=; HttpOnly; Path=/; Max-Age=0; SameSite=Lax"
+                self.send_json(HTTPStatus.OK, {"status": "logged_out"}, extra_headers=[("Set-Cookie", cookie_str)])
+                return
+
             if parsed.path == "/api/pcp/romaneios-kanban/update-date":
                 payload = _require_object_payload(self.read_json_body(), route=parsed.path)
                 audit_company_code = _normalize_company_code(payload.get("company_code") or payload.get("empresa"))

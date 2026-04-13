@@ -1,0 +1,123 @@
+{
+  "name": "Atualizar Planilha Romaneios (V2 Corrigido)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "atualizar-romaneios",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook-v2",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM?includeGridData=false",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsServiceAccountApi",
+        "options": {}
+      },
+      "id": "get-sheet-id",
+      "name": "Obter ID da Aba",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "method": "GET",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM/values/PROGRAMA%C3%87%C3%83O!A1:DZ300",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsServiceAccountApi",
+        "options": {}
+      },
+      "id": "read-v2",
+      "name": "Ler Planilha",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [600, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const rawValues = $json.values || [];\nconst sheetMeta = $('Obter ID da Aba').first().json;\nconst sheet = sheetMeta.sheets.find(s => s.properties.title === 'PROGRAMAÇÃO');\nconst sheetId = sheet ? sheet.properties.sheetId : 0;\n\nif (rawValues.length < 2) return [{ json: { error: 'Planilha sem dados suficientes', sheetId } }];\n\nconst row1 = rawValues[0] || [];\nconst row2 = rawValues[1] || [];\nconst romaneios = [];\n\n// Procurar romaneios na linha 2 (começa da col C em diante)\nfor (let c = 2; c < row2.length; c += 2) {\n  const name = String(row2[c] || '').trim();\n  // Se a coluna tiver \"RM\" ou apenas o número, e não for \"ESTOQUE INT\"\n  if (!name || name.toUpperCase() === 'ESTOQUE INT') continue;\n  \n  const dateStr = row1[c] || '';\n  let parsedDate = null;\n  \n  if (dateStr) {\n    const p = String(dateStr).match(/(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})/);\n    if (p) parsedDate = new Date(parseInt(p[3]), parseInt(p[2])-1, parseInt(p[1]));\n    else {\n      const s = Number(dateStr);\n      if (s > 40000 && s < 60000) parsedDate = new Date((s-25569)*86400000);\n    }\n  }\n  \n  const itemsRM = {};\n  for (let r = 2; r < rawValues.length; r++) {\n    const val = rawValues[r][c];\n    if (val !== undefined && val !== '' && val !== null) {\n      const num = Number(val);\n      if (!isNaN(num) && num !== 0) itemsRM[r] = num;\n    }\n  }\n  romaneios.push({ date: parsedDate, name, items: itemsRM });\n}\n\nif (romaneios.length === 0) return [{ json: { error: 'Nenhum romaneio encontrado', sheetId } }];\n\nconst sorted = [...romaneios.filter(r => r.date).sort((a,b) => a.date - b.date), ...romaneios.filter(r => !r.date)];\nconst totalRows = Math.max(rawValues.length, 100); // Garantir preenchimento mínimo\nconst totalCols = sorted.length * 2;\n\nfunction colLetter(n) { let r=''; while(n>0){n--;r=String.fromCharCode(65+n%26)+r;n=Math.floor(n/26);} return r; }\n\nconst grid = [];\nfor (let r = 0; r < totalRows; r++) grid.push(new Array(totalCols).fill(''));\n\nfor (let i = 0; i < sorted.length; i++) {\n  const rm = sorted[i], t = i*2;\n  if (rm.date) grid[0][t] = `${String(rm.date.getDate()).padStart(2,'0')}/${String(rm.date.getMonth()+1).padStart(2,'0')}/${rm.date.getFullYear()}`;\n  grid[1][t] = rm.name;\n  grid[1][t+1] = 'ESTOQUE INT';\n  const prev = t===0 ? 'B' : colLetter(3+t-1), curr = colLetter(3+t);\n  for (let r=2; r < totalRows; r++) {\n    if (rm.items[r] !== undefined) grid[r][t] = rm.items[r];\n    grid[r][t+1] = `=${prev}${r+1}-${curr}${r+1}`;\n  }\n}\n\nreturn [{ json: {\n  sheetId,\n  writeRange: 'PROGRAMAÇÃO!C1:'+colLetter(2+totalCols)+totalRows,\n  clearRange: 'PROGRAMAÇÃO!C1:DZ'+totalRows,\n  values: grid,\n  totalRomaneios: sorted.length\n}}];"
+      },
+      "id": "process-v2",
+      "name": "Processar",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [800, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM/values/{{ encodeURIComponent($json.clearRange) }}:clear",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsServiceAccountApi",
+        "options": {}
+      },
+      "id": "clear-v2",
+      "name": "Limpar",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1000, 300]
+    },
+    {
+      "parameters": {
+        "method": "PUT",
+        "url": "=https://sheets.googleapis.com/v4/spreadsheets/1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM/values/{{ encodeURIComponent($('Processar').first().json.writeRange) }}?valueInputOption=USER_ENTERED",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsServiceAccountApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ range: $('Processar').first().json.writeRange, majorDimension: 'ROWS', values: $('Processar').first().json.values }) }}",
+        "options": {}
+      },
+      "id": "write-v2",
+      "name": "Escrever",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const input = $('Processar').first().json;\nconst n = input.totalRomaneios, rows = input.values.length, sid = input.sheetId;\nconst G={red:0,green:1,blue:0}, LG={red:0.85,green:0.92,blue:0.83}, BL={red:0.56,green:0.67,blue:0.86}, BK={red:0,green:0,blue:0}, RD={red:1,green:0,blue:0};\nconst rq = [];\n// Limpar regras antigas antes de aplicar (evita erro de limite)\nrq.push({ updateCells: { range: { sheetId: sid, startRowIndex: 0, endRowIndex: rows, startColumnIndex: 2, endColumnIndex: 200 }, fields: 'userEnteredFormat' } });\n\nfor(let i=0;i<n;i++){\n  const c=2+(i*2), hd = input.values[0][i*2] && input.values[0][i*2] !== '';\n  rq.push({repeatCell:{range:{sheetId:sid,startRowIndex:0,endRowIndex:1,startColumnIndex:c,endColumnIndex:c+1},cell:{userEnteredFormat:{numberFormat:{type:'DATE',pattern:'dd/mm/yyyy'},backgroundColor:hd?G:LG,textFormat:{bold:true,fontSize:11,foregroundColor:BK},horizontalAlignment:'CENTER',verticalAlignment:'MIDDLE'}},fields:'userEnteredFormat(numberFormat,backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'}});\n  rq.push({repeatCell:{range:{sheetId:sid,startRowIndex:0,endRowIndex:1,startColumnIndex:c+1,endColumnIndex:c+2},cell:{userEnteredFormat:{backgroundColor:LG,textFormat:{bold:true,foregroundColor:BK}}},fields:'userEnteredFormat(backgroundColor,textFormat)'}});\n  rq.push({repeatCell:{range:{sheetId:sid,startRowIndex:1,endRowIndex:2,startColumnIndex:c,endColumnIndex:c+1},cell:{userEnteredFormat:{backgroundColor:BL,textFormat:{bold:true,fontSize:10,foregroundColor:BK},horizontalAlignment:'CENTER',verticalAlignment:'MIDDLE',wrapStrategy:'WRAP'}},fields:'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment,wrapStrategy)'}});\n  rq.push({repeatCell:{range:{sheetId:sid,startRowIndex:1,endRowIndex:2,startColumnIndex:c+1,endColumnIndex:c+2},cell:{userEnteredFormat:{backgroundColor:LG,textFormat:{bold:true,fontSize:10,foregroundColor:BK},horizontalAlignment:'CENTER',verticalAlignment:'MIDDLE'}},fields:'userEnteredFormat(backgroundColor,textFormat,horizontalAlignment,verticalAlignment)'}});\n  rq.push({repeatCell:{range:{sheetId:sid,startRowIndex:2,endRowIndex:rows,startColumnIndex:c+1,endColumnIndex:c+2},cell:{userEnteredFormat:{backgroundColor:LG,textFormat:{bold:true,foregroundColor:BK}}},fields:'userEnteredFormat(backgroundColor,textFormat)'}});\n}\nconst tc=2+n*2;\nrq.push({repeatCell:{range:{sheetId:sid,startRowIndex:2,endRowIndex:rows,startColumnIndex:2,endColumnIndex:tc},cell:{userEnteredFormat:{horizontalAlignment:'CENTER',verticalAlignment:'MIDDLE'}},fields:'userEnteredFormat(horizontalAlignment,verticalAlignment)'}});\nrq.push({addConditionalFormatRule:{rule:{ranges:[{sheetId:sid,startRowIndex:2,endRowIndex:rows,startColumnIndex:2,endColumnIndex:tc}],booleanRule:{condition:{type:'NUMBER_LESS',values:[{userEnteredValue:'0'}]},format:{backgroundColor:RD,textFormat:{foregroundColor:BK}}}},index:0}});\nreturn [{json:{requests:rq}}];"
+      },
+      "id": "format-v2",
+      "name": "Formata",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [1400, 300]
+    },
+    {
+      "parameters": {
+        "method": "POST",
+        "url": "https://sheets.googleapis.com/v4/spreadsheets/1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM:batchUpdate",
+        "authentication": "predefinedCredentialType",
+        "nodeCredentialType": "googleSheetsServiceAccountApi",
+        "sendBody": true,
+        "specifyBody": "json",
+        "jsonBody": "={{ JSON.stringify({ requests: $json.requests }) }}",
+        "options": {}
+      },
+      "id": "colors-v2",
+      "name": "Cores",
+      "type": "n8n-nodes-base.httpRequest",
+      "typeVersion": 4.2,
+      "position": [1600, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Obter ID da Aba", "type": "main", "index": 0 }]] },
+    "Obter ID da Aba": { "main": [[{ "node": "Ler Planilha", "type": "main", "index": 0 }]] },
+    "Ler Planilha": { "main": [[{ "node": "Processar", "type": "main", "index": 0 }]] },
+    "Processar": { "main": [[{ "node": "Limpar", "type": "main", "index": 0 }]] },
+    "Limpar": { "main": [[{ "node": "Escrever", "type": "main", "index": 0 }]] },
+    "Escrever": { "main": [[{ "node": "Formata", "type": "main", "index": 0 }]] },
+    "Formata": { "main": [[{ "node": "Cores", "type": "main", "index": 0 }]] }
+  }
+}

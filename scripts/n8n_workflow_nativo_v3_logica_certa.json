@@ -1,0 +1,116 @@
+{
+  "name": "Atualizar Planilha Romaneios (NATIVO V3)",
+  "nodes": [
+    {
+      "parameters": {
+        "httpMethod": "GET",
+        "path": "atualizar-romaneios",
+        "responseMode": "lastNode",
+        "options": {}
+      },
+      "id": "webhook",
+      "name": "Webhook",
+      "type": "n8n-nodes-base.webhook",
+      "typeVersion": 2,
+      "position": [0, 300]
+    },
+    {
+      "parameters": {
+        "operation": "read",
+        "documentId": {
+          "__rl": true,
+          "value": "1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "PROGRAMAÇÃO",
+          "mode": "name"
+        },
+        "options": {
+          "outputFormatting": false,
+          "range": "A1:DZ300"
+        }
+      },
+      "id": "read",
+      "name": "Ler Planilha",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [200, 300]
+    },
+    {
+      "parameters": {
+        "jsCode": "const items = $input.all();\nconst rawValues = items.map(i => Object.values(i.json));\nconst row1 = rawValues[0] || [];\nconst row2 = rawValues[1] || [];\nconst romaneios = [];\n\nfor (let c = 2; c < row2.length; c += 2) {\n  const name = String(row2[c] || '').trim();\n  if (name.toUpperCase().startsWith('RM')) {\n    const dateStr = row1[c] || '';\n    let parsedDate = null;\n    if (dateStr) {\n      const p = String(dateStr).match(/(\\d{1,2})\\/(\\d{1,2})\\/(\\d{4})/);\n      if (p) parsedDate = new Date(parseInt(p[3]), parseInt(p[2])-1, parseInt(p[1]));\n      else { const s = Number(dateStr); if (s > 40000 && s < 60000) parsedDate = new Date((s-25569)*86400000); }\n    }\n    const itemsRM = {};\n    for (let r = 2; r < rawValues.length; r++) {\n      const val = rawValues[r][c];\n      if (val !== undefined && val !== '' && val !== null) {\n        const num = Number(val);\n        if (!isNaN(num) && num !== 0) itemsRM[r] = num;\n      }\n    }\n    romaneios.push({ date: parsedDate, name, items: itemsRM });\n  }\n}\n\nconst sorted = [...romaneios.filter(r => r.date).sort((a,b) => a.date - b.date), ...romaneios.filter(r => !r.date)];\nconst totalRows = rawValues.length;\nfunction colLetter(n) { let r=''; while(n>0){n--;r=String.fromCharCode(65+n%26)+r;n=Math.floor(n/26);} return r; }\n\nconst objects = [];\nfor (let r = 0; r < totalRows; r++) {\n  const rowObj = {};\n  for (let i = 0; i < sorted.length; i++) {\n    const rm = sorted[i], t = i*2;\n    const colName = colLetter(3 + t), colEst = colLetter(4 + t);\n    if (r === 0) {\n       if (rm.date) rowObj[colName] = `${String(rm.date.getDate()).padStart(2,'0')}/${String(rm.date.getMonth()+1).padStart(2,'0')}/${rm.date.getFullYear()}`;\n       rowObj[colEst] = '';\n    } else if (r === 1) {\n       rowObj[colName] = rm.name; rowObj[colEst] = 'ESTOQUE INT';\n    } else {\n       if (rm.items[r] !== undefined) rowObj[colName] = rm.items[r];\n       rowObj[colEst] = `=${colLetter(3+t-1)}${r+1}-${colName}${r+1}`;\n    }\n  }\n  objects.push(rowObj);\n}\n\nreturn [{ json: { rows: objects } }];"
+      },
+      "id": "process",
+      "name": "Processar Dados",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 2,
+      "position": [400, 300]
+    },
+    {
+      "parameters": {
+        "operation": "clear",
+        "documentId": {
+          "__rl": true,
+          "value": "1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "PROGRAMAÇÃO",
+          "mode": "name"
+        },
+        "range": "C1:DZ300"
+      },
+      "id": "clear",
+      "name": "Limpar Área",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [600, 200]
+    },
+    {
+      "parameters": {
+        "mode": "combine",
+        "combinationMode": "multiplex",
+        "options": {}
+      },
+      "id": "merge",
+      "name": "Esperar Limpeza",
+      "type": "n8n-nodes-base.merge",
+      "typeVersion": 2.1,
+      "position": [850, 300]
+    },
+    {
+      "parameters": {
+        "operation": "update",
+        "documentId": {
+          "__rl": true,
+          "value": "1sp9Y4aZIY427_8i_aY0jAGzLpK1GitoUynrWFnzc6cM",
+          "mode": "id"
+        },
+        "sheetName": {
+          "__rl": true,
+          "value": "PROGRAMAÇÃO",
+          "mode": "name"
+        },
+        "range": "C1",
+        "options": {
+          "valueInputOption": "USER_ENTERED"
+        }
+      },
+      "id": "write",
+      "name": "Escrever Dados",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 4.5,
+      "position": [1100, 300]
+    }
+  ],
+  "connections": {
+    "Webhook": { "main": [[{ "node": "Ler Planilha", "type": "main", "index": 0 }]] },
+    "Ler Planilha": { "main": [[{ "node": "Processar Dados", "type": "main", "index": 0 }]] },
+    "Processar Dados": { "main": [[{ "node": "Limpar Área", "type": "main", "index": 0 }, { "node": "Esperar Limpeza", "type": "main", "index": 1 }]] },
+    "Limpar Área": { "main": [[{ "node": "Esperar Limpeza", "type": "main", "index": 0 }]] },
+    "Esperar Limpeza": { "main": [[{ "node": "Escrever Dados", "type": "main", "index": 0 }]] }
+  }
+}

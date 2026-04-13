@@ -1,0 +1,29 @@
+{
+  "skills": [
+    {
+      "name": "senior-architect",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/senior-architect",
+      "description": "Skill de arquitetura de software para desenhar sistemas escaláveis e sustentáveis usando ReactJS, NextJS, NodeJS, Express, Postgres, GraphQL, Go, Python. Inclui geração de diagramas de arquitetura, padrões de design de sistema, frameworks de decisão de tech stack e análise de dependências.",
+      "scripts": [
+        "scripts/architecture_diagram_generator.py - Gerador de diagramas de arquitetura",
+        "scripts/project_architect.py - Arquiteto de projetos",
+        "scripts/dependency_analyzer.py - Analisador de dependências"
+      ],
+      "references": [
+        "references/architecture_patterns.md",
+        "references/system_design_workflows.md",
+        "references/tech_decision_guide.md"
+      ],
+      "usage": "Análise de arquitetura, decisões técnicas, diagramas, evaluation de trade-offs, definição de padrões de integração"
+    },
+    {
+      "name": "code-reviewer",
+      "path": "/Users/sistemas2/Documents/Playground 2/skills/code-reviewer",
+      "description": "Kit completo de code review para validação técnica de SPECs e implementação.",
+      "scripts": [
+        "scripts/code_quality_checker.py - Verificador de qualidade"
+      ],
+      "usage": "Validação técnica de implementação vs SPEC, identificação de gaps técnicos"
+    }
+  ]
+}
