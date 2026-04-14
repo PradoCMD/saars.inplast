@@ -1189,14 +1189,37 @@ class MockProvider(DataProvider):
                     snapshot_at=snapshot_at,
                 )
                 
-                # No modo Mock, salvamos o resultado em arquivos locais para a UI ler
+                # --- No modo Mock, persistimos nos arquivos locais para a UI ---
                 records = envelope.get("records") or []
                 summary = envelope.get("summary") or {}
                 
-                # Atualizamos o painel mock com os novos saldos
-                # (Aqui poderíamos salvar em data/painel.json, mas para facilitar
-                # vamos apenas retornar como sucesso para a UI que o backend cuidou disso)
+                # Conversão rápida para o formato do painel mock
+                from datetime import datetime as dt
+                painel_items = []
+                for rec in records:
+                    painel_items.append({
+                        "sku": rec.get("sku"),
+                        "produto": rec.get("description"),
+                        "tipo": rec.get("product_type", "acabado"),
+                        "estoque_atual": float(rec.get("quantity") or 0),
+                        "necessidade_romaneios": 0.0, # A ser preenchido por MRP posterior
+                        "saldo": float(rec.get("quantity") or 0),
+                        "criticidade": "OK",
+                        "acao": "Monitorar"
+                    })
                 
+                # Grava no painel.json
+                painel_path = self.data_dir / "painel.json"
+                painel_path.write_text(json.dumps({"items": painel_items}, ensure_ascii=False, indent=2), encoding="utf-8")
+                
+                # Grava no overview.json (Resumo)
+                overview_path = self.data_dir / "overview.json"
+                overview_path.write_text(json.dumps({
+                    "total_items": len(painel_items),
+                    "last_sync": dt.now(dt.timezone.utc).isoformat(),
+                    "source": source_code
+                }, ensure_ascii=False, indent=2), encoding="utf-8")
+
                 results.append({
                     "source_code": source_code,
                     "status": "success",
