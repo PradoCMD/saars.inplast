@@ -12,6 +12,7 @@ import {
   FiSmartphone,
   FiTool,
   FiTrendingUp,
+  FiLogOut,
 } from 'react-icons/fi'
 
 const ICONS = {
@@ -27,10 +28,9 @@ const ICONS = {
   montagem: FiSettings,
   producao: FiActivity,
   compras: FiShoppingCart,
-  governanca: FiShield,
 }
 
-function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLabel, companySelectionRequired, theme, toggleTheme }) {
+function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLabel, companySelectionRequired, theme, toggleTheme, onLogout }) {
   const roleLabel = String(currentUser?.role || 'operator').toUpperCase()
   const scopeLabel = selectedCompany || 'Consolidado'
 
@@ -43,7 +43,7 @@ function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLa
           </div>
           <div className="logo-text">
             <strong>Inplast</strong>
-            <span>Control Desk React</span>
+            <span>Control Desk PCP</span>
           </div>
         </div>
 
@@ -54,15 +54,26 @@ function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLa
         </div>
 
         <div className="sidebar-context">
-          <small>Escopo ativo</small>
-          <strong>{scopeLabel}</strong>
-          <span>{currentUser?.username}</span>
-          <div className="sidebar-note">
-            <span className={`tag ${companySelectionRequired ? 'warning' : 'ok'}`}>
-              {companySelectionRequired ? 'Empresa pendente' : 'Escopo pronto'}
-            </span>
-            <span className="tag info">{roleLabel}</span>
+          <div className="sidebar-context-main">
+            <small>Escopo ativo</small>
+            <strong>{scopeLabel}</strong>
+            <span>{currentUser?.username}</span>
+            <div className="sidebar-note">
+              <span className={`tag ${companySelectionRequired ? 'warning' : 'ok'}`}>
+                {companySelectionRequired ? 'Empresa pendente' : 'Escopo pronto'}
+              </span>
+              <span className="tag info">{roleLabel}</span>
+            </div>
           </div>
+          
+          <button 
+            type="button" 
+            className="btn-logout-sidebar" 
+            onClick={onLogout}
+            title="Sair do sistema"
+          >
+            <FiLogOut />
+          </button>
         </div>
       </div>
 

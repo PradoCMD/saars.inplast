@@ -1,4 +1,4 @@
-import { useEffect, useEffectEvent, useState } from 'react'
+import { useCallback, useEffect, useState } from 'react'
 import CommandDeck from './components/CommandDeck'
 import Sidebar from './components/Sidebar'
 import StatePanel from './components/StatePanel'
@@ -210,17 +210,6 @@ function getDefaultCompany(user, currentSelection = '') {
   return ''
 }
 
-function getInitials(user) {
-  const base = user?.full_name || user?.username || 'IP'
-  return base
-    .split(/\s+/)
-    .filter(Boolean)
-    .slice(0, 2)
-    .map((part) => part[0])
-    .join('')
-    .toUpperCase()
-}
-
 function formatDateTime(value) {
   if (!value) return 'Sem registro'
   const date = new Date(value)
@@ -268,19 +257,6 @@ function getRoleCapabilityLabel(user) {
   if (role === 'root') return 'Controle total do shell'
   if (role === 'manager') return 'MRP, sync e operação'
   return 'Leitura segura por papel'
-}
-
-function getPrimaryResourceForRoute(routeId, resources) {
-  if (routeId === 'cockpit') return resources.overview
-  if (routeId === 'programacao') return null
-  if (routeId === 'romaneios-kanban') return resources.kanban
-  if (routeId === 'romaneios') return resources.romaneios
-  if (routeId === 'estoque') return resources.stock
-  if (routeId === 'montagem') return resources.assembly
-  if (routeId === 'injecao' || routeId === 'extrusao') return resources.production
-  if (routeId === 'producao') return resources.production
-  if (routeId === 'governanca') return resources.sources
-  return null
 }
 
 function buildRouteSignalCard(route, resources, canIngest) {
@@ -472,7 +448,6 @@ function App() {
   const [lastLoadedAt, setLastLoadedAt] = useState('')
   const [searchQuery, setSearchQuery] = useState('')
   const [syncBusy, setSyncBusy] = useState(false)
-  const [mrpBusy, setMrpBusy] = useState(false)
   const [notice, setNotice] = useState(null)
   const [reloadKey, setReloadKey] = useState(0)
 
@@ -486,7 +461,6 @@ function App() {
   const companySelectionRequiredForActiveRoute = multiCompanySelectionRequired &&
     ['cockpit', 'romaneios-kanban'].includes(activeRoute?.id)
   const freshnessLabel = formatFreshnessLabel(resources.overview.data?.snapshot_at || lastLoadedAt)
-  const activeResource = getPrimaryResourceForRoute(activeRoute?.id, resources)
   const roleLabel = String(normalizeRole(currentUser?.role, currentUser?.username)).toUpperCase()
   const routeModeLabel = getRouteModeLabel(activeRoute)
   const routeSignalCard = buildRouteSignalCard(activeRoute, resources, hasPermission(currentUser, 'romaneios.ingest'))
@@ -547,20 +521,15 @@ function App() {
     setNavigationContext(null)
     setResources(createDefaultResources())
     setNotice(null)
-    setMrpBusy(false)
     setSyncBusy(false)
     setAuthStatus(status)
     setAuthMessage(message || '')
     window.location.hash = '#cockpit'
   }
 
-  function handleUnauthorizedSession(message) {
+  const handleUnauthorizedSession = useCallback((message) => {
     resetToLoggedOutState(message, 'expired')
-  }
-
-  const handleUnauthorizedSessionEffect = useEffectEvent((message) => {
-    resetToLoggedOutState(message, 'expired')
-  })
+  }, [])
 
   useEffect(() => {
     const handleHashChange = () => {
@@ -629,7 +598,7 @@ function App() {
             buildApiPath(path, shouldAttachCompany ? effectiveCompany : ''),
             {
               accessToken,
-              onUnauthorized: handleUnauthorizedSessionEffect,
+              onUnauthorized: handleUnauthorizedSession,
             },
           )
           nextResources[key] = createResourceState('ready', data, null)
@@ -662,7 +631,7 @@ function App() {
     return () => {
       cancelled = true
     }
-  }, [currentUser, effectiveCompany, multiCompanySelectionRequired, reloadKey])
+  }, [currentUser, effectiveCompany, multiCompanySelectionRequired, reloadKey, handleUnauthorizedSession])
 
   async function handleLoginSubmit(event) {
     event.preventDefault()
@@ -685,39 +654,6 @@ function App() {
       setAuthMessage(error.message)
     } finally {
       setLoginBusy(false)
-    }
-  }
-
-  async function handleRunMrp(event) {
-    if (event && typeof event === 'object' && 'preventDefault' in event) {
-      event.preventDefault()
-    }
-    if (!hasPermission(currentUser, 'mrp.run')) {
-      setNotice({ tone: 'error', message: 'Seu perfil não possui permissão para rodar o MRP.' })
-      return
-    }
-
-    if (!effectiveCompany) {
-      setNotice({ tone: 'warning', message: 'Selecione uma empresa antes de disparar o MRP.' })
-      return
-    }
-
-    setMrpBusy(true)
-    setNotice(null)
-
-    try {
-      await requestJson('/api/pcp/runs/mrp', {
-        method: 'POST',
-        body: { company_code: effectiveCompany },
-        accessToken: currentUser?.access_token,
-        onUnauthorized: handleUnauthorizedSession,
-      })
-      setNotice({ tone: 'success', message: `MRP disparado para ${effectiveCompany}. Atualizando os painéis...` })
-      setReloadKey((current) => current + 1)
-    } catch (error) {
-      setNotice({ tone: 'error', message: error.message })
-    } finally {
-      setMrpBusy(false)
     }
   }
 
@@ -991,6 +927,7 @@ function App() {
     return (
       <main className="auth-layout">
         <section className="auth-hero">
+          <div className="auth-hero-stars"></div>
           <div className="auth-highlights">
              <div className="auth-logo-large">
                <img src="/inplast-logo.png" alt="Inplast Logo" />
@@ -1062,15 +999,12 @@ function App() {
         companySelectionRequired={multiCompanySelectionRequired}
         theme={theme}
         toggleTheme={toggleTheme}
+        onLogout={() => resetToLoggedOutState('Sessão encerrada com segurança.')}
       />
 
       <main className="main-content">
         <Topbar
           route={activeRoute}
-          currentUser={currentUser}
-          initials={getInitials(currentUser)}
-          routeModeLabel={routeModeLabel}
-          routeStatus={activeResource?.status || 'ready'}
           searchQuery={searchQuery}
           onSearchChange={setSearchQuery}
           selectedCompany={effectiveCompany}
@@ -1082,13 +1016,8 @@ function App() {
           }}
           freshnessLabel={freshnessLabel}
           isStaleData={isStaleData}
-          canRunMrp={hasPermission(currentUser, 'mrp.run')}
           canSyncSources={hasPermission(currentUser, 'sources.sync')}
-          onRunMrp={handleRunMrp}
           onSyncSources={handleSyncSources}
-          onRefresh={() => setReloadKey((current) => current + 1)}
-          onLogout={() => resetToLoggedOutState('Sessão encerrada com segurança.')}
-          mrpBusy={mrpBusy}
           syncBusy={syncBusy}
         />
 
