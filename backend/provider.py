@@ -1163,13 +1163,13 @@ class MockProvider(DataProvider):
         }
 
     def sync_sources(self, payload: dict[str, Any]) -> dict[str, Any]:
+        # --- Sincronização Real de Estoque (Mesmo em modo Mock) ---
+        from .source_sync import STOCK_SOURCE_CODES, resolve_requested_codes, resolve_snapshot_at, build_source_request, run_parser_envelope, build_meta
+
         requested_codes = resolve_requested_codes(payload)
         snapshot_at = resolve_snapshot_at(payload)
         results: list[dict[str, Any]] = []
         errors: list[dict[str, Any]] = []
-
-        # --- Sincronização Real de Estoque (Mesmo em modo Mock) ---
-        from .source_sync import STOCK_SOURCE_CODES, resolve_requested_codes, resolve_snapshot_at, build_source_request, run_parser_envelope, build_meta
 
         source_rows = [
             {"source_code": "estoque_acabado_atual", "source_area": "EXPEDICAO", "contract_type": "google_sheets_published", "published_url_hint": self.settings.acabado_published_url},

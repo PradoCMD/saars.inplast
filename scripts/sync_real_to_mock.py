@@ -3,7 +3,7 @@ import sys
 from pathlib import Path
 
 # Adiciona o diretorio raiz ao path para importar o backend
-sys.path.append(str(Path(__file__).resolve().parent))
+sys.path.append(str(Path(__file__).resolve().parent.parent))
 
 from backend.config import Settings
 from backend.provider import MockProvider
@@ -15,7 +15,7 @@ def main():
     os.environ["PCP_DATA_MODE"] = "mock"
     
     settings = Settings.from_env()
-    provider = MockProvider(settings)
+    provider = MockProvider(settings, Path(__file__).resolve().parent.parent / "data")
     
     source_codes = [
         "estoque_acabado_atual",
