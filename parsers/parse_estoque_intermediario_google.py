@@ -50,12 +50,24 @@ STOCK_GID = "1960307278"
 PARSER_NAME = "parse_estoque_intermediario_google"
 
 
-def normalize_published_root(value: str) -> str:
-    text = (value or "").strip()
-    match = re.search(r"^(https://docs\.google\.com/spreadsheets/d/e/[^/]+)/pubhtml", text)
-    if not match:
-        raise ValueError("URL publicada invalida. Esperado endereco pubhtml do Google Sheets.")
-    return match.group(1)
+def normalize_published_root(published_url: str) -> str:
+    if "docs.google.com/spreadsheets" not in published_url:
+        raise ValueError("URL publicada invalida. Esperado endereco do Google Sheets.")
+    
+    # Se ja for um link de pubhtml ou pub, isola a raiz
+    if "/pubhtml" in published_url:
+        return published_url.split("/pubhtml")[0]
+    if "/pub" in published_url:
+        return published_url.split("/pub")[0]
+    
+    # Tenta achar o pattern d/e/...
+    if "/d/e/" in published_url:
+        parts = published_url.split("/d/e/")
+        if len(parts) > 1:
+            code = parts[1].split("/")[0].split("?")[0]
+            return f"https://docs.google.com/spreadsheets/d/e/{code}"
+
+    raise ValueError("URL publicada invalida. Nao foi possivel identificar o ID de publicacao.")
 
 
 def build_sheet_url(published_url: str, gid: str) -> str:
