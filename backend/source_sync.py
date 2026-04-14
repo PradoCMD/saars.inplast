@@ -49,7 +49,28 @@ class InventorySourceRequest:
 
 def is_google_published_url(value: str) -> bool:
     text = str(value or "").strip().lower()
-    return text.startswith("https://docs.google.com/spreadsheets/d/e/") and "/pubhtml" in text
+    return "docs.google.com/spreadsheets" in text and ("/pub" in text or "/d/e/" in text)
+
+
+def normalize_google_sheets_url(url: str) -> str:
+    """Converte links de visualizacao (pubhtml) em links de download (xlsx) se necessario."""
+    if not url or "docs.google.com/spreadsheets" not in url:
+        return url
+    
+    # Se ja for um link de exportacao, mantem
+    if "output=xlsx" in url or "output=csv" in url:
+        return url
+        
+    # Converte /pubhtml para /pub?output=xlsx
+    if "/pubhtml" in url:
+        return url.replace("/pubhtml", "/pub?output=xlsx")
+    
+    # Se for um link de documento comum (d/e/.../pub), garante que tenha o output=xlsx
+    if "/pub" in url and "output=" not in url:
+        separator = "&" if "?" in url else "?"
+        return f"{url}{separator}output=xlsx"
+        
+    return url
 
 
 def repo_root_candidates(settings: Settings) -> list[Path]:
@@ -109,13 +130,13 @@ def resolve_workbook_path(
     if source_code == "estoque_acabado_atual":
         workbook_path = settings.acabado_published_url or str(config_json.get("published_url_hint") or "").strip()
         if workbook_path:
-            return workbook_path
+            return normalize_google_sheets_url(workbook_path)
         raise SourceSyncError("Fonte `estoque_acabado_atual` sem URL publicada configurada.")
 
     if source_code == "estoque_intermediario_atual":
         workbook_path = settings.intermediario_published_url or str(config_json.get("published_url_hint") or "").strip()
         if workbook_path:
-            return workbook_path
+            return normalize_google_sheets_url(workbook_path)
         raise SourceSyncError("Fonte `estoque_intermediario_atual` sem URL publicada configurada.")
 
     if source_code in {"estoque_materia_prima_almoxarifado", "estoque_componente_almoxarifado"}:
@@ -127,7 +148,7 @@ def resolve_workbook_path(
             or ALMOX_DEFAULT_WORKBOOK
         )
         if workbook_path:
-            return workbook_path
+            return normalize_google_sheets_url(workbook_path)
         raise SourceSyncError(f"Fonte `{source_code}` sem workbook configurado.")
 
     raise SourceSyncError(f"Fonte `{source_code}` ainda nao suportada para sincronizacao direta.")
