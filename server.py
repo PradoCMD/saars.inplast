@@ -1199,14 +1199,15 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 return
 
             if parsed.path == "/api/pcp/sources/sync":
-                audit_user = self.require_authorized_user(permission="sources.sync")
-                if SETTINGS.sync_api_token and not self.authorize_sync(send_on_failure=False):
-                    raise ApiRequestError(
-                        HTTPStatus.UNAUTHORIZED,
-                        "Authentication required",
-                        "Sync token required for this operation",
-                        code="sync_token_required",
-                    )
+                # Permite acesso via Sessão (UI) ou Token de Sincronização (n8n/Externo)
+                audit_user = None
+                try:
+                    audit_user = self.require_authorized_user(permission="sources.sync")
+                except ApiRequestError:
+                    if not self.authorize_sync(send_on_failure=True):
+                        return
+                    audit_user = {"username": "external_sync", "role": "manager", "full_name": "Sincronização Externa"}
+                
                 payload = _require_object_payload(self.read_json_body(), route=parsed.path)
                 self.send_json(HTTPStatus.OK, PROVIDER.sync_sources(payload))
                 self.record_critical_action(parsed.path, status="success", user=audit_user)
@@ -1338,7 +1339,14 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 return
 
             if parsed.path in ["/api/pcp/romaneios-kanban/sync", "/api/pcp/romaneios/sync"]:
-                audit_user = self.require_authorized_user(permission="romaneios.ingest")
+                # Permite acesso via Sessão (UI) ou Token de Sincronização (n8n/Externo)
+                audit_user = None
+                try:
+                    audit_user = self.require_authorized_user(permission="romaneios.ingest")
+                except ApiRequestError:
+                    if not self.authorize_sync(send_on_failure=True):
+                        return
+                    audit_user = {"username": "external_sync", "role": "manager", "full_name": "Sincronização Externa"}
                 payload = self.read_json_body()
                 if isinstance(payload, list):
                     records = payload
