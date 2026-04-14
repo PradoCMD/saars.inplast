@@ -1,9 +1,13 @@
+import React from 'react'
 import {
   FiAlertTriangle,
   FiClock,
   FiPackage,
   FiShield,
   FiTrendingUp,
+  FiActivity,
+  FiDatabase,
+  FiRefreshCw
 } from 'react-icons/fi'
 import CommandDeck from '../components/CommandDeck'
 import StatePanel from '../components/StatePanel'
@@ -30,7 +34,7 @@ function formatDateTime(value) {
 
 function getCriticalTone(level) {
   const normalized = String(level || '').toLowerCase()
-  if (normalized.includes('alta')) return 'high'
+  if (normalized.includes('alta') || normalized.includes('critica')) return 'high'
   if (normalized.includes('media')) return 'warning'
   return 'ok'
 }
@@ -38,7 +42,6 @@ function getCriticalTone(level) {
 function filterBySearch(items, searchQuery) {
   const normalizedQuery = String(searchQuery || '').trim().toLowerCase()
   if (!normalizedQuery) return items
-
   return items.filter((item) => {
     const haystack = [item.sku, item.produto, item.acao, item.criticidade]
       .filter(Boolean)
@@ -46,34 +49,6 @@ function filterBySearch(items, searchQuery) {
       .toLowerCase()
     return haystack.includes(normalizedQuery)
   })
-}
-
-function filterAlertItems(items, searchQuery) {
-  const normalizedQuery = String(searchQuery || '').trim().toLowerCase()
-  if (!normalizedQuery) return items
-
-  return items.filter((item) => {
-    const haystack = [item.type, item.severity, item.message, ...Object.values(item.context || {})]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return haystack.includes(normalizedQuery)
-  })
-}
-
-function getAlertTone(severity) {
-  const normalized = String(severity || '').toLowerCase()
-  if (normalized.includes('high') || normalized.includes('critical')) return 'high'
-  if (normalized.includes('warning') || normalized.includes('medium')) return 'warning'
-  return 'info'
-}
-
-function getAlertLabel(severity) {
-  const normalized = String(severity || '').toLowerCase()
-  if (normalized.includes('high') || normalized.includes('critical')) return 'Alta severidade'
-  if (normalized.includes('warning')) return 'Atenção'
-  if (normalized.includes('medium')) return 'Média'
-  return 'Informativo'
 }
 
 function buildSourceSummary(items) {
@@ -86,13 +61,13 @@ function buildSourceSummary(items) {
   }, { ok: 0, attention: 0, blocked: 0 })
 }
 
-function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeLabel, searchQuery, stale, snapshotAt, onNavigate }) {
+export default function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeLabel, searchQuery, stale, snapshotAt, onNavigate }) {
   if (overviewState.status === 'loading') {
     return (
       <StatePanel
         kind="loading"
         title="Carregando cockpit operacional"
-        message="Buscando snapshot do overview, gargalos críticos e fila logística autorizada para esta sessão."
+        message="Buscando sinais vitais da produção e logística..."
       />
     )
   }
@@ -101,500 +76,131 @@ function Cockpit({ overviewState, kanbanState, sourcesState, alertsState, scopeL
     return (
       <StatePanel
         kind="company"
-        title="Empresa obrigatória para este cockpit"
-        message="Seu usuário possui múltiplas empresas. Escolha o recorte acima antes de carregar indicadores agregados."
+        title="Contexto de Empresa Necessário"
+        message="Selecione uma filial para carregar o cockpit operacional."
       />
     )
   }
 
-  if (overviewState.status === 'permission') {
-    return (
-      <StatePanel
-        kind="permission"
-        title="Seu papel não pode abrir o cockpit agregado"
-        message={overviewState.error?.message || 'O sistema bloqueou a leitura do overview para a sessão atual.'}
-      />
-    )
-  }
-
-  if (overviewState.status === 'error') {
-    return (
-      <StatePanel
-        kind="error"
-        title="Falha ao carregar os indicadores do cockpit"
-        message={overviewState.error?.message || 'Não foi possível ler o snapshot operacional atual.'}
-      />
-    )
-  }
-
-  const overview = overviewState.data || {}
-  const rawTotals = overview.totals || {}
-  const criticalItems = filterBySearch(overview.top_criticos || [], searchQuery)
-  const kanbanItems = filterBySearch(kanbanState.data?.romaneios || [], searchQuery).slice(0, 4)
-  const alertItems = filterAlertItems(alertsState.data?.items || [], searchQuery).slice(0, 4)
-  const sourceSummary = buildSourceSummary(sourcesState.data?.items || [])
-  const highAlertCount = (alertsState.data?.items || []).filter((item) => getAlertTone(item.severity) === 'high').length
-  const coverageBase = Number(rawTotals.necessidade_romaneios || 0)
-  const coverageValue = coverageBase > 0
-    ? Math.min(100, Math.round(((Number(rawTotals.estoque_atual || 0) / coverageBase) * 100)))
-    : 100
-  const missingForecastCount = Number(rawTotals.romaneios_sem_previsao || 0)
-  const nextCritical = (overview.top_criticos || [])[0] || null
-  const hasFilter = Boolean(String(searchQuery || '').trim())
-  const integrationTone = sourceSummary.blocked || highAlertCount
-    ? 'high'
-    : sourceSummary.attention || alertItems.length
-      ? 'warning'
-      : 'ok'
-  const pressureTone = missingForecastCount
-    ? 'high'
-    : nextCritical
-      ? getCriticalTone(nextCritical.criticidade)
-      : 'ok'
-
-  const heroTitle = missingForecastCount
-    ? `Ação imediata em ${missingForecastCount} romaneios sem previsão confiável.`
-    : nextCritical
-      ? `${nextCritical.produto} concentra a principal pressão operacional agora.`
-      : 'Fluxo estabilizado com leitura clara de risco, frescor e integridade.'
-
-  const heroDescription = stale
-    ? 'O shell continua utilizável porque expõe o último snapshot válido, mas a primeira dobra agora deixa explícito que a decisão precisa de cautela até a próxima atualização oficial.'
-    : 'A primeira dobra foi organizada para conduzir a decisão: escopo, snapshot, pressão imediata, gargalos e fila observada aparecem com prioridade operacional, não como cards equivalentes.'
-
-  const alertStripItems = [
-    {
-      label: stale ? 'Snapshot stale but usable' : 'Snapshot recente',
-      detail: stale
-        ? `A leitura usa o último snapshot válido em ${formatDateTime(snapshotAt)}.`
-        : `Snapshot oficial atualizado em ${formatDateTime(snapshotAt)}.`,
-      tone: stale ? 'warning' : 'ok',
-      icon: FiClock,
-    },
-    {
-      label: integrationTone === 'high' ? 'Integrações em risco' : integrationTone === 'warning' ? 'Integrações em atenção' : 'Integrações estáveis',
-      detail: sourceSummary.blocked
-        ? `${sourceSummary.blocked} fontes bloqueadas e ${highAlertCount} alertas altos exigem verificação.`
-        : sourceSummary.attention
-          ? `${sourceSummary.attention} fontes degradadas seguem visíveis sem mascarar fallback.`
-          : 'Sem bloqueio de fonte ou alerta central relevante neste recorte.',
-      tone: integrationTone,
-      icon: integrationTone === 'high' ? FiAlertTriangle : FiShield,
-    },
-    {
-      label: pressureTone === 'high' ? 'Risco imediato' : pressureTone === 'warning' ? 'Pressão moderada' : 'Pressão controlada',
-      detail: missingForecastCount
-        ? `${missingForecastCount} romaneios seguem sem previsão e pedem ação manual.`
-        : nextCritical
-          ? `${nextCritical.sku} puxa a ação ${nextCritical.acao || 'Monitorar agora'}.`
-          : 'Nenhum gargalo com urgência alta apareceu no snapshot atual.',
-      tone: pressureTone,
-      icon: FiTrendingUp,
-    },
-  ]
-
-  const stats = [
-    {
-      label: 'Cobertura imediata',
-      value: `${coverageValue}%`,
-      hint: scopeLabel,
-      tone: coverageValue >= 90 ? 'ok' : coverageValue >= 70 ? 'warning' : 'high',
-    },
-    {
-      label: 'Demanda romaneios',
-      value: numberFormat.format(rawTotals.necessidade_romaneios || 0),
-      hint: 'Total puxado do ERP',
-      tone: 'info',
-    },
-    {
-      label: 'Fila de montagem',
-      value: numberFormat.format(rawTotals.necessidade_montagem || 0),
-      hint: 'Carga em esteiras',
-      tone: rawTotals.necessidade_montagem ? 'warning' : 'ok',
-    },
-    {
-      label: 'Fila de produção',
-      value: numberFormat.format(rawTotals.necessidade_producao || 0),
-      hint: 'Carga em extrusoras',
-      tone: rawTotals.necessidade_producao ? 'warning' : 'ok',
-    },
-    {
-      label: 'Custo estimado',
-      value: moneyFormat.format(rawTotals.custo_estimado_total || 0),
-      hint: 'Pressão total do cenário',
-      tone: 'info',
-    },
-    {
-      label: 'Sem previsão',
-      value: numberFormat.format(missingForecastCount),
-      hint: 'Ação manual imediata',
-      tone: missingForecastCount ? 'high' : 'ok',
-    },
-  ]
-  const operationalImpactItems = [
-    {
-      label: 'Seguro agora',
-      value: sourceSummary.ok
-        ? `${sourceSummary.ok} fontes sustentam o snapshot`
-        : stale
-          ? 'Leitura útil com base reduzida'
-          : 'Base estável parcial',
-      detail: sourceSummary.ok
-        ? `Cobertura, gargalos e fila da empresa ${scopeLabel} seguem apoiados em fontes estáveis.`
-        : stale
-          ? 'Ainda existe leitura operacional, mas a empresa ativa deve agir com prudência até nova atualização oficial.'
-          : 'Há leitura útil, porém sem uma base ampla de fontes saudáveis nesta superfície.',
-      tone: sourceSummary.ok ? 'ok' : stale ? 'warning' : 'info',
-      actionLabel: 'Ver governança',
-      actionHint: 'Integridade transversal do shell',
-      onAction: () => onNavigate?.('fontes'),
-    },
-    {
-      label: 'Em cautela',
-      value: sourceSummary.blocked
-        ? `${sourceSummary.blocked} bloqueios transversais`
-        : sourceSummary.attention || highAlertCount
-          ? 'Stale but usable'
-          : 'Sem cautela aberta',
-      detail: sourceSummary.blocked
-        ? 'Bloqueios de integrações podem alterar cobertura, custo e priorização até nova carga válida.'
-        : sourceSummary.attention || highAlertCount
-          ? 'A decisão continua possível, mas a leitura da empresa deve absorver alerta e frescor degradado.'
-          : 'Não há fonte ou alerta puxando cautela forte para a empresa ativa neste recorte.',
-      tone: integrationTone,
-      actionLabel: 'Abrir governança',
-      actionHint: 'Investigar origem da cautela',
-      onAction: () => onNavigate?.('fontes'),
-    },
-    {
-      label: 'Próximo módulo',
-      value: missingForecastCount
-        ? 'Abrir kanban e romaneios'
-        : nextCritical
-          ? nextCritical.acao || 'Monitorar agora'
-          : 'Manter monitoramento',
-      detail: missingForecastCount
-        ? `${missingForecastCount} romaneios sem previsão pedem leitura de fila e detalhe oficial, não só do overview agregado.`
-        : nextCritical
-          ? `${nextCritical.produto} continua puxando a próxima decisão da empresa ativa.`
-          : 'Sem exceção forte no snapshot atual; o foco segue em acompanhamento contínuo.',
-      tone: missingForecastCount ? 'high' : nextCritical ? pressureTone : 'ok',
-      actionLabel: missingForecastCount ? 'Abrir kanban' : nextCritical ? 'Abrir romaneios' : 'Abrir kanban',
-      actionHint: missingForecastCount
-        ? 'Fila oficial da empresa ativa'
-        : nextCritical
-          ? 'Detalhe oficial e continuidade da exceção'
-          : 'Acompanhar carteira e previsão',
-      onAction: () => onNavigate?.(missingForecastCount ? 'romaneios-kanban' : nextCritical ? 'romaneios' : 'romaneios-kanban'),
-    },
-  ]
+  const data = overviewState.data || {}
+  const allSources = sourcesState.data?.items || []
+  const allAlerts = alertsState.data?.items || []
+  const sourcesSummary = buildSourceSummary(allSources)
+  
+  // No mock data, top_criticos or critical_bottlenecks might vary
+  const bottlenecks = data.top_criticos || data.critical_bottlenecks || []
+  const filteredCriticals = filterBySearch(bottlenecks, searchQuery)
 
   return (
     <div className="cockpit-page animate-in">
-      <section className="cockpit-alert-strip" aria-label="Sinais operacionais do cockpit">
-        {alertStripItems.map((item) => {
-          const Icon = item.icon
-          return (
-            <article key={item.label} className={`cockpit-alert-card tone-${item.tone}`}>
-              <div className="cockpit-alert-card-head">
-                <span><Icon /></span>
-                <strong>{item.label}</strong>
-              </div>
-              <p>{item.detail}</p>
-            </article>
-          )
-        })}
-      </section>
-
-      <section className="cockpit-hero">
-        <div className="cockpit-hero-main">
-          <div className="cockpit-kicker">Orquestração do PCP</div>
-          <h2>{heroTitle}</h2>
-          <p>{heroDescription}</p>
-
+      <header className="page-header premium-header">
+        <div className="header-main">
+          <div className="cockpit-kicker">POSTO DE COMANDO / INPLAST</div>
+          <h1>Visão Geral da Operação</h1>
           <div className="cockpit-hero-meta">
-            <span>
-              <FiTrendingUp />
-              Escopo: <strong>{scopeLabel}</strong>
-            </span>
-            <span>
-              <FiClock />
-              Snapshot base: <strong>{formatDateTime(snapshotAt)}</strong>
-            </span>
-            <span className={stale ? 'text-warning' : 'text-ok'}>
-              <FiAlertTriangle />
-              {stale ? 'Stale but usable' : 'Dados recentes'}
-            </span>
+            <span><FiShield /> {scopeLabel}</span>
+            <span><FiClock /> Snapshot: {formatDateTime(snapshotAt)}</span>
           </div>
         </div>
 
-        <aside className="cockpit-coverage-card">
-          <small>Atendimento imediato</small>
-          <strong>{coverageValue}%</strong>
-          <p>
-            {numberFormat.format(rawTotals.estoque_atual || 0)} disponíveis para cobrir{' '}
-            {numberFormat.format(rawTotals.necessidade_romaneios || 0)} unidades demandadas.
-          </p>
-          <div className="coverage-bar">
-            <span className="coverage-fill" style={{ width: `${coverageValue}%` }} />
+        <div className="metrics-grid" style={{ marginTop: '24px' }}>
+          <div className="metric-card tone-ok">
+            <small>Faturamento Estimado</small>
+            <strong>{moneyFormat.format(data.metrics?.revenue || data.totals?.faturamento_total || 0)}</strong>
+            <span>Base romaneios ativos</span>
           </div>
-          <div className="cockpit-coverage-notes">
-            <span className={`tag ${stale ? 'warning' : 'ok'}`}>{stale ? 'Último snapshot válido' : 'Snapshot recente'}</span>
-            <span className={`tag ${integrationTone}`}>{integrationTone === 'high' ? 'Integração em risco' : integrationTone === 'warning' ? 'Integração em atenção' : 'Integração estável'}</span>
+          <div className="metric-card tone-info">
+            <small>Volume Total PCP</small>
+            <strong>{numberFormat.format(data.metrics?.volume || data.totals?.peso_total || 0)} kg</strong>
+            <span>Peso em processamento</span>
           </div>
-        </aside>
-      </section>
+          <div className="metric-card tone-warning">
+            <small>Pendências Integração</small>
+            <strong>{sourcesSummary.attention + sourcesSummary.blocked}</strong>
+            <span>Fontes em atraso</span>
+          </div>
+          <div className="metric-card tone-high">
+            <small>Gargalos Críticos</small>
+            <strong>{bottlenecks.length}</strong>
+            <span>SKUs em risco</span>
+          </div>
+        </div>
+      </header>
 
-      <section className="metrics-grid">
-        {stats.map((stat) => (
-          <article key={stat.label} className={`metric-card tone-${stat.tone}`}>
-            <small>{stat.label}</small>
-            <strong>{stat.value}</strong>
-            <span>{stat.hint}</span>
-          </article>
-        ))}
-      </section>
-
-      <section className="cockpit-grid">
-        <div className="glass-panel">
-          <div className="panel-header">
-            <div>
-              <h3>Radar de gargalos</h3>
-              <span>Itens com necessidade imediata, filtrados pelo snapshot oficial desta sessão.</span>
+      <div className="cockpit-content-grid" style={{ marginTop: '32px', display: 'grid', gridTemplateColumns: 'minmax(0, 2fr) 1fr', gap: '24px' }}>
+        <section className="glass-panel" style={{ padding: '24px' }}>
+          <div className="panel-header" style={{ marginBottom: '24px' }}>
+            <div className="header-info">
+              <h3>Gargalos e Restrições Ativas</h3>
+              <span>Itens que impedem o avanço da pauta logística.</span>
             </div>
-            <span className={`tag ${criticalItems.length ? 'warning' : 'ok'}`}>{criticalItems.length} itens</span>
+            <span className="tag high">{bottlenecks.length} Identificados</span>
           </div>
 
-          <div className="critical-list">
-            {criticalItems.length ? criticalItems.map((item) => (
-              <article key={item.sku} className="critical-card">
-                <div className="critical-card-head">
-                  <div>
-                    <small>{item.sku}</small>
-                    <strong>{item.produto}</strong>
-                  </div>
-                  <span className={`tag ${getCriticalTone(item.criticidade)}`}>{item.criticidade}</span>
-                </div>
-                <div className="critical-stats">
-                  <span>Saldo {numberFormat.format(item.saldo || 0)}</span>
-                  <span>Demanda {numberFormat.format(item.necessidade_romaneios || 0)}</span>
-                  <span>Ação {item.acao}</span>
-                </div>
-              </article>
+          <div className="data-table-wrapper">
+            <table className="data-table">
+              <thead>
+                <tr>
+                  <th>Produto / SKU</th>
+                  <th>Causa do Gargalo</th>
+                  <th>Criticidade</th>
+                </tr>
+              </thead>
+              <tbody>
+                {filteredCriticals.length ? filteredCriticals.map((item, idx) => (
+                  <tr key={idx}>
+                    <td>
+                      <strong>{item.produto}</strong>
+                      <code style={{ fontSize: '11px', display: 'block', opacity: 0.6 }}>{item.sku}</code>
+                    </td>
+                    <td>{item.acao}</td>
+                    <td>
+                      <span className={`tag ${getCriticalTone(item.criticidade)}`}>
+                        {item.criticidade}
+                      </span>
+                    </td>
+                  </tr>
+                )) : (
+                  <tr>
+                    <td colSpan="3" style={{ padding: '48px', textAlign: 'center', opacity: 0.5 }}>
+                      Nenhum gargalo crítico detectado para o filtro atual.
+                    </td>
+                  </tr>
+                )}
+              </tbody>
+            </table>
+          </div>
+        </section>
+
+        <section className="glass-panel" style={{ padding: '24px' }}>
+          <div className="panel-header" style={{ marginBottom: '24px' }}>
+            <h3>Sinais de Sistema</h3>
+            <span>Webhooks e Alertas</span>
+          </div>
+
+          <div className="alerts-stack" style={{ display: 'flex', flexDirection: 'column', gap: '12px' }}>
+            {allAlerts.length ? allAlerts.map((alert, idx) => (
+              <div key={idx} className={`alert-card tone-${alert.severity === 'high' ? 'high' : 'info'}`}>
+                 <div className="alert-card-head" style={{ display: 'flex', justifyContent: 'space-between' }}>
+                    <strong>{alert.message}</strong>
+                 </div>
+                 <small style={{ opacity: 0.6, fontSize: '10px' }}>{alert.type?.toUpperCase()}</small>
+              </div>
             )) : (
-              <StatePanel
-                kind="empty"
-                title={hasFilter ? 'Nenhum gargalo encontrado neste filtro' : 'Sem gargalos operacionais no snapshot'}
-                message={hasFilter
-                  ? 'O filtro atual não encontrou itens críticos para este recorte.'
-                  : 'O snapshot atual não trouxe itens críticos puxando ação imediata.'}
-                compact
-              />
+              <div className="empty-state" style={{ padding: '24px', textAlign: 'center' }}>
+                <FiActivity style={{ fontSize: '24px', opacity: 0.2 }} />
+                <p>Nenhum sinal detectado.</p>
+              </div>
             )}
           </div>
-        </div>
 
-        <div className="glass-panel">
-          <div className="panel-header">
-            <div>
-              <h3>Fila logística observada</h3>
-              <span>Leitura fiel do kanban autorizado, sem mutação local e sem esconder contexto.</span>
-            </div>
-            <span className={`tag ${kanbanItems.length ? 'info' : 'ok'}`}>{kanbanItems.length} romaneios</span>
+          <div className="cockpit-footer-actions" style={{ marginTop: '32px' }}>
+            <button className="btn btn-secondary w-full" onClick={() => onNavigate('governanca')}>
+              <FiShield /> Gerenciar Infraestrutura
+            </button>
           </div>
-
-          <div className="signal-list">
-            {kanbanState.status === 'company' ? (
-              <StatePanel
-                kind="company"
-                title="Kanban depende de empresa ativa"
-                message="Escolha a empresa acima para visualizar a carteira logística agregada."
-                compact
-              />
-            ) : null}
-
-            {kanbanState.status === 'error' ? (
-              <StatePanel
-                kind="error"
-                title="Falha ao carregar o kanban"
-                message={kanbanState.error?.message}
-                compact
-              />
-            ) : null}
-
-            {kanbanState.status === 'ready' && kanbanItems.length ? kanbanItems.map((item) => (
-              <article key={item.romaneio} className="signal-card">
-                <div>
-                  <small>{item.empresa || scopeLabel}</small>
-                  <strong>{item.romaneio}</strong>
-                </div>
-                <div className="signal-card-meta">
-                  <span><FiPackage /> {numberFormat.format(item.quantidade_total || 0)} un</span>
-                  <span className={`tag ${String(item.previsao_saida_status || '').includes('sem') ? 'high' : 'ok'}`}>
-                    {item.previsao_saida_status || 'sem status'}
-                  </span>
-                </div>
-              </article>
-            )) : null}
-
-            {kanbanState.status === 'ready' && !kanbanItems.length ? (
-              <StatePanel
-                kind="empty"
-                title={hasFilter ? 'Nenhum romaneio encontrado neste filtro' : 'Sem romaneios visíveis neste recorte'}
-                message={hasFilter
-                  ? 'O filtro atual não encontrou romaneios na fila observada.'
-                  : 'A carteira logística está vazia para a empresa ativa ou o snapshot não retornou romaneios.'}
-                compact
-              />
-            ) : null}
-          </div>
-        </div>
-      </section>
-
-      <section className="cockpit-grid cockpit-grid-secondary">
-        <div className="glass-panel">
-          <div className="panel-header">
-            <div>
-              <h3>Impacto operacional</h3>
-              <span>Como a integridade transversal afeta a decisão da empresa ativa agora.</span>
-            </div>
-            <span className={`tag ${integrationTone}`}>{sourceSummary.blocked ? 'Empresa em cautela' : stale || sourceSummary.attention ? 'Cautela contextual' : 'Leitura segura'}</span>
-          </div>
-
-          {sourcesState.status === 'loading' && !sourcesState.data ? (
-            <StatePanel
-              kind="loading"
-              title="Traduzindo impacto transversal"
-              message="Buscando a integridade das fontes antes de consolidar o impacto na empresa ativa."
-              compact
-            />
-          ) : null}
-
-          {sourcesState.status === 'permission' ? (
-            <StatePanel
-              kind="permission"
-              title="Fontes indisponíveis para este papel"
-              message={sourcesState.error?.message || 'O sistema bloqueou a leitura das fontes para esta sessão.'}
-              compact
-            />
-          ) : null}
-
-          {sourcesState.status === 'error' ? (
-            <StatePanel
-              kind="error"
-              title="Falha ao traduzir impacto de fontes"
-              message={sourcesState.error?.message || 'Não foi possível ler o estado atual das integrações.'}
-              compact
-            />
-          ) : null}
-
-          {sourcesState.status !== 'loading' && sourcesState.status !== 'permission' && sourcesState.status !== 'error' ? (
-            <>
-              <CommandDeck items={operationalImpactItems} />
-
-              <div className="sources-contract-list cockpit-impact-list">
-                <article>
-                  <strong>O que permanece seguro</strong>
-                  <p>
-                    {sourceSummary.ok
-                      ? `${sourceSummary.ok} fontes sustentam a decisão contextual do cockpit, sem exigir inspeção transversal imediata.`
-                      : 'A empresa ativa continua legível, mas sem uma base ampla de fontes claramente estáveis.'}
-                  </p>
-                </article>
-                <article>
-                  <strong>Quando abrir governança</strong>
-                  <p>
-                    {sourceSummary.blocked || sourceSummary.attention || highAlertCount || stale
-                      ? 'Use Governança para investigar a origem transversal da cautela antes de tratar a decisão contextual como verdade isolada.'
-                      : 'Governança segue como trilho de auditoria transversal, mas não precisa ser o primeiro destino nesta leitura.'}
-                  </p>
-                </article>
-                <article>
-                  <strong>Para onde seguir depois do overview</strong>
-                  <p>
-                    {missingForecastCount
-                      ? 'A próxima camada operacional fica em Kanban e Romaneios, porque a empresa ativa já mostrou romaneios sem previsão confiável.'
-                      : nextCritical
-                        ? 'O próximo passo pode sair direto para Romaneios quando o gargalo principal já estiver claro e pedir detalhe oficial.'
-                        : 'Sem urgência forte, o cockpit continua como ponto de monitoramento e Governança fica disponível para auditoria transversal.'}
-                  </p>
-                </article>
-              </div>
-            </>
-          ) : null}
-        </div>
-
-        <div className="glass-panel">
-          <div className="panel-header">
-            <div>
-              <h3>Alertas centrais</h3>
-              <span>Sinais de integração e qualidade que devem influenciar a decisão imediata.</span>
-            </div>
-            <span className={`tag ${highAlertCount ? 'high' : alertItems.length ? 'warning' : 'ok'}`}>
-              {highAlertCount ? `${highAlertCount} altas` : `${alertItems.length} visíveis`}
-            </span>
-          </div>
-
-          <div className="alerts-list">
-            {alertsState.status === 'loading' && !alertsState.data ? (
-              <StatePanel
-                kind="loading"
-                title="Atualizando alertas"
-                message="Buscando sinais centrais ligados ao panorama atual."
-                compact
-              />
-            ) : null}
-
-            {alertsState.status === 'permission' ? (
-              <StatePanel
-                kind="permission"
-                title="Alertas indisponíveis para este papel"
-                message={alertsState.error?.message || 'O sistema bloqueou a leitura dos alertas desta sessão.'}
-                compact
-              />
-            ) : null}
-
-            {alertsState.status === 'error' ? (
-              <StatePanel
-                kind="error"
-                title="Falha ao carregar alertas"
-                message={alertsState.error?.message || 'Não foi possível carregar os alertas centrais.'}
-                compact
-              />
-            ) : null}
-
-            {alertsState.status !== 'loading' && alertsState.status !== 'permission' && alertsState.status !== 'error' && alertItems.length ? alertItems.map((item, index) => (
-              <article key={`${item.type}-${item.message}-${index}`} className={`alert-card tone-${getAlertTone(item.severity)}`}>
-                <div className="alert-card-head">
-                  <strong>{item.message}</strong>
-                  <span className={`tag ${getAlertTone(item.severity)}`}>{getAlertLabel(item.severity)}</span>
-                </div>
-                <small>{String(item.type || 'alerta').toUpperCase()}</small>
-                {item.context ? (
-                  <p>
-                    {Object.entries(item.context)
-                      .map(([key, value]) => `${key}: ${value}`)
-                      .join(' · ')}
-                  </p>
-                ) : null}
-              </article>
-            )) : null}
-
-            {alertsState.status !== 'loading' && alertsState.status !== 'permission' && alertsState.status !== 'error' && !alertItems.length ? (
-              <StatePanel
-                kind="empty"
-                title={hasFilter ? 'Nenhum alerta encontrado neste filtro' : 'Sem alertas centrais neste recorte'}
-                message={hasFilter
-                  ? 'O filtro atual não encontrou alertas ou sinais centrais correspondentes.'
-                  : 'Não há alertas ativos no snapshot atual para este recorte.'}
-                compact
-              />
-            ) : null}
-          </div>
-        </div>
-      </section>
+        </section>
+      </div>
     </div>
   )
 }
-
-export default Cockpit

@@ -160,44 +160,21 @@ function KanbanBoard({
       value: `${romaneios.length} romaneios`,
       detail: 'Leitura oficial autorizada por empresa e sessão.',
       tone: 'info',
+      onAction: () => document.getElementById('kanban-section')?.scrollIntoView({ behavior: 'smooth' }),
     },
     {
       label: 'Sem previsão',
       value: `${missingLane?.items.length || 0}`,
-      detail: 'Itens que continuam pedindo ação manual ou definição de data.',
-      tone: missingLane?.items.length ? 'warning' : 'ok',
+      detail: 'Clique para focar nos itens que precisam de data manual.',
+      tone: missingLane?.items.length ? 'high' : 'ok',
+      onAction: () => document.getElementById('lane-missing')?.scrollIntoView({ behavior: 'smooth' }),
     },
     {
-      label: 'Saída imediata',
-      value: `${todayLane?.items.length || 0}`,
-      detail: 'Cargas para hoje ou já vencidas no recorte atual.',
-      tone: todayLane?.items.length ? 'high' : 'ok',
-    },
-    {
-      label: 'Produtos sob pressão',
+      label: 'Produtos Críticos',
       value: `${products.length}`,
-      detail: canManageDates ? 'Seu papel ajusta previsão PCP no card, sem drag-and-drop fake.' : 'Seu papel segue em leitura segura neste quadro.',
-      tone: canManageDates ? 'info' : 'warning',
-    },
-  ]
-  const originCards = [
-    {
-      label: 'Previsão automática',
-      value: `${forecastSummary.automatic}`,
-      detail: 'Origem ligada a estoque, heurística ou cálculo do sistema.',
-      tone: forecastSummary.automatic ? 'info' : 'ok',
-    },
-    {
-      label: 'Previsão manual',
-      value: `${forecastSummary.manual}`,
-      detail: 'Datas assumidas pelo PCP, com ajuste pontual permitido sem reordenar a fila artificialmente.',
-      tone: forecastSummary.manual ? 'warning' : 'ok',
-    },
-    {
-      label: 'Sem previsão',
-      value: `${forecastSummary.missing}`,
-      detail: 'Romaneios que continuam sem critério confiável de saída.',
-      tone: forecastSummary.missing ? 'high' : 'ok',
+      detail: 'Gargalos que explicam a pressão da fila atual.',
+      tone: products.length ? 'warning' : 'ok',
+      onAction: () => document.getElementById('critical-products-section')?.scrollIntoView({ behavior: 'smooth' }),
     },
   ]
   const hasFilter = Boolean(String(searchQuery || '').trim())
@@ -284,55 +261,9 @@ function KanbanBoard({
 
   return (
     <div className="kanban-page animate-in">
-      <section className="kanban-hero">
-        <div>
-          <span className="kanban-kicker">Kanban logístico seguro</span>
-          <h2>Fila oficial por empresa, com origem da previsão explícita e ajuste manual do PCP sem arraste fake.</h2>
-          <p>
-            O quadro continua fiel ao contrato autenticado. Em vez de simular movimentações, ele mostra
-            quando a previsão é automática, quando veio do PCP e, para papéis autorizados, permite ajustar
-            a data diretamente no card sem inventar um drag-and-drop .
-          </p>
-        </div>
 
-        <div className="kanban-hero-side">
-          <div>
-            <small>Escopo ativo</small>
-            <strong>{scopeLabel}</strong>
-          </div>
-          <div>
-            <small>Protocolo</small>
-            <strong>{protocolLabel}</strong>
-          </div>
-        </div>
-      </section>
 
-      <section className="kanban-summary-grid">
-        {summaryCards.map((card) => (
-          <article key={card.label} className={`metric-card tone-${card.tone}`}>
-            <small>{card.label}</small>
-            <strong>{card.value}</strong>
-            <span>{card.detail}</span>
-          </article>
-        ))}
-      </section>
 
-      {canManageDates ? (
-        <div className="shell-banner info">
-          <strong>Gestão PCP habilitada no próprio card.</strong>
-          <span>A previsão manual pode ser definida ou limpa por romaneio, sem reordenar artificialmente a fila oficial.</span>
-        </div>
-      ) : null}
-
-      <section className="kanban-origin-strip" aria-label="Origem da previsão">
-        {originCards.map((card) => (
-          <article key={card.label} className={`kanban-origin-card tone-${card.tone}`}>
-            <small>{card.label}</small>
-            <strong>{card.value}</strong>
-            <p>{card.detail}</p>
-          </article>
-        ))}
-      </section>
 
       {notice ? (
         <div className={`shell-banner ${notice.tone || 'info'}`}>
@@ -341,9 +272,14 @@ function KanbanBoard({
         </div>
       ) : null}
 
-      <section className="kanban-board">
-        {lanes.map((lane) => (
-          <article key={lane.id} className={`kanban-lane tone-${lane.tone}`}>
+      <section id="kanban-section" className="kanban-board-container">
+        <div className="section-title-strip">
+          <h3>Fila de Romaneios (Kanban)</h3>
+          <span>Status oficial da carteira autorizada</span>
+        </div>
+        <section className="kanban-board">
+          {lanes.map((lane) => (
+            <article key={lane.id} id={`lane-${lane.id}`} className={`kanban-lane tone-${lane.tone}`}>
             <header className="kanban-lane-header">
               <div>
                 <small>Carteira</small>
@@ -467,14 +403,15 @@ function KanbanBoard({
             </div>
           </article>
         ))}
+        </section>
       </section>
 
-      <section className="kanban-insights-grid">
+      <section id="critical-products-section" className="kanban-insights-grid">
         <div className="glass-panel">
           <div className="panel-header">
             <div>
-              <h3>Produtos sob pressão</h3>
-              <span>Itens críticos que explicam a pressão do quadro logístico atual.</span>
+              <h3>Produtos Críticos</h3>
+              <span>Itens com saldo baixo que explicam a pressão do quadro logístico atual.</span>
             </div>
             <span className="tag warning">{products.length} itens</span>
           </div>
@@ -545,18 +482,18 @@ function KanbanBoard({
             </article>
           </div>
         </div>
+      </section>
 
-        <div className="glass-panel">
-          <div className="panel-header">
-            <div>
-              <h3>Continuidade operacional</h3>
-              <span>Trilhos diretos para sair da fila e aprofundar contexto, detalhe e integridade.</span>
-            </div>
-            <span className="tag info">Drilldown</span>
+      <section id="reports-section" className="glass-panel">
+        <div className="panel-header">
+          <div>
+            <h3>Romaneios e Integridade</h3>
+            <span>Trilhos diretos para sair da fila e aprofundar contexto, detalhe e integridade.</span>
           </div>
+          <span className="tag info">Drilldown</span>
+        </div>
 
           <CommandDeck items={continuityItems} />
-        </div>
       </section>
     </div>
   )

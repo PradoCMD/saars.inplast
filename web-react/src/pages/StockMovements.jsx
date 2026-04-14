@@ -27,7 +27,7 @@ function filterItems(items, query) {
   ))
 }
 
-function StockMovements({ resourceState, searchQuery, onRequestReload }) {
+function StockMovements({ resourceState, searchQuery, filterType, onRequestReload }) {
   if (resourceState.status === 'loading' && !resourceState.data) {
     return (
       <StatePanel
@@ -59,7 +59,21 @@ function StockMovements({ resourceState, searchQuery, onRequestReload }) {
   }
 
   const items = Array.isArray(resourceState.data?.items) ? resourceState.data.items : []
-  const filtered = filterItems(items, searchQuery)
+  
+  // Mapeamento de tipos para o filtro
+  const typeMap = {
+    'estoque-intermediario': 'intermediario',
+    'materia-prima': 'mp',
+    'componentes': 'componente'
+  }
+  
+  const targetType = typeMap[filterType] || filterType
+
+  const filtered = filterItems(items, searchQuery).filter(item => {
+    if (!targetType) return true
+    return String(item.type || '').toLowerCase().includes(targetType.toLowerCase()) ||
+           String(item.source_area || '').toLowerCase().includes(targetType.toLowerCase())
+  })
   
   // Fake summary since data shape is opaque for now
   const summary = {

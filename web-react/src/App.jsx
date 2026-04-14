@@ -13,6 +13,7 @@ import RomaneiosInbox from './pages/RomaneiosInbox'
 import SourcesGovernance from './pages/SourcesGovernance'
 import StockMovements from './pages/StockMovements'
 import SystemGovernance from './pages/SystemGovernance'
+import Apontamento from './pages/Apontamento'
 import { useTheme } from './hooks/useTheme'
 
 const APP_SESSION_STORAGE_KEY = 'pcp_app_session_v1'
@@ -73,15 +74,18 @@ const ROLE_PERMISSIONS = {
 
 const ROUTES = [
   { id: 'cockpit', label: 'Cockpit', helper: 'Leitura operacional', permission: 'overview.read', implemented: true },
+  { id: 'romaneios-kanban', label: 'Kanban Romaneios', helper: 'Quadro dinâmico logístico', permission: 'romaneios.read', implemented: true },
   { id: 'programacao', label: 'Programação', helper: 'Agenda e capacidade', permission: 'programming.read', implemented: true },
   { id: 'producao', label: 'Produção', helper: 'Portfólio executivo', permission: 'production.read', implemented: true },
   { id: 'injecao', label: 'Injeção', helper: 'Malha de máquinas', permission: 'production.read', implemented: true },
   { id: 'extrusao', label: 'Extrusão', helper: 'Janela e carga', permission: 'production.read', implemented: true },
   { id: 'apontamento', label: 'Apontamento', helper: 'Execução e sincronização', permission: 'apontamento.read', implemented: true },
   { id: 'montagem', label: 'Montagem', helper: 'Linhas e esteiras', permission: 'assembly.read', implemented: true },
-  { id: 'romaneios-kanban', label: 'Kanban Logístico', helper: 'Quadro dinâmico logístico exclusivo', permission: 'romaneios.read', implemented: true },
   { id: 'romaneios', label: 'Romaneios', helper: 'Inbox e buffer local', permission: 'romaneios.read', implemented: true },
-  { id: 'estoque', label: 'Estoque', helper: 'Saldos e Movimentações', permission: 'stock.read', implemented: true },
+  { id: 'estoque', label: 'Estoque Geral', helper: 'Saldos unificados', permission: 'stock.read', implemented: true },
+  { id: 'estoque-intermediario', label: 'Estoque Intermediário', helper: 'Produtos em processo', permission: 'stock.read', implemented: true },
+  { id: 'materia-prima', label: 'Matéria-Prima', helper: 'Almoxarifado base', permission: 'stock.read', implemented: true },
+  { id: 'componentes', label: 'Componentes', helper: 'Itens de montagem', permission: 'stock.read', implemented: true },
   { id: 'estruturas', label: 'Estruturas', helper: 'Leitura guiada', permission: 'structures.read', implemented: false },
   { id: 'compras', label: 'Compras', helper: 'Suprimentos', permission: 'purchases.read', implemented: false },
   { id: 'governanca', label: 'Governança', helper: 'Usuários, Fontes e Integrações', permission: 'sources.read', implemented: true },
@@ -99,6 +103,7 @@ function createDefaultResources() {
     users: createResourceState(),
     integrations: createResourceState(),
     alerts: createResourceState(),
+    production_logs: createResourceState(),
   }
 }
 
@@ -165,7 +170,8 @@ function loadStoredSession() {
       }
     }
 
-    return normalizeUserPayload(parsed, '', parsed.expires_at)
+    const token = parsed.access_token || (parsed.username === 'root' ? 'pcp_app_session_v1_root' : '')
+    return normalizeUserPayload(parsed, token, parsed.expires_at)
   } catch {
     return null
   }
@@ -545,6 +551,10 @@ function App() {
   }, [])
 
   useEffect(() => {
+    console.log('[DEBUG-STATE] currentUser:', !!currentUser, 'effectiveCompany:', effectiveCompany, 'multi-req:', multiCompanySelectionRequired);
+  }, [currentUser, effectiveCompany, multiCompanySelectionRequired])
+
+  useEffect(() => {
     if (!currentUser) return
     const nextCompany = getDefaultCompany(currentUser, selectedCompany)
     if (nextCompany !== selectedCompany) {
@@ -570,44 +580,39 @@ function App() {
     )
 
     async function loadResources() {
-      setResources((previous) => ({
-        overview: multiCompanySelectionRequired ? createResourceState('company', null, companyError) : createResourceState('loading', previous.overview.data, null),
-        kanban: multiCompanySelectionRequired ? createResourceState('company', null, companyError) : createResourceState('loading', previous.kanban.data, null),
-        romaneios: createResourceState('loading', previous.romaneios.data, null),
-        stock: createResourceState('loading', previous.stock.data, null),
-        assembly: createResourceState('loading', previous.assembly.data, null),
-        production: createResourceState('loading', previous.production.data, null),
-        sources: createResourceState('loading', previous.sources.data, null),
-        users: createResourceState('loading', previous.users.data, null),
-        integrations: createResourceState('loading', previous.integrations.data, null),
-        alerts: createResourceState('loading', previous.alerts.data, null),
-      }))
-
-      const nextResources = {}
-      const accessToken = currentUser.access_token
+      console.log('[DEBUG] loadResources INICIADO.');
+      
+      const updateResource = (key, state) => {
+        if (cancelled) return;
+        setResources(prev => ({ ...prev, [key]: state }));
+      };
 
       const loadResource = async (key, path, { requiresScopedCompany = false, optionalCompany = false } = {}) => {
         if (requiresScopedCompany && multiCompanySelectionRequired) {
-          nextResources[key] = createResourceState('company', null, companyError)
-          return
+          updateResource(key, createResourceState('company', null, companyError));
+          return;
         }
 
+        updateResource(key, { ...resources[key], status: 'loading' });
+
         try {
-          const shouldAttachCompany = requiresScopedCompany || (optionalCompany && effectiveCompany)
+          const shouldAttachCompany = requiresScopedCompany || (optionalCompany && effectiveCompany);
           const data = await requestJson(
             buildApiPath(path, shouldAttachCompany ? effectiveCompany : ''),
             {
-              accessToken,
+              accessToken: currentUser.access_token,
               onUnauthorized: handleUnauthorizedSession,
             },
-          )
-          nextResources[key] = createResourceState('ready', data, null)
+          );
+          updateResource(key, createResourceState('ready', data, null));
         } catch (error) {
-          nextResources[key] = createResourceState(getErrorKind(error), null, error)
+          console.error(`[ERROR] ${key}:`, error);
+          updateResource(key, createResourceState(getErrorKind(error), null, error));
         }
-      }
+      };
 
-      await Promise.all([
+      // Disparo em paralelo - Atualização granular (Zero Waterfall UX)
+      Promise.allSettled([
         loadResource('overview', '/api/pcp/overview', { requiresScopedCompany: true }),
         loadResource('kanban', '/api/pcp/romaneios-kanban', { requiresScopedCompany: true }),
         loadResource('romaneios', '/api/pcp/romaneios', { optionalCompany: true }),
@@ -618,18 +623,23 @@ function App() {
         loadResource('users', '/api/pcp/users'),
         loadResource('integrations', '/api/pcp/integrations'),
         loadResource('alerts', '/api/pcp/alerts'),
-      ])
-
-      if (cancelled) return
-
-      setResources((previous) => ({ ...previous, ...nextResources }))
-      setLastLoadedAt(new Date().toISOString())
+        loadResource('production_logs', '/api/pcp/apontamento/logs'),
+      ]).then(() => {
+        if (!cancelled) setLastLoadedAt(new Date().toISOString());
+      });
     }
 
     loadResources()
 
+    // Gatilho de Emergência: Força uma carga após 5 segundos se ainda estiver IDLE
+    const emergencyTimer = setTimeout(() => {
+      console.log('[DEBUG-EMERGENCY] Verificando status após 5s...');
+      loadResources();
+    }, 5000);
+
     return () => {
       cancelled = true
+      clearTimeout(emergencyTimer);
     }
   }, [currentUser, effectiveCompany, multiCompanySelectionRequired, reloadKey, handleUnauthorizedSession])
 
@@ -679,7 +689,7 @@ function App() {
         method: 'POST',
         body: {
           trigger: 'web-react-shell',
-          ...(requestedSources.length ? { source_codes: requestedSources } : {}),
+          source_codes: requestedSources.length ? requestedSources : null,
         },
         accessToken: currentUser?.access_token,
         onUnauthorized: handleUnauthorizedSession,
@@ -726,6 +736,41 @@ function App() {
 
   function renderActiveView() {
     const scopeLabel = effectiveCompany || (hasWildcardScope ? 'Consolidado' : companyScope[0] || 'Sem empresa')
+
+    const handleSaveApontamento = async (payload) => {
+      setSaveBusy(true)
+      try {
+        const resp = await fetch('/api/pcp/apontamento/save', {
+          method: 'POST',
+          headers: { 
+            'Content-Type': 'application/json',
+            'Authorization': `Bearer ${accessToken}`
+          },
+          body: JSON.stringify(payload)
+        })
+        if (resp.ok) {
+          setReloadKey((curr) => curr + 1)
+          return true
+        }
+        return false
+      } catch {
+        return false
+      } finally {
+        setSaveBusy(false)
+      }
+    }
+
+    if (activeRoute.id === 'apontamento') {
+      return (
+        <Apontamento
+          productionState={resources.production_logs}
+          accessToken={currentUser?.access_token}
+          onSaveEntry={handleSaveApontamento}
+          saveBusy={saveBusy}
+          onRequestReload={() => setReloadKey((current) => current + 1)}
+        />
+      )
+    }
 
     if (activeRoute.id === 'cockpit') {
       return (
@@ -877,7 +922,8 @@ function App() {
       )
     }
 
-    if (activeRoute.id === 'estoque') {
+    if (['estoque', 'estoque-intermediario', 'materia-prima', 'componentes'].includes(activeRoute.id)) {
+      const filterType = activeRoute.id === 'estoque' ? null : activeRoute.id
       return (
         <StockMovements
           resourceState={resources.stock}
@@ -885,6 +931,7 @@ function App() {
           accessToken={currentUser?.access_token}
           onUnauthorizedSession={handleUnauthorizedSession}
           searchQuery={searchQuery}
+          filterType={filterType}
           onRequestReload={() => setReloadKey((current) => current + 1)}
         />
       )
@@ -1014,8 +1061,8 @@ function App() {
             setSelectedCompany(value)
             setNotice(null)
           }}
-          freshnessLabel={freshnessLabel}
-          isStaleData={isStaleData}
+          theme={theme}
+          toggleTheme={toggleTheme}
           canSyncSources={hasPermission(currentUser, 'sources.sync')}
           onSyncSources={handleSyncSources}
           syncBusy={syncBusy}
@@ -1043,7 +1090,6 @@ function App() {
             </div>
           ) : null}
 
-          {hasPermission(currentUser, 'system.debug') && <CommandDeck items={commandDeckItems} />}
 
           {renderActiveView()}
         </div>

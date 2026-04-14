@@ -268,14 +268,22 @@ def _validate_user_record(user: dict[str, Any]) -> None:
 
 
 def load_app_users(users_path: Path) -> list[dict[str, Any]]:
+    print(f"[DB] Carregando usuários de: {users_path}")
     if users_path.exists():
-        payload = json.loads(users_path.read_text(encoding="utf-8"))
-        items = payload.get("items", payload) if isinstance(payload, dict) else payload
-        users = [_coerce_user_record(item) for item in items if item]
+        try:
+            payload = json.loads(users_path.read_text(encoding="utf-8"))
+            items = payload.get("items", payload) if isinstance(payload, dict) else payload
+            users = [_coerce_user_record(item) for item in items if item]
+            print(f"[DB] {len(users)} usuários lidos do arquivo.")
+        except Exception as e:
+            print(f"[DB] Erro ao ler usuários: {e}")
+            users = []
     else:
+        print(f"[DB] Arquivo app_users.json não encontrado.")
         users = []
 
     if not any(item["username"] == "root" for item in users):
+        print("[DB] Injetando usuário root padrão.")
         users.insert(0, {**DEFAULT_APP_USER})
 
     users = sorted(users, key=lambda item: (item["username"] != "root", item["full_name"].lower()))
@@ -310,13 +318,13 @@ def _integration_id_for(raw: dict[str, Any]) -> str:
     explicit = str(raw.get("id") or "").strip()
     if explicit:
         return explicit
-    integration_type = str(raw.get("integration_type") or DEFAULT_APP_INTEGRATION["integration_type"]).strip().lower()
-    if integration_type == "n8n_webhook_romaneios":
-        return DEFAULT_APP_INTEGRATION["id"]
-    if integration_type == "n8n_webhook_apontamento":
-        return DEFAULT_APP_APONTAMENTO_INTEGRATION["id"]
+    
+    # Gera ID único para evitar colisões no mock/arquivos
+    import time
+    timestamp = int(time.time())
+    integration_type = str(raw.get("integration_type") or "custom").strip().lower()
     slug = re.sub(r"[^a-z0-9]+", "-", integration_type).strip("-") or "custom"
-    return f"integration-{slug}"
+    return f"integration-{slug}-{timestamp}"
 
 
 def _coerce_integration_record(raw: dict[str, Any]) -> dict[str, Any]:
@@ -379,10 +387,13 @@ def _default_integrations_from_settings(settings: Settings | None) -> list[dict[
 
 def load_app_integrations(integrations_path: Path, settings: Settings | None = None) -> list[dict[str, Any]]:
     if integrations_path.exists():
-        payload = json.loads(integrations_path.read_text(encoding="utf-8"))
+        text = integrations_path.read_text(encoding="utf-8")
+        payload = json.loads(text)
         items = payload.get("items", payload) if isinstance(payload, dict) else payload
         integrations = [_coerce_integration_record(item) for item in items if item]
+        print(f"[DB] Carregadas {len(integrations)} integrações de {integrations_path}")
     else:
+        print(f"[DB] Arquivo de integrações não encontrado: {integrations_path}")
         integrations = []
 
     defaults = _default_integrations_from_settings(settings)
@@ -404,6 +415,7 @@ def save_app_integrations(
     for default_item in defaults:
         if not any(item["id"] == default_item["id"] for item in sanitized):
             sanitized.insert(0, default_item)
+    print(f"[DB] Salvando {len(sanitized)} integrações em {integrations_path}")
     integrations_path.parent.mkdir(parents=True, exist_ok=True)
     integrations_path.write_text(json.dumps({"items": sanitized}, ensure_ascii=False, indent=2), encoding="utf-8")
     return sanitized
@@ -734,6 +746,10 @@ class DataProvider(ABC):
     def delete_romaneio(self, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
+    @abstractmethod
+    def delete_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
 
 class MockProvider(DataProvider):
     def __init__(self, data_dir: Path) -> None:
@@ -985,6 +1001,15 @@ class MockProvider(DataProvider):
         persisted = save_app_integrations(self._integrations_path(), next_items)
         return {"status": "saved", "integration": next_integration, "items": persisted}
 
+    def delete_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
+        integration_id = str(payload.get("id") or "").strip()
+        if not integration_id:
+            raise ValueError("ID da integração obrigatório para exclusão.")
+        integrations = load_app_integrations(self._integrations_path())
+        next_items = [item for item in integrations if item["id"] != integration_id]
+        save_app_integrations(self._integrations_path(), next_items)
+        return {"status": "deleted", "id": integration_id}
+
     def save_stock_movement(self, payload: dict[str, Any]) -> dict[str, Any]:
         sku = str(payload.get("sku") or "").strip().upper()
         if not sku:
@@ -1014,6 +1039,24 @@ class MockProvider(DataProvider):
             }
         )
         persisted = save_apontamento_logs(self._apontamento_logs_path(), [next_item, *load_apontamento_logs(self._apontamento_logs_path())])
+        
+        # Gatilho Reativo: Notificar Webhooks de Produção (n8n / Sankhya)
+        try:
+            integrations = load_app_integrations(self._integrations_path())
+            active_hooks = [i for i in integrations if i.get("active") and i.get("integration_type") in ("n8n_webhook_production", "n8n_webhook_apontamento")]
+            
+            import requests # Certifique-se que o ambiente tem requests ou use urllib
+            for hook in active_hooks:
+                if hook.get("webhook_url"):
+                    # Disparo asíncrono ou fire-and-forget simulado
+                    # Aqui usamos um try-except para não travar o save se o webhook falhar
+                    try:
+                        requests.post(hook["webhook_url"], json=next_item, timeout=2)
+                    except:
+                        pass
+        except:
+            pass
+            
         return {
             "status": "saved",
             "entry": next_item,
@@ -1118,11 +1161,75 @@ class MockProvider(DataProvider):
 
     def sync_sources(self, payload: dict[str, Any]) -> dict[str, Any]:
         requested_codes = resolve_requested_codes(payload)
+        snapshot_at = resolve_snapshot_at(payload)
+        results: list[dict[str, Any]] = []
+        errors: list[dict[str, Any]] = []
+
+        # Simula sincronização das fontes padrão (Mock)
+        for code in (requested_codes or list(STOCK_SOURCE_CODES)):
+             results.append({"source_code": code, "status": "success", "mock": True})
+
+        # --- Gatilho Real n8n para Romaneios no modo Mock ---
+        try:
+            integrations = self.integrations().get("items", [])
+            # Se requested_codes estiver vazio, sincroniza tudo. Caso contrário, apenas se a integração for citada ou for global.
+            n8n_hooks = [i for i in integrations if i.get("integration_type") in ["n8n_webhook_romaneios", "n8n_webhook_stock"] and i.get("active")]
+            
+            for hook in n8n_hooks:
+                hook_target = hook.get("target_source")
+                
+                # Regra de Ouro:
+                # 1. Se requested_codes está vazio, é Sync Global -> dispara todos os ativos.
+                # 2. Se requested_codes tem valor, só dispara se:
+                #    a) O hook_target estiver na lista de requested_codes.
+                #    b) O hook não tiver target (Master) MAS apenas se a solicitação for de Romaneios.
+                
+                if requested_codes:
+                    is_targeted = hook_target in requested_codes
+                    is_master_romaneio = not hook_target and any("romaneio" in c.lower() for c in requested_codes)
+                    
+                    if not (is_targeted or is_master_romaneio):
+                        continue
+
+                hook_url = hook.get("webhook_url")
+                if not hook_url:
+                    continue
+                
+                print(f"[MOCK-SYNC] Acionando webhook real do n8n: {hook.get('name')} -> {hook_url}")
+                from urllib.request import Request, urlopen
+                import json
+                req = Request(hook_url, method="POST")
+                req.add_header("Content-Type", "application/json")
+                
+                payload_n8n = json.dumps({
+                    "event": "manual_sync_triggered",
+                    "mode": "mock_provider",
+                    "triggered_at": datetime.now(timezone.utc).isoformat(),
+                    "requested_snapshot": snapshot_at
+                }).encode("utf-8")
+                
+                try:
+                    with urlopen(req, data=payload_n8n, timeout=10) as resp:
+                        code = resp.getcode()
+                        print(f"[MOCK-SYNC] Webhook {hook.get('name')} OK ({code})")
+                        results.append({
+                            "source_code": f"webhook_{hook.get('name', 'n8n')}",
+                            "status": "triggered",
+                            "response_code": code,
+                            "integration_id": hook.get("id")
+                        })
+                except Exception as hook_err:
+                    print(f"[MOCK-SYNC] Erro no webhook {hook.get('name')}: {str(hook_err)}")
+                    errors.append({"source_code": f"webhook_{hook.get('name')}", "error": f"ERRO N8N: {str(hook_err)}"})
+        except Exception as e:
+            errors.append({"source_code": "mock_external_webhooks", "error": f"Erro bypass mock: {str(e)}"})
+
         return {
-            "status": "success",
+            "status": "success" if not errors else "partial",
             "requested_sources": requested_codes or list(STOCK_SOURCE_CODES),
-            "results": [],
-            "errors": [],
+            "results": results,
+            "errors": errors,
+            "snapshot_at": snapshot_at,
         }
 
     def ingest_romaneio_event(self, source_code: str, payload: dict[str, Any], meta: dict[str, Any]) -> dict[str, Any]:
@@ -1962,6 +2069,44 @@ class PostgresProvider(DataProvider):
                 )
             except Exception as exc:  # noqa: BLE001
                 errors.append({"source_code": source_code, "error": str(exc)})
+
+        # --- Gatilho n8n para Romaneios ---
+        try:
+            integrations = self.integrations().get("items", [])
+            n8n_hooks = [i for i in integrations if i.get("integration_type") == "n8n_webhook_romaneios" and i.get("active")]
+            
+            for hook in n8n_hooks:
+                hook_url = hook.get("webhook_url")
+                if not hook_url:
+                    continue
+                
+                print(f"[SYNC] Disparando webhook n8n: {hook.get('name')} -> {hook_url}")
+                from urllib.request import Request, urlopen
+                import json
+                req = Request(hook_url, method="POST")
+                req.add_header("Content-Type", "application/json")
+                
+                payload_n8n = json.dumps({
+                    "event": "manual_sync_triggered",
+                    "triggered_at": datetime.now(timezone.utc).isoformat(),
+                    "requested_snapshot": snapshot_at
+                }).encode("utf-8")
+                
+                try:
+                    with urlopen(req, data=payload_n8n, timeout=10) as resp:
+                        code = resp.getcode()
+                        print(f"[SYNC] Webhook {hook.get('name')} respondeu com status {code}")
+                        results.append({
+                            "source_code": f"webhook_{hook.get('name', 'n8n')}",
+                            "status": "triggered",
+                            "response_code": code,
+                            "integration_id": hook.get("id")
+                        })
+                except Exception as hook_err:
+                    print(f"[SYNC] Falha ao disparar webhook {hook.get('name')}: {str(hook_err)}")
+                    errors.append({"source_code": f"webhook_{hook.get('name')}", "error": f"FALHA N8N: {str(hook_err)}"})
+        except Exception as e:
+            errors.append({"source_code": "external_webhooks", "error": f"Erro ao acionar webhooks: {str(e)}"})
 
         status = "success"
         if errors and results:

@@ -37,38 +37,23 @@ function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLa
   return (
     <aside className="sidebar">
       <div className="sidebar-header">
-        <div className="logo-box">
-          <div className="logo-mark" style={{ background: 'transparent', boxShadow: 'none' }}>
-            <img src="/inplast-logo.png" alt="Inplast Logo" style={{ width: '100%', height: '100%', objectFit: 'contain' }} />
-          </div>
-          <div className="logo-text">
-            <strong>Inplast</strong>
-            <span>Control Desk PCP</span>
-          </div>
+        <div className="logo-box-brand">
+          <img src="/inplast-logo.png" alt="Inplast Control Desk" />
+          <div className="brand-dot"></div>
         </div>
 
-        <div className="sidebar-compact-context">
-          <small>{companySelectionRequired ? 'Empresa pendente' : 'Escopo ativo'}</small>
-          <strong>{scopeLabel}</strong>
-          <span>{roleLabel}</span>
-        </div>
-
-        <div className="sidebar-context">
-          <div className="sidebar-context-main">
-            <small>Escopo ativo</small>
-            <strong>{scopeLabel}</strong>
-            <span>{currentUser?.username}</span>
-            <div className="sidebar-note">
-              <span className={`tag ${companySelectionRequired ? 'warning' : 'ok'}`}>
-                {companySelectionRequired ? 'Empresa pendente' : 'Escopo pronto'}
-              </span>
-              <span className="tag info">{roleLabel}</span>
-            </div>
+        <div className="sidebar-user-context">
+          <div className="avatar">
+            {currentUser?.username?.charAt(0).toUpperCase() || 'U'}
+          </div>
+          <div className="user-info">
+            <strong>{currentUser?.username || 'Usuário'}</strong>
+            <span>{roleLabel}</span>
           </div>
           
           <button 
             type="button" 
-            className="btn-logout-sidebar" 
+            className="btn-logout-minimal" 
             onClick={onLogout}
             title="Sair do sistema"
           >
@@ -78,7 +63,8 @@ function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLa
       </div>
 
       <nav className="main-nav" aria-label="Navegação principal">
-        {routes.map((route) => {
+        <div className="nav-group-label">Módulos Operacionais</div>
+        {routes.filter(r => !['governanca'].includes(r.id)).map((route) => {
           const Icon = ICONS[route.id] || FiBarChart2
 
           return (
@@ -94,46 +80,38 @@ function Sidebar({ activeView, routes, currentUser, selectedCompany, freshnessLa
               <span className="nav-copy">
                 <strong>
                   <span>{route.label}</span>
-                  {!route.implemented ? <span className="nav-badge">Transição</span> : null}
+                  {!route.implemented ? <span className="nav-badge">LABS</span> : null}
                 </strong>
                 <small>{route.helper}</small>
               </span>
             </a>
           )
         })}
+
+        <div className="nav-group-label" style={{ marginTop: '1.5rem' }}>Administração</div>
+        {routes.filter(r => r.id === 'governanca').map((route) => (
+          <a
+            key={route.id}
+            href={`#${route.id}`}
+            className={`nav-item ${activeView === route.id ? 'active' : ''}`}
+          >
+            <span className="icon"><FiShield /></span>
+            <span className="nav-copy">
+              <strong>{route.label}</strong>
+              <small>Controle de Acesso</small>
+            </span>
+          </a>
+        ))}
       </nav>
 
-      <div className="sidebar-footer" style={{ display: 'flex', flexDirection: 'column', gap: '8px' }}>
-        <button 
-          className="nav-item theme-switch" 
-          onClick={toggleTheme} 
-          style={{ 
-            background: 'transparent', 
-            border: 'none', 
-            cursor: 'pointer', 
-            textAlign: 'left', 
-            width: '100%',
-            padding: '12px 16px',
-            marginBottom: '4px'
-          }}
-          aria-label="Alternar tema visual"
-        >
-          <span className="icon">
-            {theme === 'dark' ? <FiMoon /> : <FiSun />}
-          </span>
+      <div className="sidebar-footer">
+        <button className="btn nav-item theme-switch" onClick={toggleTheme}>
+          <span className="icon">{theme === 'dark' ? <FiSun /> : <FiMoon />}</span>
           <span className="nav-copy">
-            <strong>{theme === 'dark' ? 'Modo Escuro' : 'Modo Claro'}</strong>
-            <small>Alternar preferência</small>
+             <strong>Alternar Tema</strong>
+             <small>{theme === 'dark' ? 'Modo Diurno' : 'Modo Noturno'}</small>
           </span>
         </button>
-
-        <div className="status-card">
-          <div className="status-indicator live" />
-          <div className="status-info">
-            <strong>Sessão autenticada</strong>
-            <span>{freshnessLabel}</span>
-          </div>
-        </div>
       </div>
     </aside>
   )

@@ -1,6 +1,23 @@
 {
   "items": [
     {
+      "id": "integration-n8n-webhook-romaneios-1776184884",
+      "name": "Romaneios Sankhya",
+      "integration_type": "n8n_webhook_romaneios",
+      "webhook_url": "https://architecture-favorites-incentive-fabulous.trycloudflare.com/webhook/romaneio/sankhya",
+      "method": "POST",
+      "auth_type": "none",
+      "auth_value": "",
+      "extra_headers_json": "{}",
+      "request_body_json": "{}",
+      "active": true,
+      "last_status": "idle",
+      "last_synced_at": "",
+      "last_error": "",
+      "created_at": "2026-04-14T16:41:24.325815+00:00",
+      "updated_at": "2026-04-14T16:41:24.326592+00:00"
+    },
+    {
       "id": "integration-apontamento-n8n",
       "name": "QA Apontamento Hook",
       "integration_type": "n8n_webhook_romaneios",
@@ -10,12 +27,29 @@
       "auth_value": "",
       "extra_headers_json": "{}",
       "request_body_json": "{}",
+      "active": false,
+      "last_status": "idle",
+      "last_synced_at": "",
+      "last_error": "",
+      "created_at": "2026-04-14T16:41:24.325815+00:00",
+      "updated_at": "2026-04-14T16:41:24.325815+00:00"
+    },
+    {
+      "id": "integration-n8n-webhook-stock-1776185125",
+      "name": "Estoque Intermediario",
+      "integration_type": "n8n_webhook_stock",
+      "webhook_url": "https://docs.google.com/spreadsheets/d/e/2PACX-1vSs-C_7_vu6L1lq9ScJEcQNT3F23en4MdgHBUI2FFkqBm9c_Zq8WHdtZuXkMhQvcegp05KewJQzPlCP/pubhtml?widget=true&headers=false",
+      "method": "POST",
+      "auth_type": "none",
+      "auth_value": "",
+      "extra_headers_json": "{}",
+      "request_body_json": "{}",
       "active": true,
-      "last_status": "accepted",
-      "last_synced_at": "2026-04-08T17:03:06.679685Z",
+      "last_status": "idle",
+      "last_synced_at": "",
       "last_error": "",
       "created_at": "2026-04-02T00:00:00.000Z",
-      "updated_at": "2026-04-08T17:03:06.684111+00:00"
+      "updated_at": "2026-04-14T16:45:25.848607+00:00"
     }
   ]
 }
