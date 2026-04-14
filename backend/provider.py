@@ -1165,20 +1165,30 @@ class MockProvider(DataProvider):
     def sync_sources(self, payload: dict[str, Any]) -> dict[str, Any]:
         # --- Sincronização Real de Estoque (Mesmo em modo Mock) ---
         from .source_sync import STOCK_SOURCE_CODES, resolve_requested_codes, resolve_snapshot_at, build_source_request, run_parser_envelope, build_meta
+        from datetime import datetime as dt
 
         requested_codes = resolve_requested_codes(payload)
         snapshot_at = resolve_snapshot_at(payload)
         results: list[dict[str, Any]] = []
         errors: list[dict[str, Any]] = []
+        
+        # Acumulador para o painel consolidado
+        all_painel_items = []
 
         source_rows = [
             {"source_code": "estoque_acabado_atual", "source_area": "EXPEDICAO", "contract_type": "google_sheets_published", "published_url_hint": self.settings.acabado_published_url},
             {"source_code": "estoque_intermediario_atual", "source_area": "PRODUCAO", "contract_type": "google_sheets_published", "published_url_hint": self.settings.intermediario_published_url},
+            {"source_code": "estoque_materia_prima_almoxarifado", "source_area": "ALMOXERIFADO", "contract_type": "google_sheets_published", "published_url_hint": self.settings.almox_published_url},
+            {"source_code": "estoque_componente_almoxarifado", "source_area": "ALMOXERIFADO", "contract_type": "google_sheets_published", "published_url_hint": self.settings.almox_published_url},
         ]
 
         for row in source_rows:
             source_code = row["source_code"]
             if requested_codes and source_code not in requested_codes:
+                continue
+            
+            # Se não tiver URL, ignora (exceto se tiver fallback local no parser)
+            if not row.get("published_url_hint") and not self.settings.almox_workbook:
                 continue
                 
             try:
@@ -1190,37 +1200,23 @@ class MockProvider(DataProvider):
                     snapshot_at=snapshot_at,
                 )
                 
-                # --- No modo Mock, persistimos nos arquivos locais para a UI ---
                 records = envelope.get("records") or []
                 summary = envelope.get("summary") or {}
                 
-                # Conversão rápida para o formato do painel mock
-                from datetime import datetime as dt
-                painel_items = []
+                # Conversão para o formato do painel mock
                 for rec in records:
-                    painel_items.append({
+                    all_painel_items.append({
                         "sku": rec.get("sku"),
                         "produto": rec.get("description"),
                         "tipo": rec.get("product_type", "acabado"),
                         "estoque_atual": float(rec.get("quantity") or 0),
-                        "necessidade_romaneios": 0.0, # A ser preenchido por MRP posterior
+                        "necessidade_romaneios": 0.0,
                         "saldo": float(rec.get("quantity") or 0),
+                        "source": source_code,
                         "criticidade": "OK",
                         "acao": "Monitorar"
                     })
                 
-                # Grava no painel.json
-                painel_path = self.data_dir / "painel.json"
-                painel_path.write_text(json.dumps({"items": painel_items}, ensure_ascii=False, indent=2), encoding="utf-8")
-                
-                # Grava no overview.json (Resumo)
-                overview_path = self.data_dir / "overview.json"
-                overview_path.write_text(json.dumps({
-                    "total_items": len(painel_items),
-                    "last_sync": dt.now(dt.timezone.utc).isoformat(),
-                    "source": source_code
-                }, ensure_ascii=False, indent=2), encoding="utf-8")
-
                 results.append({
                     "source_code": source_code,
                     "status": "success",
@@ -1231,6 +1227,18 @@ class MockProvider(DataProvider):
             except Exception as e:
                 print(f"[MOCK-SYNC] Erro na fonte {source_code}: {str(e)}")
                 errors.append({"source_code": source_code, "error": str(e)})
+
+        # Gravação consolidada após processar todas as fontes
+        if all_painel_items:
+            painel_path = self.data_dir / "painel.json"
+            painel_path.write_text(json.dumps({"items": all_painel_items}, ensure_ascii=False, indent=2), encoding="utf-8")
+            
+            overview_path = self.data_dir / "overview.json"
+            overview_path.write_text(json.dumps({
+                "total_items": len(all_painel_items),
+                "last_sync": dt.now(dt.timezone.utc).isoformat(),
+                "sources_synced": [r["source_code"] for r in results if r["status"] == "success"]
+            }, ensure_ascii=False, indent=2), encoding="utf-8")
 
         # --- Gatilho Real n8n para Romaneios no modo Mock ---
         try:
