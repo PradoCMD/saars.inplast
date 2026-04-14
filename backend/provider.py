@@ -752,7 +752,8 @@ class DataProvider(ABC):
 
 
 class MockProvider(DataProvider):
-    def __init__(self, data_dir: Path) -> None:
+    def __init__(self, settings: Settings, data_dir: Path) -> None:
+        self.settings = settings
         self.data_dir = data_dir
 
     def _read_json(self, name: str) -> dict[str, Any]:
@@ -2256,4 +2257,4 @@ class PostgresProvider(DataProvider):
 def build_provider(settings: Settings, data_dir: Path) -> DataProvider:
     if settings.data_mode == "postgres":
         return PostgresProvider(settings, data_dir)
-    return MockProvider(data_dir)
+    return MockProvider(settings, data_dir)
