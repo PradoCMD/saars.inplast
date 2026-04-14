@@ -1045,15 +1045,17 @@ class MockProvider(DataProvider):
             integrations = load_app_integrations(self._integrations_path())
             active_hooks = [i for i in integrations if i.get("active") and i.get("integration_type") in ("n8n_webhook_production", "n8n_webhook_apontamento")]
             
-            import requests # Certifique-se que o ambiente tem requests ou use urllib
+            from urllib.request import Request, urlopen
             for hook in active_hooks:
-                if hook.get("webhook_url"):
-                    # Disparo asíncrono ou fire-and-forget simulado
-                    # Aqui usamos um try-except para não travar o save se o webhook falhar
-                    try:
-                        requests.post(hook["webhook_url"], json=next_item, timeout=2)
-                    except:
-                        pass
+                hook_url = hook.get("webhook_url")
+                if not hook_url:
+                    continue
+                try:
+                    req = Request(hook_url, method="POST")
+                    req.add_header("Content-Type", "application/json")
+                    urlopen(req, data=json.dumps(next_item, ensure_ascii=False).encode("utf-8"), timeout=5)
+                except:
+                    pass
         except:
             pass
             
@@ -1858,6 +1860,15 @@ class PostgresProvider(DataProvider):
         persisted = self._fetchall(queries.APP_INTEGRATIONS_SELECT_SQL)
         return {"status": "saved", "integration": persisted_integration, "items": persisted}
 
+    def delete_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
+        integration_id = str(payload.get("id") or "").strip()
+        if not integration_id:
+            raise ValueError("ID da integração obrigatório para exclusão.")
+
+        self._fetchone(queries.APP_INTEGRATION_DELETE_SQL, (integration_id,), write=True)
+        persisted = self._fetchall(queries.APP_INTEGRATIONS_SELECT_SQL)
+        return {"status": "deleted", "items": persisted}
+
     def save_stock_movement(self, payload: dict[str, Any]) -> dict[str, Any]:
         sku = str(payload.get("sku") or "").strip().upper()
         if not sku:
@@ -1901,6 +1912,25 @@ class PostgresProvider(DataProvider):
                 "count": len(persisted),
             },
         )
+        # Gatilho Reativo: Notificar Webhooks de Produção (n8n / Sankhya)
+        try:
+            integrations = self.integrations().get("items", [])
+            active_hooks = [i for i in integrations if i.get("active") and i.get("integration_type") in ("n8n_webhook_production", "n8n_webhook_apontamento")]
+            
+            from urllib.request import Request, urlopen
+            for hook in active_hooks:
+                hook_url = hook.get("webhook_url")
+                if not hook_url:
+                    continue
+                try:
+                    req = Request(hook_url, method="POST")
+                    req.add_header("Content-Type", "application/json")
+                    urlopen(req, data=json.dumps(next_item, ensure_ascii=False).encode("utf-8"), timeout=5)
+                except:
+                    pass
+        except:
+            pass
+
         return {
             "status": "saved",
             "entry": next_item,

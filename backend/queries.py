@@ -172,7 +172,7 @@ where coalesce(e.event_type, 'update') <> 'delete'
 order by coalesce(e.data_evento, eta.data_evento) desc, eta.romaneio desc
 """
 
-ROMANEIOS_KANBAN_SQL = """
+ROMANEIOS_KANBAN_SQL = r"""
 with base as (
     {romaneios_list_sql}
 ),
@@ -230,7 +230,7 @@ from base
 where romaneio = %s
 """
 
-ROMANEIO_ITEMS_SQL = """
+ROMANEIO_ITEMS_SQL = r"""
 select
     max(sku) as sku,
     max(produto) as produto,
@@ -732,6 +732,11 @@ returning
     last_error,
     created_at,
     updated_at
+"""
+
+APP_INTEGRATION_DELETE_SQL = """
+delete from ops.app_integration
+where integration_key = %s
 """
 
 APP_STOCK_MOVEMENTS_COUNT_SQL = """
