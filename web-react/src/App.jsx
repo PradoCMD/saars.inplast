@@ -13,7 +13,6 @@ import RomaneiosInbox from './pages/RomaneiosInbox'
 import SourcesGovernance from './pages/SourcesGovernance'
 import StockMovements from './pages/StockMovements'
 import SystemGovernance from './pages/SystemGovernance'
-import Apontamento from './pages/Apontamento'
 import { useTheme } from './hooks/useTheme'
 
 const APP_SESSION_STORAGE_KEY = 'pcp_app_session_v1'
@@ -70,6 +69,37 @@ const ROLE_PERMISSIONS = {
     'sources.read',
     'structures.read',
   ]),
+}
+
+const MODULE_PERMISSION_GRANTS = {
+  cockpit: {
+    view: ['overview.read', 'painel.read', 'alerts.read'],
+    edit: ['overview.read', 'painel.read', 'alerts.read'],
+  },
+  kanban: {
+    view: ['romaneios.read'],
+    edit: ['romaneios.read', 'romaneios.write', 'romaneios.delete', 'romaneios.ingest'],
+  },
+  tracking: {
+    view: ['production.read', 'apontamento.read'],
+    edit: ['production.read', 'apontamento.read', 'apontamento.write', 'apontamento.dispatch'],
+  },
+  programming: {
+    view: ['programming.read', 'structures.read'],
+    edit: ['programming.read', 'programming.write', 'structures.read', 'structure_override.write'],
+  },
+  sources: {
+    view: ['sources.read', 'stock.read'],
+    edit: ['sources.read', 'sources.sync', 'stock.read', 'stock.write'],
+  },
+  system: {
+    view: ['users.read', 'integrations.read'],
+    edit: ['users.read', 'users.write', 'integrations.read', 'integrations.write'],
+  },
+  simulator: {
+    view: ['production_rules.read'],
+    edit: ['production_rules.read', 'mrp.run'],
+  },
 }
 
 const ROUTES = [
@@ -139,7 +169,19 @@ function hasPermission(user, permission) {
   if (!permission) return true
   if (!user) return false
   const role = normalizeRole(user.role, user.username)
-  const permissions = ROLE_PERMISSIONS[role] || new Set()
+  const permissions = new Set(ROLE_PERMISSIONS[role] || [])
+
+  const modulePermissions = user?.permissions
+  if (modulePermissions && typeof modulePermissions === 'object') {
+    Object.entries(modulePermissions).forEach(([moduleName, accessLevel]) => {
+      const moduleKey = String(moduleName || '').trim().toLowerCase()
+      const levelKey = String(accessLevel || '').trim().toLowerCase()
+      if (!['view', 'edit'].includes(levelKey)) return
+      const grants = MODULE_PERMISSION_GRANTS[moduleKey]?.[levelKey] || []
+      grants.forEach((grant) => permissions.add(grant))
+    })
+  }
+
   return permissions.has('*') || permissions.has(permission)
 }
 
@@ -150,6 +192,7 @@ function normalizeUserPayload(user, accessToken = '', expiresAt = '') {
     id: user.id || user.user_id || '',
     role: normalizeRole(user.role, user.username),
     company_scope: normalizeCompanyScope(user.company_scope, user.role, user.username),
+    permissions: (user.permissions && typeof user.permissions === 'object') ? user.permissions : {},
     access_token: accessToken || user.access_token || '',
     expires_at: expiresAt || user.expires_at || '',
   }
@@ -194,6 +237,7 @@ function persistStoredSession(user) {
       full_name: user.full_name,
       role: user.role,
       company_scope: user.company_scope || [],
+      permissions: user.permissions || {},
       expires_at: user.expires_at || '',
     }),
   )
@@ -246,194 +290,111 @@ function formatFreshnessLabel(value) {
 }
 
 function getRouteModeLabel(route) {
-  if (!route?.implemented) return 'Transição controlada'
-  if (route.id === 'cockpit') return 'Visão agregada autenticada'
-  if (route.id === 'programacao') return 'Agenda premium conectada'
-  if (route.id === 'producao') return 'Portfólio executivo real'
-  if (route.id === 'injecao') return 'Malha autenticada por máquina'
-  if (route.id === 'extrusao') return 'Janela derivada honesta'
-  if (route.id === 'romaneios-kanban') return 'Fila oficial + ajuste PCP'
-  if (route.id === 'romaneios') return 'Oficial + buffer local'
-  if (route.id === 'apontamento') return 'Execução + sync real'
-  return 'Operação conectada'
+  if (!route?.implemented) return 'Em desenvolvimento'
+  if (route.id === 'cockpit') return 'Visão geral'
+  if (route.id === 'programacao') return 'Agenda ativa'
+  if (route.id === 'producao') return 'Produção'
+  if (route.id === 'injecao') return 'Injeção'
+  if (route.id === 'extrusao') return 'Extrusão'
+  if (route.id === 'romaneios-kanban') return 'Kanban logístico'
+  if (route.id === 'romaneios') return 'Romaneios'
+  if (route.id === 'apontamento') return 'Apontamento'
+  return 'Operacional'
 }
 
 function getRoleCapabilityLabel(user) {
   const role = normalizeRole(user?.role, user?.username)
-  if (role === 'root') return 'Controle total do shell'
-  if (role === 'manager') return 'MRP, sync e operação'
-  return 'Leitura segura por papel'
+  if (role === 'root') return 'Acesso total'
+  if (role === 'manager') return 'Gestão PCP'
+  return 'Operador'
 }
 
 function buildRouteSignalCard(route, resources, canIngest) {
   if (!route) {
-    return {
-      label: 'Sinal do módulo',
-      value: 'Sem módulo ativo',
-      detail: 'Selecione uma área do shell para carregar o resumo rápido.',
-      tone: 'info',
-    }
+    return { label: 'Módulo', value: 'Nenhum', detail: 'Selecione um módulo.', tone: 'info' }
   }
 
   if (route.id === 'cockpit') {
     const overview = resources.overview.data || {}
     const missing = Number(overview.totals?.romaneios_sem_previsao || 0)
-    const nextCritical = overview.top_criticos?.[0]
-
     return {
-      label: 'Sinal prioritário',
-      value: missing ? `${missing} sem previsão` : 'Fluxo estabilizado',
-      detail: nextCritical
-        ? `${nextCritical.sku} · ${nextCritical.acao || 'Monitorar agora'}`
-        : 'Nenhum item crítico puxando ação imediata.',
+      label: 'Prioridade',
+      value: missing ? `${missing} sem data` : 'OK',
+      detail: missing ? 'Romaneios aguardando programação.' : 'Sem pendências críticas.',
       tone: missing ? 'high' : 'ok',
     }
   }
 
   if (route.id === 'romaneios-kanban') {
     const romaneios = resources.kanban.data?.romaneios || []
-    const products = resources.kanban.data?.products || []
     const missing = romaneios.filter((item) => !item.previsao_saida_at).length
-
     return {
-      label: 'Fila autorizada',
+      label: 'Fila',
       value: `${romaneios.length} romaneios`,
-      detail: missing
-        ? `${missing} sem previsão e ${products.length} SKUs sob pressão`
-        : `${products.length} SKUs críticos monitorados no recorte atual.`,
-      tone: missing ? 'warning' : 'info',
+      detail: missing ? `${missing} sem data de saída` : 'Todos programados.',
+      tone: missing ? 'warning' : 'ok',
     }
   }
 
   if (route.id === 'romaneios') {
     const items = resources.romaneios.data?.items || []
-
-    return {
-      label: 'Fidelidade da fonte',
-      value: `${items.length} oficiais`,
-      detail: canIngest
-        ? 'Buffer local liberado nesta sessão, sempre separado da fonte oficial.'
-        : 'Sessão em leitura segura; o sistema oficial segue como única referência.',
-      tone: canIngest ? 'info' : 'ok',
-    }
+    return { label: 'Romaneios', value: `${items.length}`, detail: 'Registros oficiais.', tone: 'info' }
   }
 
   if (route.id === 'montagem') {
     const items = resources.assembly.data?.items || []
-    return {
-      label: 'Carga de montagem',
-      value: `${items.length} ordens`,
-      detail: 'Linhas e esteiras apoiadas na fila autenticada da sessão.',
-      tone: items.length ? 'info' : 'ok',
-    }
+    return { label: 'Montagem', value: `${items.length} ordens`, detail: 'Linhas ativas.', tone: items.length ? 'info' : 'ok' }
   }
 
   if (route.id === 'producao') {
     const items = resources.production.data?.items || []
-    return {
-      label: 'Carga de produção',
-      value: `${items.length} ordens`,
-      detail: 'Leitura segura das extrusoras e do backlog operacional.',
-      tone: items.length ? 'info' : 'ok',
-    }
+    return { label: 'Produção', value: `${items.length} ordens`, detail: 'Backlog operacional.', tone: items.length ? 'info' : 'ok' }
   }
 
   if (route.id === 'programacao') {
-    return {
-      label: 'Agenda conectada',
-      value: 'Capacidade visível',
-      detail: 'Programação, pressão OEM e catálogo industrial em uma única superfície.',
-      tone: 'info',
-    }
+    return { label: 'Programação', value: 'Ativa', detail: 'Agenda e capacidade.', tone: 'info' }
   }
 
   if (route.id === 'injecao') {
-    return {
-      label: 'Malha de injeção',
-      value: 'Máquinas + logs',
-      detail: 'Leitura cruzada entre programação, regras e apontamento recente.',
-      tone: 'info',
-    }
+    return { label: 'Injeção', value: 'Online', detail: 'Máquinas e logs.', tone: 'info' }
   }
 
   if (route.id === 'extrusao') {
-    return {
-      label: 'Janela de extrusão',
-      value: 'Carga derivada',
-      detail: 'Distribuição premium do backlog sem inventar telemetria inexistente.',
-      tone: 'warning',
-    }
+    return { label: 'Extrusão', value: 'Derivada', detail: 'Carga do backlog.', tone: 'info' }
   }
 
   if (route.id === 'governanca') {
     if (resources.sources.status === 'loading' && !resources.sources.data) {
-      return {
-        label: 'Saúde sistêmica',
-        value: 'Atualizando',
-        detail: 'Buscando frescor das fontes, usuários, integrações e alertas centrais do sistema.',
-        tone: 'info',
-      }
+      return { label: 'Sistema', value: 'Carregando...', detail: 'Buscando fontes e alertas.', tone: 'info' }
     }
-
     if (resources.sources.status === 'permission') {
-      return {
-        label: 'Saúde sistêmica',
-        value: 'Leitura restrita',
-        detail: resources.sources.error?.message || 'Seu papel não pode abrir a governança.',
-        tone: 'warning',
-      }
+      return { label: 'Sistema', value: 'Restrito', detail: 'Sem permissão.', tone: 'warning' }
     }
-
     if (resources.sources.status === 'error' || resources.alerts.status === 'error') {
-      return {
-        label: 'Saúde sistêmica',
-        value: 'Falha de leitura',
-        detail: resources.sources.error?.message || resources.alerts.error?.message || 'Não foi possível carregar o estado das integrações e usuários.',
-        tone: 'high',
-      }
+      return { label: 'Sistema', value: 'Falha', detail: 'Erro ao carregar.', tone: 'high' }
     }
-
     const items = resources.sources.data?.items || []
     const alerts = resources.alerts.data?.items || []
-    const missingCount = items.filter((item) => ['missing', 'error'].includes(String(item.freshness_status || '').toLowerCase())).length
-    const attentionCount = items.filter((item) => ['warning', 'stale', 'partial'].includes(String(item.freshness_status || '').toLowerCase())).length
-    const highAlertCount = alerts.filter((item) => String(item.severity || '').toLowerCase().includes('high')).length
-
+    const blocked = items.filter((item) => ['missing', 'error'].includes(String(item.freshness_status || '').toLowerCase())).length
     return {
-      label: 'Saúde das integrações e sistema',
-      value: missingCount
-        ? `${missingCount} bloqueios`
-        : attentionCount
-          ? `${attentionCount} fontes atrasadas`
-          : 'Sistema sob controle',
-      detail: alerts.length
-        ? `${alerts.length} alertas ativos${highAlertCount ? `, ${highAlertCount} em alta severidade` : ''}.`
-        : 'Sinais centrais limpos. Operação rodando com dados autênticos.',
-      tone: missingCount || highAlertCount ? 'high' : attentionCount || alerts.length ? 'warning' : 'ok',
+      label: 'Saúde',
+      value: blocked ? `${blocked} bloqueios` : 'Estável',
+      detail: alerts.length ? `${alerts.length} alertas ativos.` : 'Sem alertas.',
+      tone: blocked ? 'high' : alerts.length ? 'warning' : 'ok',
     }
   }
 
   if (route.id === 'estoque') {
-    return {
-      label: 'Gestão de estoques',
-      value: 'Saldos unificados',
-      detail: 'Acompanhamento do estoque real e histórico de movimentações da operação.',
-      tone: 'info',
-    }
+    return { label: 'Estoque', value: 'Ativo', detail: 'Saldos e movimentações.', tone: 'info' }
   }
 
   if (route.id === 'apontamento') {
-    return {
-      label: 'Estado do fluxo',
-      value: 'Execução real',
-      detail: 'Eventos, fila pendente e sincronização manualmente governável no mesmo módulo.',
-      tone: 'info',
-    }
+    return { label: 'Apontamento', value: 'Ativo', detail: 'Eventos e sync.', tone: 'info' }
   }
 
   return {
-    label: 'Estado do módulo',
-    value: route.implemented ? 'Disponível' : 'Em transição',
+    label: 'Módulo',
+    value: route.implemented ? 'Disponível' : 'Em desenvolvimento',
     detail: route.helper,
     tone: route.implemented ? 'info' : 'warning',
   }
@@ -472,25 +433,21 @@ function App() {
   const routeSignalCard = buildRouteSignalCard(activeRoute, resources, hasPermission(currentUser, 'romaneios.ingest'))
   const commandDeckItems = [
     {
-      label: 'Escopo ativo',
-      value: effectiveCompany || (hasWildcardScope ? 'Consolidado' : 'Sem empresa'),
-      detail: multiCompanySelectionRequired
-        ? 'Seu usuário precisa definir a empresa antes das leituras agregadas.'
-        : hasWildcardScope
-          ? 'Visão ampla do shell com empresa explícita apenas quando necessário.'
-          : 'Empresa atualmente aplicada nas rotas que exigem recorte.',
+      label: 'Empresa',
+      value: effectiveCompany || (hasWildcardScope ? 'Consolidado' : '—'),
+      detail: multiCompanySelectionRequired ? 'Selecione a empresa.' : '',
       tone: multiCompanySelectionRequired ? 'warning' : 'ok',
     },
     {
-      label: 'Papel e controle',
+      label: 'Perfil',
       value: roleLabel,
       detail: getRoleCapabilityLabel(currentUser),
       tone: roleLabel === 'OPERATOR' ? 'warning' : 'info',
     },
     {
-      label: 'Modo do módulo',
+      label: 'Módulo',
       value: routeModeLabel,
-      detail: activeRoute.helper,
+      detail: '',
       tone: activeRoute.implemented ? 'info' : 'warning',
     },
     routeSignalCard,
@@ -580,8 +537,9 @@ function App() {
     )
 
     async function loadResources() {
+      if (cancelled) return;
       console.log('[DEBUG] loadResources INICIADO.');
-      
+
       const updateResource = (key, state) => {
         if (cancelled) return;
         setResources(prev => ({ ...prev, [key]: state }));
@@ -611,31 +569,35 @@ function App() {
         }
       };
 
-      // Disparo em paralelo - Atualização granular (Zero Waterfall UX)
-      Promise.allSettled([
-        loadResource('overview', '/api/pcp/overview', { requiresScopedCompany: true }),
-        loadResource('kanban', '/api/pcp/romaneios-kanban', { requiresScopedCompany: true }),
-        loadResource('romaneios', '/api/pcp/romaneios', { optionalCompany: true }),
-        loadResource('stock', '/api/pcp/stock-movements', { optionalCompany: true }),
-        loadResource('assembly', '/api/pcp/assembly'),
-        loadResource('production', '/api/pcp/production'),
-        loadResource('sources', '/api/pcp/sources'),
-        loadResource('users', '/api/pcp/users'),
-        loadResource('integrations', '/api/pcp/integrations'),
-        loadResource('alerts', '/api/pcp/alerts'),
-        loadResource('production_logs', '/api/pcp/apontamento/logs'),
-      ]).then(() => {
+      try {
+        await Promise.allSettled([
+          loadResource('overview', '/api/pcp/overview', { requiresScopedCompany: true }),
+          loadResource('kanban', '/api/pcp/romaneios-kanban', { requiresScopedCompany: true }),
+          loadResource('romaneios', '/api/pcp/romaneios', { optionalCompany: true }),
+          loadResource('stock', '/api/pcp/stock-movements', { optionalCompany: true }),
+          loadResource('assembly', '/api/pcp/assembly'),
+          loadResource('production', '/api/pcp/production'),
+          loadResource('sources', '/api/pcp/sources'),
+          loadResource('users', '/api/pcp/users'),
+          loadResource('integrations', '/api/pcp/integrations'),
+          loadResource('alerts', '/api/pcp/alerts'),
+          loadResource('production_logs', '/api/pcp/apontamento/logs'),
+        ]);
         if (!cancelled) setLastLoadedAt(new Date().toISOString());
-      });
+      } catch (err) {
+        console.error('[CRITICAL] loadResources failed:', err);
+      }
     }
 
     loadResources()
 
-    // Gatilho de Emergência: Força uma carga após 5 segundos se ainda estiver IDLE
+    // Gatilho de Emergência: Força uma carga após 10 segundos apenas se estiver IDLE e não cancelado
     const emergencyTimer = setTimeout(() => {
-      console.log('[DEBUG-EMERGENCY] Verificando status após 5s...');
-      loadResources();
-    }, 5000);
+      if (!cancelled && lastLoadedAt === '') {
+        console.log('[DEBUG-EMERGENCY] Verificando status após 10s...');
+        loadResources();
+      }
+    }, 10000);
 
     return () => {
       cancelled = true
@@ -724,10 +686,10 @@ function App() {
     setNavigationContext(
       context
         ? {
-            ...context,
-            targetView: nextRoute.id,
-            requestedAt: Date.now(),
-          }
+          ...context,
+          targetView: nextRoute.id,
+          requestedAt: Date.now(),
+        }
         : null,
     )
     setActiveView(nextRoute.id)
@@ -736,41 +698,6 @@ function App() {
 
   function renderActiveView() {
     const scopeLabel = effectiveCompany || (hasWildcardScope ? 'Consolidado' : companyScope[0] || 'Sem empresa')
-
-    const handleSaveApontamento = async (payload) => {
-      setSaveBusy(true)
-      try {
-        const resp = await fetch('/api/pcp/apontamento/save', {
-          method: 'POST',
-          headers: { 
-            'Content-Type': 'application/json',
-            'Authorization': `Bearer ${accessToken}`
-          },
-          body: JSON.stringify(payload)
-        })
-        if (resp.ok) {
-          setReloadKey((curr) => curr + 1)
-          return true
-        }
-        return false
-      } catch {
-        return false
-      } finally {
-        setSaveBusy(false)
-      }
-    }
-
-    if (activeRoute.id === 'apontamento') {
-      return (
-        <Apontamento
-          productionState={resources.production_logs}
-          accessToken={currentUser?.access_token}
-          onSaveEntry={handleSaveApontamento}
-          saveBusy={saveBusy}
-          onRequestReload={() => setReloadKey((current) => current + 1)}
-        />
-      )
-    }
 
     if (activeRoute.id === 'cockpit') {
       return (
@@ -962,9 +889,8 @@ function App() {
       <div className="module-placeholder animate-in">
         <StatePanel
           kind="empty"
-          title={`${activeRoute.label} está em transição controlada`}
-          message="O módulo já respeita sessão, papel e contexto de empresa, mas a superfície React desta área ainda não foi promovida para produção."
-          detail="Mantive o módulo visível para navegação e governança, sem prometer um fluxo pronto que ainda não existe."
+          title={`${activeRoute.label} — em desenvolvimento`}
+          message="Este módulo está sendo preparado e será disponibilizado em breve."
         />
       </div>
     )
@@ -972,71 +898,62 @@ function App() {
 
   if (!currentUser) {
     return (
-      <main className="auth-layout">
-        <section className="auth-hero">
-          <div className="auth-hero-stars"></div>
-          <div className="auth-highlights">
-             <div className="auth-logo-large">
-               <img src="/inplast-logo.png" alt="Inplast Logo" />
-             </div>
-             <div className="auth-hero-3d-visual">
-                <div className="cube-3d"></div>
-                <div className="glow-sphere"></div>
-             </div>
-          </div>
-          <div className="auth-content-group">
-            <div className="auth-kicker">Posto de comando autenticado</div>
-            <h1>Control Desk PCP</h1>
-          </div>
-        </section>
+      <main className="auth-centralized-layout">
+        <div className="auth-glow-background"></div>
+        <div className="auth-content-wrapper">
+          <header className="auth-header-logo">
+            <img src="/inplast-logo.png" alt="Inplast" className="auth-logo-img" />
+          </header>
 
-        <section className="auth-panel">
-          <div className="auth-panel-head">
-            <span className="status-pill">Acesso protegido</span>
-            <h2>Login do sistema</h2>
-            <p>Entre com um usuário válido do sistema atual para carregar o shell oficial do produto.</p>
-          </div>
+          <section className="auth-main-card glass-panel">
+            <form className="auth-form-premium" onSubmit={handleLoginSubmit}>
+              <div className="auth-input-group">
+                <label htmlFor="auth-username">Usuário</label>
+                <input
+                  id="auth-username"
+                  value={loginForm.username}
+                  onChange={(event) => setLoginForm((current) => ({ ...current, username: event.target.value }))}
+                  placeholder="Seu usuário"
+                  autoComplete="username"
+                />
+              </div>
 
-          <form className="auth-form" onSubmit={handleLoginSubmit}>
-            <label>
-              <span>Usuário</span>
-              <input
-                value={loginForm.username}
-                onChange={(event) => setLoginForm((current) => ({ ...current, username: event.target.value }))}
-                placeholder="manager_inplast"
-                autoComplete="username"
-              />
-            </label>
+              <div className="auth-input-group">
+                <label htmlFor="auth-password">Senha</label>
+                <input
+                  id="auth-password"
+                  type="password"
+                  value={loginForm.password}
+                  onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
+                  placeholder="••••••••"
+                  autoComplete="current-password"
+                />
+              </div>
 
-            <label>
-              <span>Senha</span>
-              <input
-                type="password"
-                value={loginForm.password}
-                onChange={(event) => setLoginForm((current) => ({ ...current, password: event.target.value }))}
-                placeholder="••••••••"
-                autoComplete="current-password"
-              />
-            </label>
+              <button type="submit" className="btn-auth-submit" disabled={loginBusy}>
+                {loginBusy ? 'Validando...' : 'Entrar no Sistema'}
+              </button>
+            </form>
 
-            <button type="submit" className="btn btn-primary auth-submit" disabled={loginBusy}>
-              {loginBusy ? 'Autenticando...' : 'Entrar no PCP'}
-            </button>
-          </form>
+            {authMessage && (
+              <div className={`auth-feedback-banner ${authStatus === 'expired' ? 'warning' : 'error'}`}>
+                {authMessage}
+              </div>
+            )}
+          </section>
 
-          {authMessage ? (
-            <div className={`auth-feedback ${authStatus === 'expired' ? 'warning' : 'error'}`}>
-              {authMessage}
-            </div>
-          ) : null}
-
-        </section>
+          <footer className="auth-footer-brand">
+            <h1 className="auth-title-glow">CONTROL DESK PCP</h1>
+            <div className="auth-subtitle">SISTEMA INTEGRADO DE PLANEJAMENTO & PRODUÇÃO</div>
+          </footer>
+        </div>
       </main>
     )
   }
 
   return (
     <div className="app-container">
+      <div className="global-star-bg"></div>
       <Sidebar
         activeView={activeRoute.id}
         routes={accessibleRoutes}

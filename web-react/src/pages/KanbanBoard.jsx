@@ -1,90 +1,407 @@
-import { useState } from 'react'
-import { FiAlertTriangle, FiCalendar, FiLayers, FiPackage, FiShield, FiXCircle } from 'react-icons/fi'
-import CommandDeck from '../components/CommandDeck'
+import { useState, useRef, useEffect } from 'react'
+import { FiAlertTriangle, FiCalendar, FiPackage, FiShield, FiXCircle, FiUser, FiMapPin, FiChevronLeft, FiChevronRight, FiChevronUp, FiChevronDown } from 'react-icons/fi'
+import { DragDropContext, Droppable, Draggable } from '@hello-pangea/dnd'
 import StatePanel from '../components/StatePanel'
 import { requestJson } from '../lib/api'
-import { getForecastOrigin } from '../lib/operationalLanguage'
 
-const numberFormat = new Intl.NumberFormat('pt-BR')
+const numFmt = new Intl.NumberFormat('pt-BR')
+const curFmt = new Intl.NumberFormat('pt-BR', { style: 'currency', currency: 'BRL' })
 
-function groupRomaneios(items) {
-  const lanes = {
-    missing: { id: 'missing', title: 'Sem previsão', tone: 'high', items: [] },
-    today: { id: 'today', title: 'Hoje', tone: 'warning', items: [] },
-    upcoming: { id: 'upcoming', title: 'Próximos dias', tone: 'info', items: [] },
-    scheduled: { id: 'scheduled', title: 'Programados', tone: 'ok', items: [] },
-  }
+// ---------- helpers de data ----------
 
+function toLocalDateKey(isoString) {
+  if (!isoString) return null
+  const d = new Date(isoString)
+  if (Number.isNaN(d.getTime())) return null
+  // chave no formato YYYY-MM-DD no fuso local
+  return d.toLocaleDateString('sv-SE') // "sv-SE" dá YYYY-MM-DD
+}
+
+function formatDateHeader(dateKey) {
+  // dateKey = "YYYY-MM-DD"
+  const [year, month, day] = dateKey.split('-').map(Number)
+  const d = new Date(year, month - 1, day)
   const today = new Date()
   today.setHours(0, 0, 0, 0)
+  const diff = Math.round((d - today) / 86400000)
 
-  items.forEach((item) => {
-    const previsao = item.previsao_saida_at ? new Date(item.previsao_saida_at) : null
-
-    if (!previsao || Number.isNaN(previsao.getTime())) {
-      lanes.missing.items.push(item)
-      return
-    }
-
-    const forecastDay = new Date(previsao)
-    forecastDay.setHours(0, 0, 0, 0)
-    const diffDays = Math.round((forecastDay.getTime() - today.getTime()) / (24 * 60 * 60 * 1000))
-
-    if (diffDays <= 0) {
-      lanes.today.items.push(item)
-      return
-    }
-
-    if (diffDays <= 2) {
-      lanes.upcoming.items.push(item)
-      return
-    }
-
-    lanes.scheduled.items.push(item)
-  })
-
-  return Object.values(lanes)
+  const label = d.toLocaleDateString('pt-BR', { weekday: 'short', day: '2-digit', month: '2-digit' })
+  if (diff === 0) return { label: `Hoje — ${label}`, tone: 'warning' }
+  if (diff === 1) return { label: `Amanhã — ${label}`, tone: 'info' }
+  if (diff < 0)  return { label: `Atrasado — ${label}`, tone: 'high' }
+  return { label, tone: 'ok' }
 }
 
-function filterBySearch(items, searchQuery) {
-  const normalizedQuery = String(searchQuery || '').trim().toLowerCase()
-  if (!normalizedQuery) return items
-
-  return items.filter((item) => {
-    const haystack = [
-      item.romaneio,
-      item.empresa,
-      item.previsao_saida_status,
-      item.criterio_previsao,
-      item.produto,
-      ...(item.items || []).map((detail) => `${detail.sku} ${detail.produto}`),
-    ]
-      .filter(Boolean)
-      .join(' ')
-      .toLowerCase()
-    return haystack.includes(normalizedQuery)
-  })
-}
-
-function formatDate(value) {
+function formatDateTime(value) {
   if (!value) return 'Sem previsão'
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return value
-  return date.toLocaleString('pt-BR', {
-    day: '2-digit',
-    month: '2-digit',
-    hour: '2-digit',
-    minute: '2-digit',
-  })
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return value
+  return d.toLocaleDateString('pt-BR', { day: '2-digit', month: '2-digit', year: '2-digit' })
 }
 
 function toDateTimeLocalValue(value) {
   if (!value) return ''
-  const date = new Date(value)
-  if (Number.isNaN(date.getTime())) return ''
-  const timezoneOffset = date.getTimezoneOffset() * 60000
-  return new Date(date.getTime() - timezoneOffset).toISOString().slice(0, 16)
+  const d = new Date(value)
+  if (Number.isNaN(d.getTime())) return ''
+  return new Date(d.getTime() - d.getTimezoneOffset() * 60000).toISOString().slice(0, 16)
 }
+
+// ---------- agrupamento em lanes dinâmicas ----------
+
+function buildLanes(items) {
+  const missing = { id: 'missing', title: 'Sem Programação', tone: 'danger', items: [] }
+  const byDate = {} // dateKey → { id, title, tone, date, items }
+
+  items.forEach((item) => {
+    const key = toLocalDateKey(item.previsao_saida_at)
+    if (!key) {
+      missing.items.push(item)
+      return
+    }
+    if (!byDate[key]) {
+      byDate[key] = { id: `date-${key}`, dateKey: key, items: [] }
+    }
+    byDate[key].items.push(item)
+  })
+
+  // ordena as datas
+  const dateLanes = Object.values(byDate).sort((a, b) => a.dateKey.localeCompare(b.dateKey))
+
+  const finalLanes = [missing, ...dateLanes]
+  
+  // -- CASCADING STOCK LOGIC --
+  const runningStock = {} // sku -> number
+  
+  // 1. Initialize base stock mapping using the injected 'estoque_atual' from the backend. 
+  finalLanes.forEach(lane => {
+    lane.items.forEach(item => {
+      (item.items || []).forEach(p => {
+        if (p.sku && runningStock[p.sku] === undefined) {
+          runningStock[p.sku] = Number(p.estoque_atual || 0)
+        }
+      })
+    })
+  })
+
+  // 2. Cascade reductions
+  finalLanes.forEach(lane => {
+    lane.items.forEach(item => {
+      if (item.items) {
+        item.items = item.items.map(p => {
+          if (!p.sku) return p
+          
+          const currentStock = runningStock[p.sku]
+          const req = Number(p.quantidade || p.quantidade_demanda || 0)
+          const newStock = currentStock - req
+          
+          runningStock[p.sku] = newStock
+          
+          return {
+            ...p,
+            quantidade_demanda: req,
+            cascading_estoque_atual: currentStock,
+            estoque_apos_saida: newStock,
+            necessidade_producao_cascata: Math.max(0, -newStock)
+          }
+        })
+      }
+    })
+  })
+
+  return finalLanes
+}
+
+// ---------- filtro de busca ----------
+
+function filterBySearch(items, query) {
+  const q = String(query || '').trim().toLowerCase()
+  if (!q) return items
+  return items.filter((item) => {
+    const hay = [
+      item.romaneio,
+      item.empresa,
+      item.parceiro,
+      item.cidade,
+      ...(item.pedidos_mercur || []),
+      ...(item.items || []).map((d) => `${d.sku} ${d.produto}`),
+    ].filter(Boolean).join(' ').toLowerCase()
+    return hay.includes(q)
+  })
+}
+
+// ---------- card de produto ----------
+// Removed standard ProductRow since we use the premium table now
+
+// ---------- card de romaneio ----------
+
+function RomaneioCard({ item, index, canManageDates, accessToken, onUnauthorizedSession, selectedCompany, onRequestReload, onNavigate, setNotice }) {
+  const [editing, setEditing] = useState(false)
+  const [editingValue, setEditingValue] = useState('')
+  const [saving, setSaving] = useState(false)
+  const [isExpanded, setIsExpanded] = useState(false)
+
+  const pedidos = item.pedidos_mercur || []
+  const produtos = item.items || []
+  const totalNecessidadeProducao = produtos.reduce((acc, p) => acc + (p.necessidade_producao_cascata > 0 ? p.necessidade_producao_cascata : 0), 0)
+
+  async function handleSave(clearSchedule = false) {
+    setSaving(true)
+    try {
+      const body = {
+        romaneio: item.romaneio,
+        empresa: item.empresa || selectedCompany,
+        company_code: item.empresa || selectedCompany,
+        previsao_saida_at: clearSchedule ? null : (editingValue ? new Date(editingValue).toISOString() : null),
+        reason: clearSchedule ? 'pcp_manual_clear' : 'pcp_manual',
+      }
+      if (!body.company_code) throw new Error('Selecione uma empresa ativa antes de salvar.')
+      if (!clearSchedule && !body.previsao_saida_at) throw new Error('Informe uma data antes de salvar.')
+
+      await requestJson('/api/pcp/romaneios-kanban/update-date', {
+        method: 'POST', body, accessToken, onUnauthorized: onUnauthorizedSession,
+      })
+
+      setNotice({
+        tone: clearSchedule ? 'warning' : 'success',
+        message: clearSchedule
+          ? `Previsão removida — Romaneio ${item.romaneio}`
+          : `Data de saída definida — Romaneio ${item.romaneio}`,
+      })
+      setEditing(false)
+      setEditingValue('')
+      onRequestReload?.()
+    } catch (err) {
+      setNotice({ tone: 'error', message: err.message || 'Erro ao salvar.' })
+    } finally {
+      setSaving(false)
+    }
+  }
+
+  return (
+    <Draggable draggableId={`romaneio-${item.romaneio}`} index={index} isDragDisabled={!canManageDates}>
+      {(provided, snapshot) => (
+        <article 
+          className={`kanban-card ${snapshot.isDragging ? 'is-dragging' : ''}`}
+          ref={provided.innerRef}
+          {...provided.draggableProps}
+          {...provided.dragHandleProps}
+        >
+
+      {/* cabeçalho: número do romaneio + empresa */}
+      <div className="kanban-card-head">
+        <div>
+          <small>{item.empresa}</small>
+          <button type="button" className="kanban-card-romaneio-link" 
+            onClick={() => onNavigate?.('romaneios', { romaneio: item.romaneio, originView: 'romaneios-kanban' })}>
+            Romaneio {item.romaneio}
+          </button>
+        </div>
+        <div style={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-end', gap: '4px' }}>
+          <span className={`tag ${item.previsao_saida_at ? 'ok' : 'high'}`}>
+            {item.previsao_saida_at ? formatDateTime(item.previsao_saida_at) : 'Sem data'}
+          </span>
+          {totalNecessidadeProducao > 0 && (
+            <span className="tag warning" style={{ fontSize: '10px', padding: '2px 6px' }}>
+              Faltam {numFmt.format(totalNecessidadeProducao)} un
+            </span>
+          )}
+        </div>
+      </div>
+
+      {/* pedidos Mercur */}
+      {pedidos.length > 0 && (
+        <div className="kanban-card-pedidos">
+          <span className="kanban-pedidos-label">Pedidos Mercur</span>
+          <div className="kanban-pedidos-chips">
+            {pedidos.map((p) => (
+              <span key={p} className="kanban-pedido-chip">#{p}</span>
+            ))}
+          </div>
+        </div>
+      )}
+
+      {/* parceiro + cidade */}
+      {(item.parceiro || item.cidade) && (
+        <div className="kanban-card-meta">
+          {item.parceiro && <span><FiUser size={12} /> {item.parceiro}</span>}
+          {item.cidade && <span><FiMapPin size={12} /> {item.cidade}</span>}
+        </div>
+      )}
+
+      {/* produtos com estoque */}
+      {produtos.length > 0 && (
+        <div className="kanban-products">
+          <div className="kanban-products-header kanban-products-header-expandable" onClick={() => setIsExpanded(!isExpanded)}>
+            <span className="kanban-products-title">Produtos e Estoque</span>
+            <div className="kanban-products-expand-controls">
+              <span className="tag info">{produtos.length} SKUs</span>
+              {isExpanded ? <FiChevronUp size={16} /> : <FiChevronDown size={16} />}
+            </div>
+          </div>
+          {isExpanded && (
+            <div className="kanban-premium-table-container">
+              <table className="kanban-premium-table">
+                <thead>
+                  <tr>
+                    <th>Nome dos Produtos</th>
+                    <th className="text-right">Necessidade Romaneio</th>
+                    <th className="text-right">Estoque atual</th>
+                    <th className="text-right">Necessidade Produção</th>
+                    <th className="text-right">Estoque após saída</th>
+                  </tr>
+                </thead>
+                <tbody>
+                  {produtos.map((p, i) => {
+                    const isOk = p.necessidade_producao_cascata <= 0
+                    const afterDanger = p.estoque_apos_saida < 0
+                    return (
+                      <tr key={p.sku || i} className={afterDanger ? 'row-danger' : ''}>
+                        <td>
+                          <div className="kanban-product-name-col">
+                            <span className="kanban-product-sku">{p.sku}</span>
+                            <span className="kanban-product-name">{p.produto}</span>
+                          </div>
+                        </td>
+                        <td className="text-right">{numFmt.format(p.quantidade_demanda || 0)}</td>
+                        <td className="text-right">{numFmt.format(p.cascading_estoque_atual || 0)}</td>
+                        <td className="text-right">
+                          {isOk ? (
+                            <span className="tag ok">✓ OK</span>
+                          ) : (
+                            <span className="tag high">Produzir: {numFmt.format(p.necessidade_producao_cascata)}</span>
+                          )}
+                        </td>
+                        <td className={`text-right fw-bold ${afterDanger ? 'text-danger' : 'text-ok'}`}>
+                          {numFmt.format(p.estoque_apos_saida || 0)}
+                        </td>
+                      </tr>
+                    )
+                  })}
+                </tbody>
+              </table>
+            </div>
+          )}
+        </div>
+      )}
+
+      {/* totais */}
+      <div className="kanban-card-footer">
+        <span><FiPackage size={12} /> {numFmt.format(item.quantidade_total || 0)} un total</span>
+        {item.valor_total ? <span>{curFmt.format(item.valor_total)}</span> : null}
+      </div>
+
+      {/* editor de data PCP */}
+      {canManageDates && (
+        <div className="kanban-card-editor">
+          {editing ? (
+            <>
+              <label className="kanban-card-field">
+                <span>Data de saída (PCP)</span>
+                <input
+                  type="date"
+                  value={editingValue ? editingValue.slice(0, 10) : ''}
+                  onChange={(e) => setEditingValue(e.target.value ? `${e.target.value}T00:00` : '')}
+                  disabled={saving}
+                />
+              </label>
+              <div className="kanban-card-editor-actions">
+                <button type="button" className="btn btn-primary kanban-card-inline-action"
+                  disabled={saving} onClick={() => handleSave()}>
+                  {saving ? 'Salvando…' : 'Confirmar'}
+                </button>
+                <button type="button" className="btn btn-secondary kanban-card-inline-action"
+                  disabled={saving} onClick={() => { setEditing(false); setEditingValue('') }}>
+                  Cancelar
+                </button>
+                {item.previsao_saida_at && (
+                  <button type="button" className="btn btn-secondary kanban-card-inline-action"
+                    disabled={saving} onClick={() => handleSave(true)}>
+                    <FiXCircle size={13} /> Remover
+                  </button>
+                )}
+              </div>
+            </>
+          ) : (
+            <button type="button" className="btn btn-secondary kanban-card-action"
+              onClick={() => { setEditing(true); setEditingValue(toDateTimeLocalValue(item.previsao_saida_at)) }}>
+              <FiCalendar size={13} />
+              {item.previsao_saida_at ? 'Ajustar data' : 'Definir data de saída'}
+            </button>
+          )}
+        </div>
+      )}
+
+      {/* link para expandir/detalhe ajustado para o layout interno */}
+      {!isExpanded && (
+        <button type="button" className="btn btn-secondary kanban-card-action kanban-card-detail-link"
+          onClick={() => setIsExpanded(true)}>
+          Ver detalhes <FiChevronDown size={14} style={{marginLeft: '4px'}}/>
+        </button>
+      )}
+    </article>
+      )}
+    </Draggable>
+  )
+}
+
+// ---------- lane ----------
+
+function KanbanLane({ lane, canManageDates, accessToken, onUnauthorizedSession, selectedCompany, onRequestReload, onNavigate, setNotice, hasFilter, style }) {
+  const isMissing = lane.id === 'missing'
+  const header = isMissing
+    ? { label: 'Sem Programação', tone: 'high' }
+    : formatDateHeader(lane.dateKey)
+
+  return (
+    <article id={`lane-${lane.id}`} className={`kanban-lane animate-staggered ${isMissing ? 'kanban-lane-danger' : `tone-${header.tone}`}`} style={style}>
+      <header className="kanban-lane-header">
+        <div>
+          {isMissing && <FiAlertTriangle className="lane-danger-icon" />}
+          <h3>{header.label}</h3>
+          {isMissing && <small>Requer atenção do PCP — definir data de saída</small>}
+        </div>
+        <span className={`kanban-lane-count ${isMissing && lane.items.length ? 'count-danger' : ''}`}>
+          {lane.items.length}
+        </span>
+      </header>
+
+      <Droppable droppableId={lane.id}>
+        {(provided, snapshot) => (
+          <div 
+            className={`kanban-lane-body ${snapshot.isDraggingOver ? 'is-dragging-over' : ''}`}
+            ref={provided.innerRef}
+            {...provided.droppableProps}
+          >
+            {lane.items.length ? lane.items.map((item, index) => (
+              <RomaneioCard
+                key={item.romaneio}
+                index={index}
+                item={item}
+                canManageDates={canManageDates}
+                accessToken={accessToken}
+                onUnauthorizedSession={onUnauthorizedSession}
+                selectedCompany={selectedCompany}
+                onRequestReload={onRequestReload}
+                onNavigate={onNavigate}
+                setNotice={setNotice}
+              />
+            )) : (
+          <StatePanel
+            kind="empty"
+            title={hasFilter ? 'Sem romaneios nesta data para este filtro' : 'Sem romaneios nesta data'}
+            message={isMissing ? 'Ótimo — nenhum romaneio aguardando programação.' : 'Nenhum romaneio programado para esta data.'}
+            compact
+          />
+            )}
+            {provided.placeholder}
+          </div>
+        )}
+      </Droppable>
+    </article>
+  )
+}
+
+// ---------- componente principal ----------
 
 function KanbanBoard({
   resourceState,
@@ -97,403 +414,128 @@ function KanbanBoard({
   onRequestReload,
   onNavigate,
 }) {
-  const [editingRomaneio, setEditingRomaneio] = useState('')
-  const [editingValue, setEditingValue] = useState('')
-  const [savingRomaneio, setSavingRomaneio] = useState('')
   const [notice, setNotice] = useState(null)
-  const protocolLabel = canManageDates ? 'Ajuste PCP sem drag fake' : 'Somente leitura'
+  const boardRef = useRef(null)
+
+  const handleScroll = (dir) => {
+    if (boardRef.current) {
+      boardRef.current.scrollBy({ left: dir * 350, behavior: 'smooth' })
+    }
+  }
+
+  async function handleDragEnd(result) {
+    if (!canManageDates) return
+    const { source, destination, draggableId } = result
+    if (!destination) return
+    if (source.droppableId === destination.droppableId && source.index === destination.index) return
+
+    const droppedRomaneioId = draggableId.replace('romaneio-', '')
+    const targetLaneId = destination.droppableId
+
+    let previsao_saida_at = null
+    if (targetLaneId !== 'missing') {
+      const dateKey = targetLaneId.replace('date-', '')
+      previsao_saida_at = new Date(`${dateKey}T00:00:00`).toISOString()
+    }
+
+    const payload = resourceState.data || { romaneios: [] }
+    const items = payload.romaneios || []
+    const item = items.find(r => r.romaneio === droppedRomaneioId)
+    if (!item) return
+
+    try {
+      const body = {
+        romaneio: item.romaneio,
+        empresa: item.empresa || selectedCompany,
+        company_code: item.empresa || selectedCompany,
+        previsao_saida_at,
+        reason: 'pcp_kanban_drag',
+      }
+      if (!body.company_code) throw new Error('Selecione uma empresa ativa antes de mover um romaneio.')
+
+      await requestJson('/api/pcp/romaneios-kanban/update-date', {
+        method: 'POST', body, accessToken, onUnauthorized: onUnauthorizedSession,
+      })
+
+      setNotice({ tone: 'success', message: `Data de saída atualizada — Romaneio ${item.romaneio}` })
+      onRequestReload?.()
+    } catch (err) {
+      setNotice({ tone: 'error', message: err.message || 'Erro ao mover romaneio.' })
+    }
+  }
 
   if (resourceState.status === 'loading') {
-    return (
-      <StatePanel
-        kind="loading"
-        title="Montando o kanban logístico"
-        message="Buscando romaneios autorizados e os produtos críticos usados para compor a fila."
-      />
-    )
+    return <StatePanel kind="loading" title="Montando o kanban logístico" message="Buscando romaneios e programações de saída." />
   }
-
   if (resourceState.status === 'company') {
-    return (
-      <StatePanel
-        kind="company"
-        title="Este kanban precisa de uma empresa ativa"
-        message="É necessário o recorte por empresa. Selecione uma empresa acima para continuar."
-      />
-    )
+    return <StatePanel kind="company" title="Selecione uma empresa" message="O kanban precisa de um recorte por empresa para exibir a fila correta." />
   }
-
   if (resourceState.status === 'permission') {
-    return (
-      <StatePanel
-        kind="permission"
-        title="Sem permissão para consultar o kanban"
-        message={resourceState.error?.message || 'Sua sessão não foi autorizada a ler esta fila logística.'}
-      />
-    )
+    return <StatePanel kind="permission" title="Sem permissão" message={resourceState.error?.message || 'Sessão não autorizada para esta fila logística.'} />
   }
-
   if (resourceState.status === 'error') {
-    return (
-      <StatePanel
-        kind="error"
-        title="Falha ao carregar o kanban logístico"
-        message={resourceState.error?.message || 'Não foi possível consultar produtos e romaneios desta empresa.'}
-      />
-    )
+    return <StatePanel kind="error" title="Falha ao carregar o kanban" message={resourceState.error?.message || 'Não foi possível consultar os romaneios.'} />
   }
 
   const payload = resourceState.data || { romaneios: [], products: [] }
   const romaneios = filterBySearch(payload.romaneios || [], searchQuery)
-  const products = filterBySearch(payload.products || [], searchQuery)
-  const lanes = groupRomaneios(romaneios)
-  const missingLane = lanes.find((lane) => lane.id === 'missing')
-  const todayLane = lanes.find((lane) => lane.id === 'today')
-  const forecastSummary = romaneios.reduce((summary, item) => {
-    const origin = getForecastOrigin(item.previsao_saida_status, item.criterio_previsao)
-    summary[origin.key] += 1
-    return summary
-  }, { manual: 0, automatic: 0, missing: 0 })
-  const summaryCards = [
-    {
-      label: 'Carteira visível',
-      value: `${romaneios.length} romaneios`,
-      detail: 'Leitura oficial autorizada por empresa e sessão.',
-      tone: 'info',
-      onAction: () => document.getElementById('kanban-section')?.scrollIntoView({ behavior: 'smooth' }),
-    },
-    {
-      label: 'Sem previsão',
-      value: `${missingLane?.items.length || 0}`,
-      detail: 'Clique para focar nos itens que precisam de data manual.',
-      tone: missingLane?.items.length ? 'high' : 'ok',
-      onAction: () => document.getElementById('lane-missing')?.scrollIntoView({ behavior: 'smooth' }),
-    },
-    {
-      label: 'Produtos Críticos',
-      value: `${products.length}`,
-      detail: 'Gargalos que explicam a pressão da fila atual.',
-      tone: products.length ? 'warning' : 'ok',
-      onAction: () => document.getElementById('critical-products-section')?.scrollIntoView({ behavior: 'smooth' }),
-    },
-  ]
   const hasFilter = Boolean(String(searchQuery || '').trim())
-  const continuityItems = [
-    {
-      label: 'Próximo detalhe',
-      value: forecastSummary.missing
-        ? `${forecastSummary.missing} exigem leitura oficial`
-        : 'Detalhe oficial disponível',
-      detail: forecastSummary.missing
-        ? 'Abra Romaneios para validar header, itens e eventos dos romaneios que seguem sem previsão confiável.'
-        : 'Romaneios aprofunda a mesma linguagem de previsão e exceção já exposta no quadro.',
-      tone: forecastSummary.missing ? 'high' : 'info',
-      actionLabel: 'Abrir romaneios',
-      actionHint: 'Visualizar detalhes',
-      onAction: () => onNavigate?.('romaneios'),
-    },
-    {
-      label: 'Contexto da empresa',
-      value: scopeLabel,
-      detail: 'Volte ao Cockpit para revisar cobertura, gargalos e pressão imediata com a mesma empresa ativa.',
-      tone: 'info',
-      actionLabel: 'Abrir cockpit',
-      actionHint: 'Leitura contextual por empresa',
-      onAction: () => onNavigate?.('cockpit'),
-    },
-    {
-      label: 'Risco transversal',
-      value: forecastSummary.missing ? 'Confirmar origem da exceção' : 'Governança disponível',
-      detail: 'Abra Governança quando a exceção do quadro puder vir de frescor degradado, bloqueio de fonte ou alerta central.',
-      tone: forecastSummary.missing ? 'warning' : 'info',
-      actionLabel: 'Abrir governança',
-      actionHint: 'Integridade transversal do shell',
-      onAction: () => onNavigate?.('fontes'),
-    },
-  ]
-
-  async function handleScheduleSave(item, clearSchedule = false) {
-    setSavingRomaneio(item.romaneio)
-    setNotice(null)
-
-    try {
-      const payload = {
-        romaneio: item.romaneio,
-        empresa: item.empresa || selectedCompany || undefined,
-        company_code: item.empresa || selectedCompany || undefined,
-        previsao_saida_at: clearSchedule ? null : (editingValue ? new Date(editingValue).toISOString() : null),
-        reason: clearSchedule ? 'pcp_manual_clear' : 'pcp_manual',
-      }
-
-      if (!payload.company_code) {
-        throw new Error('Selecione uma empresa ativa antes de atualizar a previsão deste romaneio.')
-      }
-
-      if (!clearSchedule && !payload.previsao_saida_at) {
-        throw new Error('Informe uma previsão de saída antes de salvar no kanban.')
-      }
-
-      await requestJson('/api/pcp/romaneios-kanban/update-date', {
-        method: 'POST',
-        body: payload,
-        accessToken,
-        onUnauthorized: onUnauthorizedSession,
-      })
-
-      setNotice({
-        tone: clearSchedule ? 'warning' : 'success',
-        message: clearSchedule
-          ? `Previsão removida do romaneio ${item.romaneio}.`
-          : `Previsão atualizada para o romaneio ${item.romaneio}.`,
-      })
-      setEditingRomaneio('')
-      setEditingValue('')
-      onRequestReload?.()
-    } catch (error) {
-      setNotice({
-        tone: 'error',
-        message: error.message || 'Não foi possível atualizar a previsão do romaneio.',
-      })
-    } finally {
-      setSavingRomaneio('')
-    }
-  }
+  const lanes = buildLanes(romaneios)
+  const missingCount = lanes.find((l) => l.id === 'missing')?.items.length || 0
 
   return (
     <div className="kanban-page animate-in">
 
-
-
-
-      {notice ? (
-        <div className={`shell-banner ${notice.tone || 'info'}`}>
-          <strong>{notice.tone === 'success' ? 'Previsão atualizada.' : notice.tone === 'warning' ? 'Previsão removida.' : 'Ação não concluída.'}</strong>
-          <span>{notice.message}</span>
+      {/* banner de alerta global para sem-data */}
+      {missingCount > 0 && (
+        <div className="shell-banner high">
+          <FiAlertTriangle />
+          <strong>{missingCount} {missingCount === 1 ? 'romaneio precisa' : 'romaneios precisam'} de programação</strong>
+          <span>Defina a data de saída para que a logística possa planejar o carregamento.</span>
         </div>
-      ) : null}
+      )}
+
+      {notice && (
+        <div className={`shell-banner ${notice.tone}`}>
+          <strong>{notice.tone === 'success' ? '✓' : notice.tone === 'warning' ? '⚠' : '✗'}</strong>
+          <span>{notice.message}</span>
+          <button type="button" className="banner-close" onClick={() => setNotice(null)}>×</button>
+        </div>
+      )}
 
       <section id="kanban-section" className="kanban-board-container">
         <div className="section-title-strip">
-          <h3>Fila de Romaneios (Kanban)</h3>
-          <span>Status oficial da carteira autorizada</span>
+          <h3>Fila de Romaneios</h3>
+          <span>{scopeLabel} · {romaneios.length} romaneios · {lanes.length - 1} datas programadas</span>
         </div>
-        <section className="kanban-board">
-          {lanes.map((lane) => (
-            <article key={lane.id} id={`lane-${lane.id}`} className={`kanban-lane tone-${lane.tone}`}>
-            <header className="kanban-lane-header">
-              <div>
-                <small>Carteira</small>
-                <h3>{lane.title}</h3>
-              </div>
-              <span className="kanban-lane-count">{lane.items.length}</span>
-            </header>
 
-            <div className="kanban-lane-body">
-              {lane.items.length ? lane.items.map((item) => {
-                const forecastOrigin = getForecastOrigin(item.previsao_saida_status, item.criterio_previsao)
-                return (
-                  <article key={item.romaneio} className="kanban-card">
-                    <div className="kanban-card-head">
-                      <div>
-                        <small>{item.empresa || scopeLabel}</small>
-                        <strong>{item.romaneio}</strong>
-                      </div>
-                      <span className={`tag ${String(item.previsao_saida_status || '').includes('sem') ? 'high' : 'ok'}`}>
-                        {item.previsao_saida_status || 'sem status'}
-                      </span>
-                    </div>
-
-                    <div className="kanban-card-meta">
-                      <span><FiPackage /> {numberFormat.format(item.quantidade_total || 0)} un</span>
-                      <span><FiCalendar /> {formatDate(item.previsao_saida_at)}</span>
-                    </div>
-
-                    <div className="kanban-card-origin">
-                      <span className={`tag ${forecastOrigin.tone}`}>{forecastOrigin.label}</span>
-                      <span className="kanban-origin-copy">{forecastOrigin.detail}</span>
-                    </div>
-
-                    <div className="kanban-card-footer">
-                      <span>{item.criterio_previsao || 'Sem critério informado'}</span>
-                      {(item.items || []).length ? <span>{item.items.length} SKUs no romaneio</span> : null}
-                    </div>
-
-                    {canManageDates ? (
-                      <div className="kanban-card-editor">
-                        {editingRomaneio === item.romaneio ? (
-                          <>
-                            <label className="kanban-card-field">
-                              <span>Previsão PCP</span>
-                              <input
-                                type="datetime-local"
-                                value={editingValue}
-                                onChange={(event) => setEditingValue(event.target.value)}
-                                disabled={savingRomaneio === item.romaneio}
-                              />
-                            </label>
-                            <div className="kanban-card-editor-actions">
-                              <button
-                                type="button"
-                                className="btn btn-primary kanban-card-inline-action"
-                                disabled={savingRomaneio === item.romaneio}
-                                onClick={() => handleScheduleSave(item)}
-                              >
-                                {savingRomaneio === item.romaneio ? 'Salvando...' : 'Salvar data'}
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-secondary kanban-card-inline-action"
-                                disabled={savingRomaneio === item.romaneio}
-                                onClick={() => {
-                                  setEditingRomaneio('')
-                                  setEditingValue('')
-                                }}
-                              >
-                                Cancelar
-                              </button>
-                              <button
-                                type="button"
-                                className="btn btn-secondary kanban-card-inline-action"
-                                disabled={savingRomaneio === item.romaneio}
-                                onClick={() => handleScheduleSave(item, true)}
-                              >
-                                <FiXCircle />
-                                Limpar
-                              </button>
-                            </div>
-                          </>
-                        ) : (
-                          <button
-                            type="button"
-                            className="btn btn-secondary kanban-card-action"
-                            onClick={() => {
-                              setNotice(null)
-                              setEditingRomaneio(item.romaneio)
-                              setEditingValue(toDateTimeLocalValue(item.previsao_saida_at))
-                            }}
-                          >
-                            {item.previsao_saida_at ? 'Ajustar previsão' : 'Definir previsão'}
-                          </button>
-                        )}
-                      </div>
-                    ) : null}
-
-                    <button
-                      type="button"
-                      className="btn btn-secondary kanban-card-action"
-                      onClick={() => onNavigate?.('romaneios', {
-                        romaneio: item.romaneio,
-                        originView: 'romaneios-kanban',
-                      })}
-                    >
-                      Abrir detalhe oficial
-                    </button>
-                  </article>
-                )
-              }) : (
-                <StatePanel
-                  kind="empty"
-                  title={hasFilter ? 'Sem romaneios nesta coluna para este filtro' : 'Sem romaneios nesta coluna'}
-                  message={hasFilter
-                    ? 'O filtro atual não encontrou itens autorizados para este estágio do fluxo.'
-                    : 'Nenhum item autorizado entrou neste estágio da fila oficial.'}
-                  compact
+        <DragDropContext onDragEnd={handleDragEnd}>
+          <div className="kanban-scroll-wrapper">
+            <button type="button" className="kanban-scroll-btn left" onClick={() => handleScroll(-1)} aria-label="Rolar para esquerda">
+              <FiChevronLeft size={24} />
+            </button>
+            <section className="kanban-board" ref={boardRef}>
+              {lanes.map((lane, idx) => (
+                <KanbanLane
+                  key={lane.id}
+                  lane={lane}
+                  canManageDates={canManageDates}
+                  accessToken={accessToken}
+                  onUnauthorizedSession={onUnauthorizedSession}
+                  selectedCompany={selectedCompany}
+                  onRequestReload={onRequestReload}
+                  onNavigate={onNavigate}
+                  setNotice={setNotice}
+                  hasFilter={hasFilter}
+                  style={{ animationDelay: `${idx * 0.08}s` }}
                 />
-              )}
-            </div>
-          </article>
-        ))}
-        </section>
-      </section>
-
-      <section id="critical-products-section" className="kanban-insights-grid">
-        <div className="glass-panel">
-          <div className="panel-header">
-            <div>
-              <h3>Produtos Críticos</h3>
-              <span>Itens com saldo baixo que explicam a pressão do quadro logístico atual.</span>
-            </div>
-            <span className="tag warning">{products.length} itens</span>
+              ))}
+            </section>
+            <button type="button" className="kanban-scroll-btn right" onClick={() => handleScroll(1)} aria-label="Rolar para direita">
+              <FiChevronRight size={24} />
+            </button>
           </div>
-
-          <div className="critical-list">
-            {products.length ? products.map((item) => (
-              <article key={item.sku} className="critical-card">
-                <div className="critical-card-head">
-                  <div>
-                    <small>{item.sku}</small>
-                    <strong>{item.produto}</strong>
-                  </div>
-                  <span className={`tag ${String(item.criticidade || '').toLowerCase().includes('alta') ? 'high' : 'warning'}`}>
-                    {item.criticidade || 'Monitorar'}
-                  </span>
-                </div>
-                <div className="critical-stats">
-                  <span>Saldo {numberFormat.format(item.saldo || 0)}</span>
-                  <span>Necessidade {numberFormat.format(item.necessidade_romaneios || 0)}</span>
-                  <span>Ação {item.acao || 'Monitorar'}</span>
-                </div>
-              </article>
-            )) : (
-              <StatePanel
-                kind="empty"
-                title={hasFilter ? 'Nenhum produto crítico neste filtro' : 'Nenhum produto crítico visível'}
-                message={hasFilter
-                  ? 'O filtro atual não encontrou produtos sob pressão.'
-                  : 'A leitura autorizada não retornou itens de pressão para este recorte.'}
-                compact
-              />
-            )}
-          </div>
-        </div>
-
-        <div className="glass-panel">
-          <div className="panel-header">
-            <div>
-              <h3>Painel de exceções</h3>
-              <span>Fila oficial, origem da previsão e limites honestos do quadro logístico.</span>
-            </div>
-            <span className="tag info">Fonte oficial</span>
-          </div>
-
-          <div className="kanban-protocol-list">
-            <article className="signal-card">
-              <div>
-                <small>Fonte de verdade</small>
-                <strong>Fila oficial sem arraste fake</strong>
-              </div>
-              <span><FiShield /> O quadro continua observando a carteira oficial por empresa, com ajuste pontual de previsão sem drag fictício nem reordenação local.</span>
-            </article>
-
-            <article className="signal-card">
-              <div>
-                <small>Origem da previsão</small>
-                <strong>{forecastSummary.manual} manual / {forecastSummary.automatic} automática</strong>
-              </div>
-              <span><FiLayers /> Cada card agora mostra se a previsão veio de cálculo oficial, ajuste manual ou se continua sem previsão.</span>
-            </article>
-
-            <article className="signal-card">
-              <div>
-                <small>Exceção imediata</small>
-                <strong>{forecastSummary.missing} sem previsão</strong>
-              </div>
-              <span><FiAlertTriangle /> Os romaneios sem previsão seguem como exceção explícita da fila, sem virar silêncio visual nem ação fake.</span>
-            </article>
-          </div>
-        </div>
-      </section>
-
-      <section id="reports-section" className="glass-panel">
-        <div className="panel-header">
-          <div>
-            <h3>Romaneios e Integridade</h3>
-            <span>Trilhos diretos para sair da fila e aprofundar contexto, detalhe e integridade.</span>
-          </div>
-          <span className="tag info">Drilldown</span>
-        </div>
-
-          <CommandDeck items={continuityItems} />
+        </DragDropContext>
       </section>
     </div>
   )

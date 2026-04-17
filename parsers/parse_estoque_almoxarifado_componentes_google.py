@@ -1,43 +1,94 @@
-#!/usr/bin/env python3
-"""Parse the published Google Sheet for almoxarifado components stock."""
-
-from __future__ import annotations
+import datetime as dt
+import os
+import subprocess
+import tempfile
+from collections import Counter
+from pathlib import Path
+from typing import Any
 
 try:
-    from published_ledger_parser import PublishedLedgerConfig, build_records_from_published_sheet
-    from xlsx_ledger_parser import build_parser, emit_records
+    from xlsx_ledger_parser import (
+        WorkbookReader,
+        build_name_index,
+        build_parser,
+        clean_legacy_code,
+        coalesce_display_name,
+        emit_records,
+        excel_serial_to_iso,
+        normalize_text,
+        parse_decimal,
+        resolve_sku,
+        ParserConfig,
+        build_records,
+    )
 except ModuleNotFoundError:  # pragma: no cover - fallback for package import
-    from .published_ledger_parser import PublishedLedgerConfig, build_records_from_published_sheet
-    from .xlsx_ledger_parser import build_parser, emit_records
-
+    from .xlsx_ledger_parser import (
+        WorkbookReader,
+        build_name_index,
+        build_parser,
+        clean_legacy_code,
+        coalesce_display_name,
+        emit_records,
+        excel_serial_to_iso,
+        normalize_text,
+        parse_decimal,
+        resolve_sku,
+        ParserConfig,
+        build_records,
+    )
 
 DEFAULT_PUBLISHED_URL = (
-    "https://docs.google.com/spreadsheets/d/e/"
-    "2PACX-1vTTPIHy6_gEBngeXzFQQGvPdCxNPeBP_le2etDdbTPTbF8XcGRPiuzVT5QSa1YRQsLQFb_7GiFNKCFa/"
-    "pubhtml?widget=true&headers=false"
+    "https://docs.google.com/spreadsheets/d/e/2PACX-1vTTPIHy6_gEBngeXzFQQGvPdCxNPeBP_le2etDdbTPTbF8XcGRPiuzVT5QSa1YRQsLQFb_7GiFNKCFa/pub?output=xlsx"
 )
 
-CONFIG = PublishedLedgerConfig(
-    movement_gid="130817617",
-    stock_gid="891527220",
-    bank_gid="0",
+CONFIG = ParserConfig(
+    movement_sheet="MOVIMENTACOES DE PARAFUSOS",
+    stock_sheet="ESTOQUE PARAFUSOS",
+    bank_sheet="BANCO DE DADOS PARAFUSOS",
     product_type="componente",
     unit_code="UN",
     location_code="ALMOXARIFADO_COMPONENTES",
     sku_prefix="ALMOX-COMP-",
     parser_name="parse_estoque_almoxarifado_componentes_google",
-    movement_sheet="MOVIMENTACOES DE PARAFUSOS",
-    stock_sheet="ESTOQUE PARAFUSOS",
-    bank_sheet="BANCO DE DADOS PARAFUSOS",
 )
 
 
+def download_workbook(url: str) -> Path:
+    temp_fd, temp_path = tempfile.mkstemp(suffix=".xlsx")
+    os.close(temp_fd)
+    path = Path(temp_path)
+    try:
+        subprocess.run(["curl", "-sL", url, "-o", str(path)], check=True, timeout=60)
+    except Exception as e:
+        if path.exists():
+            path.unlink()
+        raise RuntimeError(f"Falha ao baixar planilha Almox Componentes: {e}")
+    return path
+
+
 def main() -> int:
-    parser = build_parser("Parser da planilha publicada de componentes do almoxarifado")
+    parser = build_parser("Parser nativo (.xlsx) da planilha de componentes do almoxarifado")
     parser.set_defaults(workbook=DEFAULT_PUBLISHED_URL)
     args = parser.parse_args()
-    records, summary = build_records_from_published_sheet(args.workbook, CONFIG)
-    return emit_records(records, summary, pretty=args.pretty, emit_summary=args.summary)
+    
+    workbook_url = args.workbook
+    temp_file = None
+    
+    try:
+        if workbook_url.startswith("http"):
+            temp_file = download_workbook(workbook_url)
+            path_to_parse = temp_file
+        else:
+            path_to_parse = Path(workbook_url)
+
+        records, summary = build_records(path_to_parse, CONFIG)
+        summary["workbook_url"] = workbook_url
+        
+        return emit_records(records, summary, pretty=args.pretty, emit_summary=args.summary)
+        
+    finally:
+        if temp_file and temp_file.exists():
+            temp_file.unlink()
 
 
 if __name__ == "__main__":

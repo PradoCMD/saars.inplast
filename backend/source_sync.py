@@ -53,24 +53,33 @@ def is_google_published_url(value: str) -> bool:
 
 
 def normalize_google_sheets_url(url: str) -> str:
-    """Converte links de visualizacao (pubhtml) em links de download (xlsx) se necessario."""
+    """Converte links de visualizacao (pubhtml/pubhtml?*) em links de download xlsx.
+
+    Strip obrigatorio do query string antes de converter — URLs no formato
+    pubhtml?widget=true&headers=false ficam invalidas se o query string for
+    mantido durante a conversao.
+    """
     if not url or "docs.google.com/spreadsheets" not in url:
         return url
-    
-    # Se ja for um link de exportacao, mantem
+
+    # Se ja for link de exportacao direta, mantém sem alteracao
     if "output=xlsx" in url or "output=csv" in url:
         return url
-        
-    # Converte /pubhtml para /pub?output=xlsx
-    if "/pubhtml" in url:
-        return url.replace("/pubhtml", "/pub?output=xlsx")
-    
-    # Se for um link de documento comum (d/e/.../pub), garante que tenha o output=xlsx
-    if "/pub" in url and "output=" not in url:
-        separator = "&" if "?" in url else "?"
-        return f"{url}{separator}output=xlsx"
-        
-    return url
+
+    # Descarta TODOS os query params — extrai apenas o path base
+    # Ex: "https://.../pubhtml?widget=true&headers=false" → "https://.../pubhtml"
+    base = url.split("?")[0]
+
+    if "/pubhtml" in base:
+        # Substitui /pubhtml → /pub e adiciona output=xlsx limpo
+        base = base.replace("/pubhtml", "/pub")
+        return f"{base}?output=xlsx"
+
+    if base.endswith("/pub") or "/pub/" in base:
+        return f"{base}?output=xlsx"
+
+    # fallback: força output=xlsx no path base sem query contaminada
+    return f"{base}?output=xlsx"
 
 
 def repo_root_candidates(settings: Settings) -> list[Path]:
@@ -159,9 +168,12 @@ def build_source_request(source_row: dict[str, Any], settings: Settings) -> Inve
     parser_name = str(source_row.get("parser_name") or "").strip()
     parser_name = PARSER_NAME_ALIASES.get(parser_name, parser_name) or DEFAULT_PARSER_BY_SOURCE.get(source_code, "")
     source_area = str(source_row.get("source_area") or "").strip()
-    config_json = source_row.get("config_json")
-    if not isinstance(config_json, dict):
-        config_json = {}
+    raw_config = source_row.get("config_json")
+    config_json = dict(raw_config) if isinstance(raw_config, dict) else {}
+    for hint_key in ("published_url_hint", "workbook_path_hint"):
+        hint_value = str(source_row.get(hint_key) or "").strip()
+        if hint_value and not str(config_json.get(hint_key) or "").strip():
+            config_json[hint_key] = hint_value
 
     if source_code not in STOCK_SOURCE_CODES:
         raise SourceSyncError(f"Fonte `{source_code}` nao faz parte das sincronizacoes diretas de estoque.")

@@ -89,10 +89,42 @@ ROLE_PERMISSIONS = {
     },
 }
 
+MODULE_PERMISSION_GRANTS = {
+    "cockpit": {
+        "view": {"overview.read", "painel.read", "alerts.read"},
+        "edit": {"overview.read", "painel.read", "alerts.read"},
+    },
+    "kanban": {
+        "view": {"romaneios.read"},
+        "edit": {"romaneios.read", "romaneios.write", "romaneios.delete", "romaneios.ingest"},
+    },
+    "tracking": {
+        "view": {"production.read", "apontamento.read"},
+        "edit": {"production.read", "apontamento.read", "apontamento.write", "apontamento.dispatch"},
+    },
+    "programming": {
+        "view": {"programming.read", "structures.read"},
+        "edit": {"programming.read", "programming.write", "structures.read", "structure_override.write"},
+    },
+    "sources": {
+        "view": {"sources.read", "stock.read"},
+        "edit": {"sources.read", "sources.sync", "stock.read", "stock.write"},
+    },
+    "system": {
+        "view": {"users.read", "integrations.read"},
+        "edit": {"users.read", "users.write", "integrations.read", "integrations.write"},
+    },
+    "simulator": {
+        "view": {"production_rules.read"},
+        "edit": {"production_rules.read", "mrp.run"},
+    },
+}
+
 ADMIN_PERMISSIONS = {"users.read", "users.write", "integrations.read", "integrations.write"}
 CRITICAL_AUDIT_ACTIONS = {
     "/api/pcp/runs/mrp": "mrp.run",
     "/api/pcp/users/save": "users.save",
+    "/api/pcp/users/delete": "users.delete",
     "/api/pcp/integrations/save": "integrations.save",
     "/api/pcp/stock-movements/save": "stock_movement.save",
     "/api/pcp/apontamento/save": "apontamento.save",
@@ -248,6 +280,15 @@ def decode_access_token(token: str) -> dict:
 def _permission_allowed(user: dict, permission: str) -> bool:
     role = str((user or {}).get("role") or "").strip().lower()
     permissions = set(ROLE_PERMISSIONS.get(role, set()))
+    module_permissions = (user or {}).get("permissions")
+    if isinstance(module_permissions, dict):
+        for module_name, access_level in module_permissions.items():
+            module_key = str(module_name or "").strip().lower()
+            level_key = str(access_level or "").strip().lower()
+            if level_key not in {"view", "edit"}:
+                continue
+            grants = MODULE_PERMISSION_GRANTS.get(module_key, {})
+            permissions.update(grants.get(level_key, set()))
     if role == "root":
         permissions.update(ADMIN_PERMISSIONS)
     if COMPANY_SCOPE_ALL in permissions or "*" in permissions:
@@ -1097,10 +1138,6 @@ class PcpApiHandler(BaseHTTPRequestHandler):
         except ApiRequestError as exc:
             self.record_audit_event("auth.access_denied", status="denied", detail=exc.detail, permission=permission)
             raise
-        if permission in ADMIN_PERMISSIONS and str(user.get("role") or "").strip().lower() != "root":
-            detail = "Apenas o perfil root pode acessar esta rota administrativa."
-            self.record_audit_event("auth.access_denied", status="denied", user=user, detail=detail, permission=permission)
-            raise ApiRequestError(HTTPStatus.FORBIDDEN, "Forbidden", detail, code="forbidden")
         if not _permission_allowed(user, permission):
             detail = "O usuário autenticado não possui permissão para executar esta ação."
             self.record_audit_event("auth.access_denied", status="denied", user=user, detail=detail, permission=permission)
@@ -1236,6 +1273,13 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 self.record_critical_action(parsed.path, status="success", user=audit_user)
                 return
 
+            if parsed.path == "/api/pcp/users/delete":
+                payload = _require_object_payload(self.read_json_body(), route=parsed.path)
+                audit_user = self.require_authorized_user(permission="users.write")
+                self.send_json(HTTPStatus.OK, _sanitize_user_response(PROVIDER.delete_user(payload)))
+                self.record_critical_action(parsed.path, status="success", user=audit_user)
+                return
+
             if parsed.path == "/api/pcp/integrations/save":
                 payload = _require_object_payload(self.read_json_body(), route=parsed.path)
                 audit_user = self.require_authorized_user(permission="integrations.write")
@@ -1246,7 +1290,7 @@ class PcpApiHandler(BaseHTTPRequestHandler):
             if parsed.path == "/api/pcp/integrations/delete":
                 payload = _require_object_payload(self.read_json_body(), route=parsed.path)
                 audit_user = self.require_authorized_user(permission="integrations.write")
-                self.send_json(HTTPStatus.OK, PROVIDER.delete_integration(payload))
+                self.send_json(HTTPStatus.OK, _sanitize_integration_response(PROVIDER.delete_integration(payload)))
                 self.record_critical_action(parsed.path, status="success", user=audit_user)
                 return
 
@@ -1686,7 +1730,7 @@ class PcpApiHandler(BaseHTTPRequestHandler):
                 self.require_authorized_user(permission="integrations.read")
                 data = PROVIDER.integrations()
                 print(f"[API] Enviando {len(data.get('items', []))} integrações para o frontend.")
-                self.send_json(HTTPStatus.OK, data)
+                self.send_json(HTTPStatus.OK, _sanitize_integration_response(data))
                 return
 
             if path == "/api/pcp/stock-movements":

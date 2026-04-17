@@ -1,0 +1,23 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+<metadados xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="../.gradle/metadados.xsd">
+
+    <!--
+        Para mais informações sobre a criação e utilização do Menu,
+        consulte a documentação oficial da Sankhya em: https://developer.sankhya.com.br/docs/06_menu
+    -->
+
+    <menu id="template" description="Addon Template" icon="/$ctx/assets/icon.png">
+
+        <folder id="relatorios" description="Relatórios">
+            <dashboard id="dashboard" file="dashboardAtendimento.xml" description="Dashboard Atendimentos"/>
+        </folder>
+
+        <ui id="TMP_ExemploHTML5" url="/$ctx/TMP_ExemploHTML5.xhtml5" description="Exemplo com HTML5"/>
+
+        <dynamicTreeView instance="TMP_HIERARQUICA" id="TMP_HIERARQUICA" description="Tabela Hierárquica"/>
+
+        <dynamicForm instance="TMP_Atendimento" id="TMP_Atendimento"  description="Atendimentos com DynamicForm"/>
+
+    </menu>
+</metadados>

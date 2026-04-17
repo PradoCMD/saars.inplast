@@ -1,26 +1,197 @@
 {
   "items": [
     {
-      "romaneio": "RM-240331-001",
+      "romaneio": "598",
       "empresa": "INPLAST",
       "status_evento": "processed",
-      "data_evento": "2026-03-30T08:12:00-03:00",
-      "itens": 12,
-      "quantidade_total": 5420,
+      "data_evento": "2026-04-14T08:12:00-03:00",
+      "pedidos_mercur": [
+        "42620",
+        "42621"
+      ],
+      "parceiro": "THIBRUMA SERVICOS ADMINISTRATIVO",
+      "cidade": "CANAÃ DOS CARAJÁS",
+      "itens": 1,
+      "quantidade_total": 310,
+      "valor_total": 7723.31,
       "previsao_saida_at": null,
       "previsao_saida_status": "sem_previsao",
-      "criterio_previsao": "pcp_manual"
+      "criterio_previsao": "pcp_manual",
+      "items": [
+        {
+          "sku": "4300001",
+          "produto": "MANGUEIRA LISA 1 25MM",
+          "quantidade_demanda": 150,
+          "estoque_atual": 80,
+          "necessidade_producao": 70,
+          "estoque_apos_saida": -70
+        }
+      ]
     },
     {
-      "romaneio": "RM-240331-002",
+      "romaneio": "601",
       "empresa": "INPLAST",
       "status_evento": "processed",
-      "data_evento": "2026-03-30T08:39:00-03:00",
-      "itens": 7,
-      "quantidade_total": 2180,
-      "previsao_saida_at": "2026-03-30T11:30:00-03:00",
-      "previsao_saida_status": "estoque",
-      "criterio_previsao": "estoque"
+      "data_evento": "2026-04-14T09:05:00-03:00",
+      "pedidos_mercur": [
+        "42635"
+      ],
+      "parceiro": "DISTRIBUIDORA NORTE SUL LTDA",
+      "cidade": "BELÉM",
+      "itens": 1,
+      "quantidade_total": 480,
+      "valor_total": 12540.0,
+      "previsao_saida_at": "2026-04-18T03:00:00.000Z",
+      "previsao_saida_status": "pcp_manual",
+      "criterio_previsao": "pcp_manual",
+      "items": [
+        {
+          "sku": "4300003",
+          "produto": "TUBO ESGOTO 100MM",
+          "quantidade_demanda": 480,
+          "estoque_atual": 100,
+          "necessidade_producao": 380,
+          "estoque_apos_saida": -380
+        }
+      ]
+    },
+    {
+      "romaneio": "604",
+      "empresa": "INPLAST",
+      "status_evento": "processed",
+      "data_evento": "2026-04-15T07:30:00-03:00",
+      "pedidos_mercur": [
+        "42641",
+        "42642",
+        "42643"
+      ],
+      "parceiro": "COMERCIAL PLASTICOS DO SUL EIRELI",
+      "cidade": "PORTO ALEGRE",
+      "itens": 1,
+      "quantidade_total": 1200,
+      "valor_total": 34200.0,
+      "previsao_saida_at": "2026-04-17T00:00:00-03:00",
+      "previsao_saida_status": "pcp_manual",
+      "criterio_previsao": "pcp_manual",
+      "items": [
+        {
+          "sku": "4300005",
+          "produto": "CAIXA DAGUA 500L",
+          "quantidade_demanda": 500,
+          "estoque_atual": 600,
+          "necessidade_producao": 0,
+          "estoque_apos_saida": 100
+        }
+      ]
+    },
+    {
+      "romaneio": "607",
+      "empresa": "INPLAST",
+      "status_evento": "processed",
+      "data_evento": "2026-04-15T11:20:00-03:00",
+      "pedidos_mercur": [
+        "42650"
+      ],
+      "parceiro": "LOJA DO UTENSILIO DOMESTICO ME",
+      "cidade": "MANAUS",
+      "itens": 1,
+      "quantidade_total": 720,
+      "valor_total": 18900.0,
+      "previsao_saida_at": "2026-04-18T00:00:00-03:00",
+      "previsao_saida_status": "pcp_manual",
+      "criterio_previsao": "pcp_manual",
+      "items": [
+        {
+          "sku": "ACB-41002",
+          "produto": "Porta escova slim 2 divisorias",
+          "quantidade_demanda": 500,
+          "estoque_atual": 100,
+          "necessidade_producao": 400,
+          "estoque_apos_saida": -400
+        }
+      ]
+    },
+    {
+      "romaneio": "611",
+      "empresa": "INPLAST",
+      "status_evento": "processed",
+      "data_evento": "2026-04-16T06:45:00-03:00",
+      "pedidos_mercur": [
+        "42661",
+        "42662"
+      ],
+      "parceiro": "MEGA ATACADISTA DO NORDESTE",
+      "cidade": "FORTALEZA",
+      "itens": 1,
+      "quantidade_total": 2400,
+      "valor_total": 58760.0,
+      "previsao_saida_at": "2026-04-18T03:00:00.000Z",
+      "previsao_saida_status": "pcp_manual",
+      "criterio_previsao": "pcp_manual",
+      "items": [
+        {
+          "sku": "ACB-41002",
+          "produto": "Porta escova slim 2 divisorias",
+          "quantidade_demanda": 500,
+          "estoque_atual": 100,
+          "necessidade_producao": 400,
+          "estoque_apos_saida": -400
+        }
+      ]
+    },
+    {
+      "romaneio": "614",
+      "empresa": "INPLAST",
+      "status_evento": "processed",
+      "data_evento": "2026-04-16T08:10:00-03:00",
+      "pedidos_mercur": [
+        "42670"
+      ],
+      "parceiro": "CENTER CASA DECORACOES LTDA",
+      "cidade": "CUIABÁ",
+      "itens": 1,
+      "quantidade_total": 360,
+      "valor_total": 9180.0,
+      "previsao_saida_at": "2026-04-22T00:00:00-03:00",
+      "previsao_saida_status": "pcp_manual",
+      "criterio_previsao": "pcp_manual",
+      "items": [
+        {
+          "sku": "ACB-41002",
+          "produto": "Porta escova slim 2 divisorias",
+          "quantidade_demanda": 500,
+          "estoque_atual": 100,
+          "necessidade_producao": 400,
+          "estoque_apos_saida": -400
+        }
+      ]
+    },
+    {
+      "romaneio": "617",
+      "empresa": "RECICLA",
+      "status_evento": "processed",
+      "data_evento": "2026-04-16T09:00:00-03:00",
+      "pedidos_mercur": [
+        "42681"
+      ],
+      "parceiro": "ECO SOLUÇÕES LTDA",
+      "cidade": "GOIÂNIA",
+      "itens": 1,
+      "quantidade_total": 900,
+      "valor_total": 21600.0,
+      "previsao_saida_at": "2026-04-22T00:00:00-03:00",
+      "previsao_saida_status": "pcp_manual",
+      "criterio_previsao": "pcp_manual",
+      "items": [
+        {
+          "sku": "ACB-41002",
+          "produto": "Porta escova slim 2 divisorias",
+          "quantidade_demanda": 500,
+          "estoque_atual": 100,
+          "necessidade_producao": 400,
+          "estoque_apos_saida": -400
+        }
+      ]
     }
   ]
 }

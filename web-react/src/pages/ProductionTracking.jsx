@@ -371,11 +371,7 @@ function ProductionTracking({
     <div className="apontamento-page animate-in">
       <section className="apontamento-hero">
         <span className="ops-kicker">Apontamento real</span>
-        <h2>Execução de chão, fila de sync e governança de evento no mesmo módulo.</h2>
-        <p>
-          O módulo agora deixa de ser storyboard. Ele lê os logs reais do sistema, registra novos eventos,
-          permite despachar a fila pendente e ainda sinaliza quando a gestão precisa intervir manualmente na integração.
-        </p>
+        <h2>Execução e sincronização</h2>
         <div className="ops-meta-row">
           <span><FiActivity /> {formatInteger(summary.machines_running)} máquinas em execução</span>
           <span><FiAlertTriangle /> {formatInteger(summary.pending_sync)} eventos pendentes</span>
@@ -433,7 +429,6 @@ function ProductionTracking({
           <DonutGauge
             value={syncCoverage}
             label="eventos sincronizados"
-            detail="Quanto maior o percentual, menor o retrabalho manual entre operação e gestão."
             tone={syncCoverage >= 70 ? 'ok' : syncCoverage >= 45 ? 'warning' : 'high'}
           />
         </article>
@@ -447,7 +442,6 @@ function ProductionTracking({
             <span className="ops-tone-pill tone-info">produção</span>
           </div>
           <Sparkline values={executionSeries} tone="info" />
-          <p>O traço sobe com peças boas e refugo, ajudando a detectar variações abruptas no ritmo registrado.</p>
         </article>
 
         <article className="ops-card">
@@ -488,10 +482,6 @@ function ProductionTracking({
               {canWrite ? 'escrita liberada' : 'somente leitura'}
             </span>
           </div>
-          <p>
-            Operador e gestão usam o mesmo composer. A diferença é que a gestão ainda consegue intervir no estado de integração,
-            enquanto o operador foca em iniciar, apontar, parar e finalizar com clareza.
-          </p>
 
           <form onSubmit={handleSave} className="ops-form-grid" style={{ marginTop: 18 }}>
             <label>
@@ -615,10 +605,6 @@ function ProductionTracking({
               {filteredExportItems.length ? 'pendente' : 'vazio'}
             </span>
           </div>
-          <p>
-            Esta fila mostra exatamente o que ainda precisa sair do front para a integração. Nada fica escondido como “sucesso”
-            se o payload ainda está pendente ou falhou.
-          </p>
 
           <div className="ops-list" style={{ marginTop: 16 }}>
             {filteredExportItems.length ? filteredExportItems.slice(0, 6).map((item) => (

@@ -1,0 +1,30 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+<metadados xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="../.gradle/metadados.xsd">
+
+    <!--
+        Para mais informações sobre a criação e utilização da Tabela Hierárquica,
+        consulte a documentação oficial da Sankhya em: https://developer.sankhya.com.br/docs/04_tabela_hierarquica
+    -->
+
+    <treeTable name="TPL_HIERARQUICA" defaultMask="#.#.#" maskName="DESCRICAO">
+        <description>Tabela responsável por armazenar modais</description>
+        <primaryKey>
+            <field name="CODIGO"/>
+        </primaryKey>
+        <instances>
+            <instance name="TMP_HIERARQUICA">
+                <description>TABELA HIERARQUICA</description>
+            </instance>
+        </instances>
+        <fields>
+            <field name="CODIGO" dataType="INTEIRO" allowSearch="S" visibleOnSearch="S">
+                <description>CÓDIGO</description>
+            </field>
+            <field name="DESCRICAO" dataType="TEXTO" allowSearch="S" visibleOnSearch="S" isPresentation="S">
+                <description>DESCRIÇÃO</description>
+            </field>
+        </fields>
+    </treeTable>
+</metadados>
+

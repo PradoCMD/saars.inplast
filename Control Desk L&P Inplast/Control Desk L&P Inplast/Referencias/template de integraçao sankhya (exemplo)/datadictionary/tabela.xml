@@ -1,0 +1,42 @@
+<?xml version="1.0" encoding="iso-8859-1" ?>
+<metadados xmlns:xsi="http://www.w3.org/2001/XMLSchema-instance"
+           xsi:noNamespaceSchemaLocation="../.gradle/metadados.xsd">
+
+    <!--
+        Para mais informações sobre a criação e utilização da Tabela,
+        consulte a documentação oficial da Sankhya em: https://developer.sankhya.com.br/docs/03_dynamicform
+    -->
+
+    <table name="TPL_ATENDIMENTO" sequenceType="A" sequenceField="CODIGO">
+        <description>Tabela atendimento</description>
+        <primaryKey>
+            <field name="CODIGO"/>
+        </primaryKey>
+        <instances>
+            <instance name="TMP_Atendimento">
+                <description>Atendimento</description>
+            </instance>
+        </instances>
+        <fields>
+            <field name="CODIGO" dataType="INTEIRO" allowSearch="S" visibleOnSearch="S">
+                <description>Código</description>
+            </field>
+            <field name="DESCRICAO" dataType="TEXTO" allowSearch="S" visibleOnSearch="S" >
+                <description>Descrição</description>
+            </field>
+            <field name="CATEGORIA_ATENDIMENTO" dataType="TEXTO" allowSearch="S" visibleOnSearch="S" >
+                <description>Categoria do atendimento</description>
+            </field>
+            <field name="CODUSU" dataType="PESQUISA" targetInstance="Usuario" targetField="CODUSU" targetType="INTEIRO"  allowSearch="S" visibleOnSearch="S"   >
+                <description>Código usuário</description>
+                <expression><![CDATA[return $ctx_usuario_logado;]]></expression>
+            </field>
+            <field name="DATA_CRIACAO" dataType="DATA_HORA" allowSearch="S" visibleOnSearch="S" >
+                <description>Data de criação</description>
+                <expression><![CDATA[return $ctx_dh_atual;]]></expression>
+            </field>
+        </fields>
+    </table>
+
+
+</metadados>

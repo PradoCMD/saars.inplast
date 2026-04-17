@@ -564,6 +564,7 @@ select
     full_name,
     role,
     coalesce(meta_json->'company_scope', '[]'::jsonb) as company_scope,
+    coalesce(meta_json->'permissions', '{}'::jsonb) as permissions,
     password,
     is_active as active,
     created_at,
@@ -612,6 +613,7 @@ returning
     full_name,
     role,
     coalesce(meta_json->'company_scope', '[]'::jsonb) as company_scope,
+    coalesce(meta_json->'permissions', '{}'::jsonb) as permissions,
     password,
     is_active as active,
     created_at,
@@ -625,6 +627,7 @@ select
     full_name,
     role,
     coalesce(meta_json->'company_scope', '[]'::jsonb) as company_scope,
+    coalesce(meta_json->'permissions', '{}'::jsonb) as permissions,
     password,
     is_active as active,
     created_at,
@@ -633,6 +636,12 @@ from ops.app_user
 where lower(username) = lower(%s)
   and is_active
 limit 1
+"""
+
+APP_USER_DELETE_SQL = """
+delete from ops.app_user
+where lower(username) = lower(%s)
+returning username
 """
 
 APP_INTEGRATIONS_COUNT_SQL = """
@@ -646,6 +655,7 @@ select
     integration_name as name,
     integration_type,
     webhook_url,
+    coalesce(meta_json->>'target_source', '') as target_source,
     method,
     auth_type,
     auth_value,
@@ -721,6 +731,7 @@ returning
     integration_name as name,
     integration_type,
     webhook_url,
+    coalesce(meta_json->>'target_source', '') as target_source,
     method,
     auth_type,
     auth_value,

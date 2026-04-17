@@ -14,52 +14,182 @@ export default function SystemGovernance({
   onNavigate,
   accessToken
 }) {
-  const [activeTab, setActiveTab] = useState('integrations')
-  const [isAdding, setIsAdding] = useState(false)
-  const [editingId, setEditingId] = useState(null)
+  const [activeTab, setActiveTab] = useState('fontes') // 'integrations', 'fontes', 'users'
   const [saveBusy, setSaveBusy] = useState(false)
   
-  const [formData, setFormData] = useState({
-    name: '',
-    webhook_url: '',
-    integration_type: 'n8n_webhook_romaneios',
-    target_source: '',
-    active: true
+  // User Management State
+  const [isAddingUser, setIsAddingUser] = useState(false)
+  const [editingUsername, setEditingUsername] = useState(null)
+  const [userFormData, setUserFormData] = useState({
+    username: '',
+    full_name: '',
+    role: 'operator',
+    password: '',
+    active: true,
+    company_scope: '*',
+    permissions: {
+      cockpit: 'view',
+      kanban: 'view',
+      tracking: 'view',
+      programming: 'view',
+      sources: 'view',
+      system: 'view',
+      simulator: 'view'
+    }
   })
 
-  // Normalização de dados
-  const users = Array.isArray(usersState?.data?.items) ? usersState.data.items : []
-  const integrationsRaw = integrationsState?.data?.items || integrationsState?.data || []
-  const integrations = Array.isArray(integrationsRaw) ? integrationsRaw : []
-  const sources = Array.isArray(sourcesState?.data?.items) ? sourcesState.data.items : []
+  // Integrations Management State
+  const [isAdding, setIsAdding] = useState(false)
+  const [editingId, setEditingId] = useState(null)
+  const [formData, setFormData] = useState({
+    id: '',
+    name: '',
+    integration_type: 'n8n_webhook_romaneios',
+    webhook_url: '',
+    target_source: '',
+    active: true,
+    config: {}
+  })
+
+  const MODULES = [
+    { id: 'cockpit', label: 'Cockpit / Dashboard' },
+    { id: 'kanban', label: 'Kanban Romaneios' },
+    { id: 'tracking', label: 'Produção / Rastreamento' },
+    { id: 'programming', label: 'Programming Center' },
+    { id: 'sources', label: 'Fontes & Estoque' },
+    { id: 'system', label: 'Governança (Este Módulo)' },
+    { id: 'simulator', label: 'Simulador' }
+  ]
+
+  // Derivations
+  const users = usersState.data?.items || []
+  const integrations = integrationsState.data?.items || []
+  const sources = sourcesState.data?.items || []
 
   const stats = {
+    totalUsers: users.length,
+    registeredUsers: users.length,
+    activeIntegrations: integrations.filter(i => i && i.active).length,
     sources: sources.length,
-    okSources: sources.filter(s => s.freshness_status === 'ok').length,
-    activeIntegrations: integrations.filter(i => i.active).length,
-    registeredUsers: users.length
+    okSources: sources.filter(s => s && s.freshness_status === 'ok').length,
+    outdatedSources: sources.filter(s => s && s.freshness_status !== 'ok').length
   }
 
-  const handleEdit = (item) => {
-    setFormData({
-      id: item.id,
-      name: item.name,
-      webhook_url: item.webhook_url,
-      integration_type: item.integration_type,
-      target_source: item.target_source || '',
-      active: item.active
+
+  // Handlers - Users
+  const handleEditUser = (user) => {
+    setUserFormData({
+      username: user.username,
+      full_name: user.full_name,
+      role: user.role,
+      password: '',
+      active: user.active,
+      company_scope: Array.isArray(user.company_scope) ? user.company_scope.join(',') : user.company_scope || '*',
+      permissions: user.permissions || {
+        cockpit: 'view',
+        kanban: 'view',
+        tracking: 'view',
+        programming: 'view',
+        sources: 'view',
+        system: 'view',
+        simulator: 'view'
+      }
     })
-    setEditingId(item.id)
+    setEditingUsername(user.username)
+    setIsAddingUser(true)
+  }
+
+  const handleResetUserForm = () => {
+    setUserFormData({
+      username: '',
+      full_name: '',
+      role: 'operator',
+      password: '',
+      active: true,
+      company_scope: '*',
+      permissions: {
+        cockpit: 'view',
+        kanban: 'view',
+        tracking: 'view',
+        programming: 'view',
+        sources: 'view',
+        system: 'view',
+        simulator: 'view'
+      }
+    })
+    setEditingUsername(null)
+    setIsAddingUser(false)
+  }
+
+  const handleSaveUser = async (e) => {
+    e.preventDefault()
+    setSaveBusy(true)
+    try {
+      const payload = {
+        ...userFormData,
+        company_scope: userFormData.company_scope.split(',').map(s => s.trim())
+      }
+      const resp = await fetch('/api/pcp/users/save', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify(payload)
+      })
+      if (resp.ok) {
+        handleResetUserForm()
+        onRequestReload?.()
+      } else {
+        const err = await resp.json()
+        alert('Erro ao salvar usuário: ' + (err.detail || 'Falha desconhecida'))
+      }
+    } catch (err) {
+      alert('Erro de rede: ' + err.message)
+    } finally {
+      setSaveBusy(false)
+    }
+  }
+
+  const handleDeleteUser = async (username) => {
+    if (username === 'root') return alert('O usuário root é protegido.')
+    if (!window.confirm(`Excluir o usuário "${username}" permanentemente?`)) return
+    try {
+      const resp = await fetch('/api/pcp/users/delete', {
+        method: 'POST',
+        headers: { 
+          'Content-Type': 'application/json',
+          'Authorization': `Bearer ${accessToken}`
+        },
+        body: JSON.stringify({ username })
+      })
+      if (resp.ok) {
+        onRequestReload?.()
+      } else {
+        const err = await resp.json().catch(() => ({}))
+        alert('Erro ao excluir usuário: ' + (err.detail || err.error || 'Falha desconhecida'))
+      }
+    } catch (err) {
+      alert('Erro ao excluir: ' + err.message)
+    }
+  }
+
+  // Handlers - Integrations
+  const handleEdit = (intg) => {
+    setFormData(intg)
+    setEditingId(intg.id)
     setIsAdding(true)
   }
 
   const handleResetForm = () => {
     setFormData({
+      id: '',
       name: '',
-      webhook_url: '',
       integration_type: 'n8n_webhook_romaneios',
+      webhook_url: '',
       target_source: '',
-      active: true
+      active: true,
+      config: {}
     })
     setEditingId(null)
     setIsAdding(false)
@@ -82,7 +212,7 @@ export default function SystemGovernance({
         onRequestReload?.()
       } else {
         const err = await resp.json()
-        alert('Erro ao salvar: ' + (err.detail || 'Falha desconhecida'))
+        alert('Erro ao salvar integração: ' + (err.detail || 'Falha desconhecida'))
       }
     } catch (err) {
       alert('Erro de rede: ' + err.message)
@@ -92,7 +222,7 @@ export default function SystemGovernance({
   }
 
   const handleDelete = async (id) => {
-    if (!window.confirm('Excluir esta integração permanentemente?')) return
+    if (!window.confirm(`Excluir a integração "${id}"?`)) return
     try {
       const resp = await fetch('/api/pcp/integrations/delete', {
         method: 'POST',
@@ -108,6 +238,17 @@ export default function SystemGovernance({
     }
   }
 
+  const togglePermission = (modId, level) => {
+    setUserFormData(prev => ({
+      ...prev,
+      permissions: {
+        ...prev.permissions,
+        [modId]: level
+      }
+    }))
+  }
+
+
   return (
     <div className="governance-page animate-in">
       <header className="page-header premium-header">
@@ -120,7 +261,8 @@ export default function SystemGovernance({
         <div className="metrics-grid" style={{ marginTop: '24px' }}>
           <div className="metric-card tone-ok">
             <small>Saúde das Fontes</small>
-            <strong>{stats.okSources}/{stats.sources}</strong>
+            <strong>{(stats.okSources || 0)}/{(stats.sources || 0)}</strong>
+
             <div className={`status-dot ${stats.okSources === stats.sources ? 'ok' : 'warning'}`}></div>
           </div>
           <div className="metric-card tone-info">
@@ -206,7 +348,12 @@ export default function SystemGovernance({
                       onChange={e => setFormData({...formData, target_source: e.target.value})}
                     >
                       <option value="">Todas as fontes da área</option>
-                      {sources.map(s => <option key={s.source_code} value={s.source_code}>{s.source_name}</option>)}
+                      {sources.map(s => (
+                        <option key={s?.source_code || Math.random()} value={s?.source_code || ''}>
+                          {s?.source_name || s?.source_code || 'Fonte sem nome'}
+                        </option>
+                      ))}
+
                     </select>
                   </div>
                   <div className="form-group" style={{ display: 'flex', alignItems: 'center', gap: '10px' }}>
@@ -255,29 +402,30 @@ export default function SystemGovernance({
                       </tr>
                     </thead>
                     <tbody>
-                      {integrations.map(item => (
-                        <tr key={item.id}>
+                      {(integrations || []).map((item, idx) => (
+                        <tr key={item?.id || idx}>
                           <td>
-                            <strong>{item.name}</strong>
-                            <small style={{ display: 'block', opacity: 0.5 }}>{item.id}</small>
+                            <strong>{item?.name || 'Integração s/ nome'}</strong>
+                            <small style={{ display: 'block', opacity: 0.5 }}>{item?.id || '-'}</small>
                           </td>
-                          <td><span className="tag info">{item.integration_type.replace('n8n_webhook_', '')}</span></td>
-                          <td><code style={{ fontSize: '11px', color: 'var(--accent-primary)' }}>{item.webhook_url}</code></td>
+                          <td><span className="tag info">{(item?.integration_type || '').replace('n8n_webhook_', '') || 'Custom'}</span></td>
+                          <td><code style={{ fontSize: '11px', color: 'var(--accent-primary)' }}>{item?.webhook_url || '-'}</code></td>
                           <td>
-                            <span className={`status-pill ${item.active ? 'ok' : 'error'}`}>
-                              {item.active ? 'OPERANDO' : 'PAUSADO'}
+                            <span className={`status-pill ${item?.active ? 'ok' : 'error'}`}>
+                              {item?.active ? 'OPERANDO' : 'PAUSADO'}
                             </span>
                           </td>
                           <td style={{ display: 'flex', gap: '8px' }}>
                             <button className="btn-logout-minimal" style={{ color: 'var(--accent-primary)', borderColor: 'var(--line-soft)' }} onClick={() => handleEdit(item)}>
                               <FiZap />
                             </button>
-                            <button className="btn-logout-minimal" onClick={() => handleDelete(item.id)}>
+                            <button className="btn-logout-minimal" onClick={() => handleDelete(item?.id)}>
                               <FiTrash2 />
                             </button>
                           </td>
                         </tr>
                       ))}
+
                     </tbody>
                   </table>
                 </div>
@@ -300,31 +448,193 @@ export default function SystemGovernance({
         )}
 
         {activeTab === 'users' && (
-          <div className="glass-panel" style={{ padding: '24px' }}>
-             <div className="panel-header" style={{ marginBottom: '24px' }}>
-              <h3>Controle de Acessos</h3>
-              <span>Lista de usuários com permissões específicas no shell oficial.</span>
-            </div>
-            <table className="data-table">
-              <thead>
-                <tr>
-                  <th>Codinome</th>
-                  <th>Cargo / Papel</th>
-                  <th>Escopo Geográfico</th>
-                  <th>Estado</th>
-                </tr>
-              </thead>
-              <tbody>
-                {users.map(u => (
-                  <tr key={u.username}>
-                    <td><FiUsers style={{ marginRight: '8px', opacity: 0.5 }} /> <strong>{u.username}</strong></td>
-                    <td><span className="tag info">{u.role}</span></td>
-                    <td>{u.company_scope || 'Global'}</td>
-                    <td><span className="status-pill ok">AUTORIZADO</span></td>
-                  </tr>
-                ))}
-              </tbody>
-            </table>
+          <div className="users-view">
+            {isAddingUser ? (
+              <div className="glass-panel animate-in" style={{ padding: '32px', marginBottom: '24px' }}>
+                <div className="panel-header" style={{ marginBottom: '24px' }}>
+                  <h3>{editingUsername ? 'Editar Usuário' : 'Novo Usuário do Sistema'}</h3>
+                  <button className="btn-logout-minimal" onClick={handleResetUserForm}><FiX /></button>
+                </div>
+                <form className="premium-form" onSubmit={handleSaveUser}>
+                  <div style={{ display: 'grid', gridTemplateColumns: '1fr 1fr', gap: '20px' }}>
+                    <div className="form-group">
+                      <label>ID / Username</label>
+                      <input 
+                        type="text" 
+                        required 
+                        disabled={!!editingUsername}
+                        value={userFormData.username}
+                        onChange={e => setUserFormData({...userFormData, username: e.target.value})}
+                        placeholder="Ex: joao.fabrica"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Nome Completo</label>
+                      <input 
+                        type="text" 
+                        required 
+                        value={userFormData.full_name}
+                        onChange={e => setUserFormData({...userFormData, full_name: e.target.value})}
+                        placeholder="Ex: João da Silva"
+                      />
+                    </div>
+                    <div className="form-group">
+                      <label>Perfil de Acesso (Base)</label>
+                      <select 
+                        value={userFormData.role}
+                        onChange={e => setUserFormData({...userFormData, role: e.target.value})}
+                      >
+                        <option value="operator">Operador / Apontamento</option>
+                        <option value="manager">Gestor / Planejador</option>
+                        <option value="root">Administrador Full</option>
+                      </select>
+                    </div>
+                    <div className="form-group">
+                      <label>Senha {editingUsername ? '(vazio para manter)' : ''}</label>
+                      <input 
+                        type="password" 
+                        required={!editingUsername}
+                        value={userFormData.password}
+                        onChange={e => setUserFormData({...userFormData, password: e.target.value})}
+                        placeholder="••••••••"
+                      />
+                    </div>
+                    <div className="form-group" style={{ gridColumn: 'span 2' }}>
+                      <label>Escopo de Empresas (Separado por vírgula ou '*' para todas)</label>
+                      <input 
+                        type="text" 
+                        value={userFormData.company_scope}
+                        onChange={e => setUserFormData({...userFormData, company_scope: e.target.value})}
+                        placeholder="INPLAST, RECICLA"
+                      />
+                    </div>
+                  </div>
+
+                  <div className="permission-matrix" style={{ marginTop: '32px' }}>
+                    <h4 style={{ marginBottom: '16px', display: 'flex', alignItems: 'center', gap: '8px' }}>
+                      <FiShield style={{ color: 'var(--brand-primary)' }} /> Matriz de Permissões por Módulo
+                    </h4>
+                    <div className="data-table-wrapper" style={{ border: '1px solid rgba(255,255,255,0.05)', borderRadius: '12px' }}>
+                      <table className="data-table">
+                        <thead>
+                          <tr>
+                            <th>Módulo Operacional</th>
+                            <th style={{ textAlign: 'center' }}>Nenhum</th>
+                            <th style={{ textAlign: 'center' }}>Visualizar</th>
+                            <th style={{ textAlign: 'center' }}>Editar / Operar</th>
+                          </tr>
+                        </thead>
+                        <tbody>
+                          {MODULES.map(mod => (
+                            <tr key={mod.id}>
+                              <td><strong>{mod.label}</strong></td>
+                              <td style={{ textAlign: 'center' }}>
+                                <input 
+                                  type="radio" 
+                                  name={`perm-${mod.id}`} 
+                                  checked={userFormData.permissions[mod.id] === 'none'} 
+                                  onChange={() => togglePermission(mod.id, 'none')}
+                                />
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <input 
+                                  type="radio" 
+                                  name={`perm-${mod.id}`} 
+                                  checked={userFormData.permissions[mod.id] === 'view'} 
+                                  onChange={() => togglePermission(mod.id, 'view')}
+                                />
+                              </td>
+                              <td style={{ textAlign: 'center' }}>
+                                <input 
+                                  type="radio" 
+                                  name={`perm-${mod.id}`} 
+                                  checked={userFormData.permissions[mod.id] === 'edit'} 
+                                  onChange={() => togglePermission(mod.id, 'edit')}
+                                />
+                              </td>
+                            </tr>
+                          ))}
+                        </tbody>
+                      </table>
+                    </div>
+                  </div>
+
+                  <div className="form-actions" style={{ display: 'flex', gap: '12px', marginTop: '32px' }}>
+                    <button type="submit" className="btn btn-primary" disabled={saveBusy}>
+                      <FiSave /> {saveBusy ? 'Gravando...' : 'Salvar Usuário'}
+                    </button>
+                    <button type="button" className="btn btn-secondary" onClick={handleResetUserForm}>Cancelar</button>
+                  </div>
+                </form>
+              </div>
+            ) : (
+              <div className="glass-panel" style={{ padding: '24px' }}>
+                <div className="panel-header" style={{ marginBottom: '24px' }}>
+                  <div className="header-info">
+                    <h3>Gestão de Autoridades</h3>
+                    <span>Controle central de quem pode ver e o que pode editar.</span>
+                  </div>
+                  <button className="btn btn-primary" onClick={() => setIsAddingUser(true)}>
+                    <FiPlus /> Novo Usuário
+                  </button>
+                </div>
+                <div className="data-table-wrapper">
+                  <table className="data-table">
+                    <thead>
+                      <tr>
+                        <th>Usuário</th>
+                        <th>Perfil</th>
+                        <th>Escopo</th>
+                        <th>Status</th>
+                        <th>Ações</th>
+                      </tr>
+                    </thead>
+                    <tbody>
+                      {(users || []).map((u, idx) => (
+                        <tr key={u?.username || idx}>
+                          <td>
+                            <div style={{ display: 'flex', alignItems: 'center', gap: '12px' }}>
+                              <div className="user-avatar-mini" style={{ width: '32px', height: '32px', borderRadius: '50%', background: 'rgba(var(--brand-primary-rgb), 0.1)', display: 'flex', alignItems: 'center', justifyContent: 'center', color: 'var(--brand-primary)', fontWeight: 700 }}>
+                                {(u?.username || '?').substring(0, 1).toUpperCase()}
+                              </div>
+
+                              <div>
+                                <strong>{u?.full_name || u?.username || 'Usuário s/ nome'}</strong>
+                                <small style={{ display: 'block', opacity: 0.5 }}>@{u?.username || 'unknown'}</small>
+                              </div>
+                            </div>
+                          </td>
+                          <td><span className={`tag ${u?.role === 'root' ? 'high' : 'info'}`}>{String(u?.role || 'operator').toUpperCase()}</span></td>
+                          <td>
+                            <div style={{ display: 'flex', flexWrap: 'wrap', gap: '4px' }}>
+                              {(Array.isArray(u?.company_scope) ? u.company_scope : [u?.company_scope || '*']).map((s, sIdx) => (
+                                <span key={s || sIdx} className="status-pill mini" style={{ background: 'rgba(255,255,255,0.05)', border: '1px solid rgba(255,255,255,0.1)' }}>{s}</span>
+                              ))}
+                            </div>
+                          </td>
+                          <td>
+                            <span className={`status-pill ${u?.active ? 'ok' : 'error'}`}>
+                              {u?.active ? 'AUTORIZADO' : 'INATIVO'}
+                            </span>
+                          </td>
+                          <td style={{ display: 'flex', gap: '8px' }}>
+                            <button className="btn-logout-minimal" style={{ color: 'var(--accent-primary)', borderColor: 'var(--line-soft)' }} onClick={() => handleEditUser(u)}>
+                              <FiZap />
+                            </button>
+                            {u?.username !== 'root' && (
+                              <button className="btn-logout-minimal" onClick={() => handleDeleteUser(u?.username)}>
+                                <FiTrash2 />
+                              </button>
+                            )}
+                          </td>
+                        </tr>
+                      ))}
+
+                    </tbody>
+                  </table>
+                </div>
+              </div>
+            )}
           </div>
         )}
       </div>

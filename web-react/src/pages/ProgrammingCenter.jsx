@@ -282,12 +282,7 @@ function ProgrammingCenter({
       <section className="ops-hero">
         <div className="ops-hero-main">
           <span className="ops-kicker">Programação premium</span>
-          <h2>Agenda de produção com leitura rápida de capacidade, conflito e pressão OEM.</h2>
-          <p>
-            Esta superfície junta a fila autenticada de programação com o portfólio pressionado do OEM e o catálogo de regras
-            industriais. O objetivo não é só listar OPs, mas mostrar onde a agenda está coerente, onde está cega e qual célula
-            puxa a próxima decisão.
-          </p>
+          <h2>Agenda consolidada e visão de capacidade.</h2>
           <div className="ops-meta-row">
             <span><FiClock /> Horizonte ativo: {filteredProgramming.length ? formatDateTime(filteredProgramming[0].planned_start_at) : 'Sem slots'}</span>
             <span><FiLayers /> Escopo visível: {scopeLabel}</span>
@@ -306,7 +301,6 @@ function ProgrammingCenter({
           <DonutGauge
             value={coveragePercent}
             label="agendas com regra"
-            detail="SKU com regra catalogada ganha mais confiança na leitura de célula e capacidade."
             tone={coveragePercent >= 75 ? 'ok' : coveragePercent >= 40 ? 'warning' : 'high'}
           />
         </div>
@@ -361,7 +355,6 @@ function ProgrammingCenter({
             </span>
           </div>
           <Sparkline values={quantityTrend} tone="info" />
-          <p>O gráfico sobe e desce pela própria sequência planejada, ajudando a enxergar onde a agenda concentra lote pesado.</p>
         </article>
 
         <article className="ops-card">
@@ -440,9 +433,6 @@ function ProgrammingCenter({
                     </div>
                     <span className="ops-tone-pill tone-info">{lane.averageLeadHours.toFixed(1)} h</span>
                   </header>
-                  <p>
-                    {formatCompactNumber(lane.totalQuantity)} unidades planejadas com leitura premium de sequência e contexto.
-                  </p>
                   <div className="ops-slot-list" style={{ marginTop: 16 }}>
                     {lane.items.map((item) => (
                       <article key={item.schedule_key} className={`ops-slot-card tone-${item.notes ? 'warning' : 'ok'}`}>
@@ -510,9 +500,6 @@ function ProgrammingCenter({
                 {canWrite ? 'escrita liberada' : 'somente leitura'}
               </span>
             </div>
-            <p className="ops-hint" style={{ marginTop: 6 }}>
-              Preencha os campos abaixo para planejar o lote na capacidade atual.
-            </p>
 
             <form onSubmit={handleSubmit} className="ops-form-grid" style={{ marginTop: 18 }}>
               <label>

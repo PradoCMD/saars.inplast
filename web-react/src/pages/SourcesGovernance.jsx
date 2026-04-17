@@ -374,16 +374,11 @@ function SourcesGovernance({
           <div className="cockpit-kicker">Governança de Fontes</div>
           <h2>
             {sourceSummary.blocked
-              ? 'Snapshot degradado exige ação sobre integrações críticas.'
+              ? 'Ação exigida nas integrações críticas.'
               : sourceSummary.attention || snapshotStale
-                ? 'Leitura ainda utilizável, mas com fallback explícito e cautela.'
-                : 'Integridade estável para operar com confiança no shell oficial.'}
+                ? 'Leitura com fallback explícito e cautela.'
+                : 'Integridade estável.'}
           </h2>
-          <p>
-            Esta superfície deixa claro quando o shell lê um snapshot atual e quando depende do último snapshot
-            válido disponível. Em vez de esconder stale, partial ou missing, ela separa o que continua seguro do
-            que precisa de sincronização ou investigação.
-          </p>
 
           <div className="cockpit-hero-meta">
             <span>
@@ -412,13 +407,6 @@ function SourcesGovernance({
                   ? 'Stale but usable'
                   : 'Fluxo sob controle'}
           </strong>
-          <p>
-            {sourceSummary.blocked
-              ? 'Existem fontes sem carga válida ou com falha explícita. A operação deve usar o snapshot atual com cautela e rastrear a revalidação.'
-              : sourceSummary.attention || snapshotStale
-                ? 'Há atraso ou frescor degradado. O shell continua útil, mas o fallback precisa ficar visível para a tomada de decisão.'
-                : 'As fontes monitoradas estão estáveis e a leitura central não apresenta degradação relevante.'}
-          </p>
 
           <button
             type="button"
@@ -429,12 +417,6 @@ function SourcesGovernance({
             {canSyncSources ? <FiRefreshCw className={syncBusy ? 'spin' : ''} /> : <FiLock />}
             {syncBusy ? 'Sincronizando fontes...' : canSyncSources ? 'Sincronizar todas as fontes' : 'Sync bloqueado por papel'}
           </button>
-
-          <span className="sources-sync-note">
-            {canSyncSources
-              ? 'A sincronização continua sendo ação real de sistema. Use o sync por fonte abaixo quando o problema for isolado.'
-              : 'Seu papel acompanha saúde e alertas, mas não pode disparar sincronização a partir desta tela.'}
-          </span>
         </aside>
       </section>
 
@@ -581,23 +563,6 @@ function SourcesGovernance({
             </div>
 
             <CommandDeck items={moduleImpactItems} />
-
-            <div className="sources-contract-list">
-              <article>
-                <strong>Último snapshot válido continua explícito</strong>
-                <p>
-                  {snapshotStale
-                    ? 'O shell está apoiado no último snapshot válido disponível. Isso mantém a leitura acessível, mas com cautela explícita.'
-                    : 'O snapshot base ainda está dentro da janela operacional esperada e não depende de fallback degradado.'}
-                </p>
-              </article>
-              <article>
-                <strong>Escopo do shell não redefine a saúde</strong>
-                <p>
-                  O badge de escopo continua visível, mas a saúde das fontes não é recortada por empresa nesta superfície. Isso evita sugerir um filtro que o sistema atual não sustenta.
-                </p>
-              </article>
-            </div>
           </div>
         </div>
       </section>

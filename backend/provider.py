@@ -24,12 +24,23 @@ from .source_sync import (
     run_parser_envelope,
 )
 
+DEFAULT_USER_PERMISSIONS = {
+    "cockpit": "edit",
+    "kanban": "edit",
+    "tracking": "edit",
+    "programming": "edit",
+    "sources": "edit",
+    "system": "edit",
+    "simulator": "edit",
+}
+
 DEFAULT_APP_USER = {
     "id": "user-root",
     "username": "root",
     "full_name": "Administrador Root",
     "role": "root",
     "company_scope": ["*"],
+    "permissions": {**DEFAULT_USER_PERMISSIONS},
     "password": "root@123",
     "active": True,
     "created_at": "2026-04-01T00:00:00.000Z",
@@ -41,6 +52,7 @@ DEFAULT_APP_INTEGRATION = {
     "name": "Romaneios N8N",
     "integration_type": "n8n_webhook_romaneios",
     "webhook_url": "",
+    "target_source": "",
     "method": "POST",
     "auth_type": "none",
     "auth_value": "",
@@ -59,6 +71,7 @@ DEFAULT_APP_APONTAMENTO_INTEGRATION = {
     "name": "Apontamento N8N",
     "integration_type": "n8n_webhook_apontamento",
     "webhook_url": "",
+    "target_source": "",
     "method": "POST",
     "auth_type": "none",
     "auth_value": "",
@@ -86,6 +99,9 @@ LEGACY_ROLE_ALIASES = {
     "apontamento": "operator",
     "planner": "manager",
     "pcp": "manager",
+}
+LEGACY_INTEGRATION_TYPE_ALIASES = {
+    "n8n_webhook_romaneio": "n8n_webhook_romaneios",
 }
 
 
@@ -134,6 +150,34 @@ def _normalize_user_role(value: Any, *, username: str = "") -> str:
 
 def _normalize_company_code_value(value: Any) -> str:
     return str(value or "").strip().upper()
+
+
+def _normalize_permission_level(value: Any) -> str:
+    normalized = str(value or "").strip().lower()
+    if normalized in {"none", "view", "edit"}:
+        return normalized
+    return "view"
+
+
+def _normalize_user_permissions(raw: Any, *, role: str) -> dict[str, str]:
+    if role == "root":
+        return {**DEFAULT_USER_PERMISSIONS}
+
+    defaults = {module: "view" for module in DEFAULT_USER_PERMISSIONS}
+    if not isinstance(raw, dict):
+        return defaults
+
+    normalized: dict[str, str] = {}
+    for module_name in DEFAULT_USER_PERMISSIONS:
+        normalized[module_name] = _normalize_permission_level(raw.get(module_name, defaults[module_name]))
+    return normalized
+
+
+def _normalize_integration_type(value: Any) -> str:
+    normalized = str(value or DEFAULT_APP_INTEGRATION["integration_type"]).strip().lower()
+    if not normalized:
+        normalized = DEFAULT_APP_INTEGRATION["integration_type"]
+    return LEGACY_INTEGRATION_TYPE_ALIASES.get(normalized, normalized)
 
 
 def _is_password_hash(value: Any) -> bool:
@@ -238,12 +282,26 @@ def _coerce_user_record(raw: dict[str, Any]) -> dict[str, Any]:
         role=role,
         username=username,
     )
+    
+    permissions = raw.get("permissions")
+    if not permissions and raw.get("meta_json"):
+        try:
+            meta = raw.get("meta_json")
+            if isinstance(meta, str):
+                meta = json.loads(meta)
+            permissions = meta.get("permissions")
+        except:
+            permissions = None
+            
+    permissions = _normalize_user_permissions(permissions, role=role)
+
     return {
         "id": str(raw.get("id") or f"user-{username}"),
         "username": username,
         "full_name": str(raw.get("full_name") or raw.get("username") or "").strip(),
         "role": role,
         "company_scope": company_scope,
+        "permissions": permissions,
         "password": _normalize_password(raw.get("password")),
         "active": _normalize_bool(raw.get("active", True)),
         "created_at": created_at,
@@ -322,7 +380,7 @@ def _integration_id_for(raw: dict[str, Any]) -> str:
     # Gera ID único para evitar colisões no mock/arquivos
     import time
     timestamp = int(time.time())
-    integration_type = str(raw.get("integration_type") or "custom").strip().lower()
+    integration_type = _normalize_integration_type(raw.get("integration_type") or "custom")
     slug = re.sub(r"[^a-z0-9]+", "-", integration_type).strip("-") or "custom"
     return f"integration-{slug}-{timestamp}"
 
@@ -331,12 +389,21 @@ def _coerce_integration_record(raw: dict[str, Any]) -> dict[str, Any]:
     created_at = str(raw.get("created_at") or datetime.now(timezone.utc).isoformat())
     auth_value = str(raw.get("auth_value") or "").strip()
     auth_type = str(raw.get("auth_type") or ("bearer" if auth_value else "none")).strip().lower() or "none"
+    target_source = str(raw.get("target_source") or "").strip()
+    if not target_source and raw.get("meta_json"):
+        try:
+            meta = raw.get("meta_json")
+            if isinstance(meta, str):
+                meta = json.loads(meta)
+            target_source = str((meta or {}).get("target_source") or "").strip()
+        except Exception:  # noqa: BLE001
+            target_source = ""
     return {
         "id": _integration_id_for(raw),
         "name": str(raw.get("name") or "Integração").strip() or "Integração",
-        "integration_type": str(raw.get("integration_type") or DEFAULT_APP_INTEGRATION["integration_type"]).strip()
-        or DEFAULT_APP_INTEGRATION["integration_type"],
+        "integration_type": _normalize_integration_type(raw.get("integration_type")),
         "webhook_url": str(raw.get("webhook_url") or "").strip(),
+        "target_source": target_source,
         "method": str(raw.get("method") or "POST").strip().upper() or "POST",
         "auth_type": auth_type,
         "auth_value": auth_value,
@@ -699,6 +766,10 @@ class DataProvider(ABC):
         raise NotImplementedError
 
     @abstractmethod
+    def delete_user(self, payload: dict[str, Any]) -> dict[str, Any]:
+        raise NotImplementedError
+
+    @abstractmethod
     def save_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
         raise NotImplementedError
 
@@ -852,18 +923,46 @@ class MockProvider(DataProvider):
 
     def romaneios_kanban(self) -> dict[str, Any]:
         romaneios_payload = self.romaneios()
+        products_payload = self._read_json("painel.json").get("items", [])
+        
+        # Build lookup for stock
+        stock_lookup = {}
+        for p in products_payload:
+            sku = p.get("sku")
+            if sku:
+                stock_lookup[sku] = {
+                    "estoque_atual": p.get("estoque_atual", 0),
+                    "necessidade_producao": p.get("necessidade_producao", 0)
+                }
+
         romaneios = []
         for item in romaneios_payload.get("items", []):
             romaneio_code = str(item.get("romaneio") or "").strip()
             detail = self.romaneio_detail(romaneio_code) if romaneio_code else None
+            
+            # Enrich items with stock
+            detail_items = (detail or {}).get("items", [])
+            if not detail_items:
+                detail_items = item.get("items", [])
+            enriched_items = []
+            for d_item in detail_items:
+                sku = d_item.get("sku")
+                stock_data = stock_lookup.get(sku, {})
+                enriched_items.append({
+                    **d_item,
+                    "estoque_atual": stock_data.get("estoque_atual", d_item.get("estoque_atual", 0)),
+                    "necessidade_producao": stock_data.get("necessidade_producao", d_item.get("necessidade_producao", 0))
+                })
+                
             romaneios.append(
                 {
                     **item,
-                    "items": (detail or {}).get("items", []),
+                    "items": enriched_items,
                 }
             )
+            
         return {
-            "products": self._read_json("painel.json").get("items", []),
+            "products": products_payload,
             "romaneios": romaneios
         }
 
@@ -961,6 +1060,11 @@ class MockProvider(DataProvider):
                     if payload.get("company_scope") is not None
                     else (existing or {}).get("company_scope")
                 ),
+                "permissions": (
+                    payload.get("permissions")
+                    if payload.get("permissions") is not None
+                    else (existing or {}).get("permissions")
+                ),
                 "password": payload.get("password") or (existing or {}).get("password") or "",
                 "active": payload.get("active", (existing or {}).get("active", True)),
                 "created_at": (existing or {}).get("created_at") or datetime.now(timezone.utc).isoformat(),
@@ -974,9 +1078,25 @@ class MockProvider(DataProvider):
         persisted = save_app_users(self._users_path(), next_users)
         return {"status": "saved", "user": next_user, "items": persisted}
 
+    def delete_user(self, payload: dict[str, Any]) -> dict[str, Any]:
+        username = str(payload.get("username") or "").strip().lower()
+        if not username:
+            raise ValueError("Usuário obrigatório para exclusão.")
+        if username == "root":
+            raise ValueError("O usuário root não pode ser removido.")
+
+        users = load_app_users(self._users_path())
+        existing = next((item for item in users if item["username"] == username), None)
+        if not existing:
+            raise ValueError("Usuário não encontrado para exclusão.")
+
+        next_users = [item for item in users if item["username"] != username]
+        persisted = save_app_users(self._users_path(), next_users)
+        return {"status": "deleted", "items": persisted}
+
     def save_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
         integrations = load_app_integrations(self._integrations_path())
-        integration_type = str(payload.get("integration_type") or DEFAULT_APP_INTEGRATION["integration_type"]).strip()
+        integration_type = _normalize_integration_type(payload.get("integration_type"))
         integration_id = _integration_id_for(payload)
         existing = next(
             (
@@ -1178,8 +1298,8 @@ class MockProvider(DataProvider):
         source_rows = [
             {"source_code": "estoque_acabado_atual", "source_area": "EXPEDICAO", "contract_type": "google_sheets_published", "published_url_hint": self.settings.acabado_published_url},
             {"source_code": "estoque_intermediario_atual", "source_area": "PRODUCAO", "contract_type": "google_sheets_published", "published_url_hint": self.settings.intermediario_published_url},
-            {"source_code": "estoque_materia_prima_almoxarifado", "source_area": "ALMOXERIFADO", "contract_type": "google_sheets_published", "published_url_hint": self.settings.almox_published_url},
-            {"source_code": "estoque_componente_almoxarifado", "source_area": "ALMOXERIFADO", "contract_type": "google_sheets_published", "published_url_hint": self.settings.almox_published_url},
+            {"source_code": "estoque_materia_prima_almoxarifado", "source_area": "ALMOXARIFADO", "contract_type": "google_sheets_published", "published_url_hint": self.settings.almox_published_url, "workbook_path_hint": self.settings.almox_workbook},
+            {"source_code": "estoque_componente_almoxarifado", "source_area": "ALMOXARIFADO", "contract_type": "google_sheets_published", "published_url_hint": self.settings.almox_published_url, "workbook_path_hint": self.settings.almox_workbook},
         ]
 
         for row in source_rows:
@@ -1187,10 +1307,6 @@ class MockProvider(DataProvider):
             if requested_codes and source_code not in requested_codes:
                 continue
             
-            # Se não tiver URL, ignora (exceto se tiver fallback local no parser)
-            if not row.get("published_url_hint") and not self.settings.almox_workbook:
-                continue
-                
             try:
                 print(f"[MOCK-SYNC] Processando fonte real: {source_code}")
                 source_request = build_source_request(row, self.settings)
@@ -1268,7 +1384,6 @@ class MockProvider(DataProvider):
                 
                 print(f"[MOCK-SYNC] Acionando webhook real do n8n: {hook.get('name')} -> {hook_url}")
                 from urllib.request import Request, urlopen
-                import json
                 req = Request(hook_url, method="POST")
                 req.add_header("Content-Type", "application/json")
                 
@@ -1502,7 +1617,13 @@ class PostgresProvider(DataProvider):
                 normalized["role"],
                 normalized["password"],
                 normalized["active"],
-                json.dumps({"company_scope": normalized["company_scope"]}, ensure_ascii=False),
+                json.dumps(
+                    {
+                        "company_scope": normalized["company_scope"],
+                        "permissions": normalized["permissions"],
+                    },
+                    ensure_ascii=False,
+                ),
                 normalized["created_at"],
                 normalized["updated_at"],
             ),
@@ -1527,7 +1648,12 @@ class PostgresProvider(DataProvider):
                 normalized["last_status"],
                 _timestamp_or_none(normalized["last_synced_at"]),
                 normalized["last_error"],
-                json.dumps({}, ensure_ascii=False),
+                json.dumps(
+                    {
+                        "target_source": normalized.get("target_source") or "",
+                    },
+                    ensure_ascii=False,
+                ),
                 normalized["created_at"],
                 normalized["updated_at"],
             ),
@@ -1888,6 +2014,11 @@ class PostgresProvider(DataProvider):
                     if payload.get("company_scope") is not None
                     else (existing or {}).get("company_scope")
                 ),
+                "permissions": (
+                    payload.get("permissions")
+                    if payload.get("permissions") is not None
+                    else (existing or {}).get("permissions")
+                ),
                 "password": payload.get("password") or (existing or {}).get("password") or "",
                 "active": payload.get("active", (existing or {}).get("active", True)),
                 "created_at": (existing or {}).get("created_at") or datetime.now(timezone.utc).isoformat(),
@@ -1902,9 +2033,26 @@ class PostgresProvider(DataProvider):
             persisted = self._fetchall(queries.APP_USERS_SELECT_SQL)
         return {"status": "saved", "user": persisted_user, "items": persisted}
 
+    def delete_user(self, payload: dict[str, Any]) -> dict[str, Any]:
+        username = str(payload.get("username") or "").strip().lower()
+        if not username:
+            raise ValueError("Usuário obrigatório para exclusão.")
+        if username == "root":
+            raise ValueError("O usuário root não pode ser removido.")
+
+        deleted = self._fetchone(queries.APP_USER_DELETE_SQL, (username,), write=True)
+        if not deleted:
+            raise ValueError("Usuário não encontrado para exclusão.")
+
+        persisted = self._fetchall(queries.APP_USERS_SELECT_SQL)
+        if not any(item["username"] == "root" for item in persisted):
+            self._upsert_user_record(DEFAULT_APP_USER)
+            persisted = self._fetchall(queries.APP_USERS_SELECT_SQL)
+        return {"status": "deleted", "items": persisted}
+
     def save_integration(self, payload: dict[str, Any]) -> dict[str, Any]:
         integrations = self._fetchall(queries.APP_INTEGRATIONS_SELECT_SQL)
-        integration_type = str(payload.get("integration_type") or DEFAULT_APP_INTEGRATION["integration_type"]).strip()
+        integration_type = _normalize_integration_type(payload.get("integration_type"))
         integration_id = _integration_id_for(payload)
         existing = next(
             (
@@ -2169,24 +2317,35 @@ class PostgresProvider(DataProvider):
             except Exception as exc:  # noqa: BLE001
                 errors.append({"source_code": source_code, "error": str(exc)})
 
-        # --- Gatilho n8n para Romaneios ---
+        # --- Gatilho n8n para sincronizações de Romaneios/Estoque ---
         try:
             integrations = self.integrations().get("items", [])
-            n8n_hooks = [i for i in integrations if i.get("integration_type") == "n8n_webhook_romaneios" and i.get("active")]
+            n8n_hooks = [
+                i
+                for i in integrations
+                if i.get("integration_type") in {"n8n_webhook_romaneios", "n8n_webhook_stock"} and i.get("active")
+            ]
             
             for hook in n8n_hooks:
+                hook_target = str(hook.get("target_source") or "").strip()
+                if requested_codes:
+                    is_targeted = hook_target and hook_target in requested_codes
+                    is_master_romaneio = (not hook_target) and any("romaneio" in code.lower() for code in requested_codes)
+                    if not (is_targeted or is_master_romaneio):
+                        continue
+
                 hook_url = hook.get("webhook_url")
                 if not hook_url:
                     continue
                 
                 print(f"[SYNC] Disparando webhook n8n: {hook.get('name')} -> {hook_url}")
                 from urllib.request import Request, urlopen
-                import json
                 req = Request(hook_url, method="POST")
                 req.add_header("Content-Type", "application/json")
                 
                 payload_n8n = json.dumps({
                     "event": "manual_sync_triggered",
+                    "mode": "postgres_provider",
                     "triggered_at": datetime.now(timezone.utc).isoformat(),
                     "requested_snapshot": snapshot_at
                 }).encode("utf-8")

@@ -1,0 +1,77 @@
+{
+  "name": "Atualização Planilha Logística - Bulk (PCP)",
+  "nodes": [
+    {
+      "parameters": {
+        "rule": {
+          "interval": [
+            {
+              "field": "hours",
+              "interval": 2
+            }
+          ]
+        }
+      },
+      "name": "Schedule Trigger",
+      "type": "n8n-nodes-base.scheduleTrigger",
+      "typeVersion": 1,
+      "position": [ 250, 300 ]
+    },
+    {
+      "parameters": {
+        "resource": "spreadsheet",
+        "operation": "read",
+        "documentId": "ID_DA_PLANILHA",
+        "sheetName": "Romaneios",
+        "range": "A:Z",
+        "options": {}
+      },
+      "name": "Ler Dados Atuais",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [ 450, 300 ]
+    },
+    {
+      "parameters": {
+        "mode": "runOnceForEachItem",
+        "jsCode": "const romaneios = $input.all();\n// Lógica para separar batches de romaneios sem onerar a API do Google.\nreturn romaneios;"
+      },
+      "name": "Code (Agrupador)",
+      "type": "n8n-nodes-base.code",
+      "typeVersion": 1,
+      "position": [ 650, 300 ]
+    },
+    {
+      "parameters": {
+        "resource": "spreadsheet",
+        "operation": "appendOrUpdate",
+        "documentId": "ID_DA_PLANILHA",
+        "sheetName": "Romaneios",
+        "dataMode": "autoMapInputData",
+        "options": {}
+      },
+      "executeOnce": true,
+      "name": "Google Sheets (Execute Once/Batch)",
+      "type": "n8n-nodes-base.googleSheets",
+      "typeVersion": 3,
+      "position": [ 850, 300 ]
+    }
+  ],
+  "connections": {
+    "Schedule Trigger": {
+      "main": [ [ { "node": "Ler Dados Atuais", "type": "main", "index": 0 } ] ]
+    },
+    "Ler Dados Atuais": {
+      "main": [ [ { "node": "Code (Agrupador)", "type": "main", "index": 0 } ] ]
+    },
+    "Code (Agrupador)": {
+      "main": [ [ { "node": "Google Sheets (Execute Once/Batch)", "type": "main", "index": 0 } ] ]
+    }
+  },
+  "active": false,
+  "settings": {
+    "saveExecutionProgress": true,
+    "saveManualExecutions": true,
+    "callerPolicy": "workflowsFromSameOwner"
+  }
+}

@@ -378,7 +378,6 @@ function FactorySimulator({
           <span className="ops-kicker">{meta.kicker}</span>
           <h2>{title}</h2>
           <p>{description}</p>
-          <p className="ops-hint">{meta.honesty}</p>
           <div className="ops-meta-row">
             <span><FiTrendingUp /> Demanda visível: {formatCompactNumber(totalDemand)} un</span>
             <span><FiSettings /> Máquinas ou frentes: {formatInteger(machineCards.length)}</span>
@@ -409,22 +408,18 @@ function FactorySimulator({
         <article className="ops-stat-card">
           <small>Backlog total</small>
           <strong>{formatCompactNumber(totalDemand)}</strong>
-          <p>{formatInteger(filteredQueueItems.length)} itens operacionais puxando esta visão.</p>
         </article>
         <article className="ops-stat-card">
           <small>Estoque disponível</small>
           <strong>{formatCompactNumber(totalStock)}</strong>
-          <p>{formatPercent(readyCoverage)} da fila já coberta sem novo giro produtivo.</p>
         </article>
         <article className="ops-stat-card">
           <small>Custo projetado</small>
           <strong>{formatCurrency(totalCost)}</strong>
-          <p>Leitura consolidada do impacto econômico nesta superfície.</p>
         </article>
         <article className="ops-stat-card">
           <small>Saúde de sync</small>
           <strong>{formatPercent(syncCoverage)}</strong>
-          <p>{formatInteger(resources.logs.data?.summary?.pending_sync || 0)} apontamentos seguem pendentes.</p>
         </article>
       </section>
 
@@ -438,7 +433,6 @@ function FactorySimulator({
             <span className={`ops-tone-pill tone-${meta.chartTone}`}>prioridade</span>
           </div>
           <Sparkline values={sparklineValues} tone={meta.chartTone} />
-          <p>O gráfico sobe conforme a fila concentra demanda nos itens mais pesados do recorte atual.</p>
         </article>
 
         <article className="ops-card">
@@ -519,11 +513,6 @@ function FactorySimulator({
                       {formatCompactNumber(lane.totalDemand)} un
                     </span>
                   </header>
-                  <p>
-                    {type === 'extrusion'
-                      ? `${lane.weightedHours} h equivalentes de janela sugerida a partir do backlog atual.`
-                      : `Sequência operacional conectada com ${formatCompactNumber(lane.totalDemand)} unidades planejadas.`}
-                  </p>
                   <div className="ops-slot-list" style={{ marginTop: 16 }}>
                     {lane.jobs.length ? lane.jobs.map((job) => (
                       <article
